@@ -1,26 +1,25 @@
 # Changelog
 
+## v8
+
+- Added reproducible full OpenNGC NGC/IC + addendum catalogue generation.
+- Added offline search across the generated catalogue and aliases.
+- Added adaptive DSO rendering for large catalogue performance.
+- Added OpenNGC details including catalogue ID, magnitude band, Hubble class,
+  position angle, surface brightness, redshift and radial velocity where known.
+- Rebuilt the NASA image downloader for arbitrary catalogue targets and large
+  resumable batches.
+- Added filtering, batching, dry-run/list modes, persistent state, reports,
+  improved NASA result scoring and safer media selection.
+- Updated service-worker cache and GitHub Pages workflow.
+- Added CC BY-SA 4.0 attribution and third-party notices.
+
 ## v7
 
-- Added a native WebGL sky dome with a local equirectangular Milky Way panorama.
-- Aligned the Milky Way texture with Galactic, equatorial, and horizontal coordinates.
-- Added a Milky Way brightness control and shared URL state.
-- Added local DSO photograph previews directly on the sky at catalogued RA/Dec positions.
-- Scaled DSO previews from angular size, field of view, and view depth.
-- Added a switch to disable DSO image previews independently of DSO markers.
-- Added a fallback calculated Galactic-plane overlay when WebGL or the texture is unavailable.
-- Updated the GitHub Pages workflow to publish the renderer and `assets` folder.
-- Updated the service worker to cache the new sky-dome assets offline.
-- Preserved all v6 image-panel and pointer-release fixes.
+- Added the local WebGL Milky Way dome.
+- Added projected DSO image previews and improved sky presentation.
 
-## v6
+## v6 and earlier
 
-- Added cache-proof `app-v6.js` entry point.
-- Fixed missing `#objectImage` and `#objectImageCaption` handling.
-- Added defensive creation of image UI elements for stale HTML.
-- Fixed pointer drag state remaining active after object selection or mouse release.
-- Added window-level pointer cleanup, lost pointer capture handling, mouse-button-loss handling, touch cancellation, and blur cleanup.
-- Updated service-worker strategy to network-first for application files and cache-first for local DSO images.
-- Updated GitHub Pages artifact action to `actions/upload-pages-artifact@v4`.
-- Added complete GitHub Pages workflow and image-index generation.
-- Included corrected NASA asset manifest parser.
+- Added local DSO image indexing, service-worker caching, native sky rendering,
+  time/location controls, offline search and GitHub Pages deployment support.

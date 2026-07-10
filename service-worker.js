@@ -1,13 +1,14 @@
 try{importScripts('./dso-images.js')}catch(e){}
-const CACHE='celestia-atlas-offline-v7';
+const CACHE='celestia-atlas-offline-v8';
 const CORE=[
   './',
   './index.html',
   './styles.css',
   './dso-images.js',
   './catalog.js',
+  './dso-catalog.js',
   './milky-way-renderer.js',
-  './app-v7.js',
+  './app-v8.js',
   './manifest.webmanifest',
   './assets/milky-way.webp'
 ];

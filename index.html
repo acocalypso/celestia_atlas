@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#050812">
-  <meta name="description" content="Celestia Atlas Offline v7 — a self-contained interactive sky atlas with no external services or libraries.">
+  <meta name="description" content="Celestia Atlas Offline v8 — a self-contained interactive sky atlas with no external services or libraries.">
   <title>Celestia Atlas Offline</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
@@ -104,7 +104,9 @@
       <p>This build uses a native WebGL sky-dome for the local Milky Way panorama and a custom Canvas celestial-sphere renderer for stars, constellations, labels, and deep-sky objects. It has no Aladin, Stellarium Web, Three.js, external fonts, remote imagery, or online catalog calls.</p>
       <div class="data-stats"><div><strong id="starCount">—</strong><span>local bright stars</span></div><div><strong id="dsoCount">—</strong><span>local deep-sky objects</span></div><div><strong id="constCount">—</strong><span>constellation figures</span></div></div>
       <h3>Data scope</h3>
-      <p>The compact catalog is designed for naked-eye navigation and popular telescope targets. Coordinates are J2000. The bundled Milky Way panorama is a locally generated visual representation aligned to Galactic coordinates. Local DSO photographs are projected at their catalogued sky positions when available. Object sketches remain schematic fallbacks.</p>
+      <p>The deployed build contains the OpenNGC NGC/IC catalogue and its addendum, merged with curated descriptions for prominent targets. Coordinates are J2000. To keep the all-sky view readable and fast, faint objects appear progressively as you zoom in, while every catalogue entry remains searchable offline. The bundled Milky Way panorama is a locally generated visual representation aligned to Galactic coordinates. Local DSO photographs are projected at their catalogued sky positions when available.</p>
+      <h3>Catalogue attribution</h3>
+      <p>Catalogue data is generated from <strong>OpenNGC</strong> by Mattia Verga and contributors under CC BY-SA 4.0. OpenNGC combines data from NED, HyperLEDA, SIMBAD, HEASARC, and Harold Corwin’s NGC/IC research. See <code>THIRD_PARTY_NOTICES.md</code> in the project.</p>
       <h3>Controls</h3>
       <p>Drag to pan, wheel or pinch to zoom, click an object for details, and use <kbd>/</kbd>, <kbd>G</kbd>, <kbd>C</kbd>, <kbd>D</kbd>, <kbd>L</kbd>, <kbd>H</kbd>, <kbd>N</kbd>, <kbd>R</kbd>, or <kbd>F</kbd>.</p>
       <h3>Offline installation</h3>
@@ -117,11 +119,12 @@
     </footer>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <div id="loadingScreen" class="loading-screen"><div class="loader-orbit"><span></span><span></span><i></i></div><p class="eyebrow">CELESTIA ATLAS</p><h1>Building the local sky</h1><p>No network connection required</p></div>
+    <div id="loadingScreen" class="loading-screen"><div class="loader-orbit"><span></span><span></span><i></i></div><p class="eyebrow">CELESTIA ATLAS</p><h1>Loading the offline sky catalogue</h1><p>No network connection required</p></div>
   </main>
   <script src="dso-images.js"></script>
   <script src="catalog.js"></script>
+  <script src="dso-catalog.js"></script>
   <script src="milky-way-renderer.js"></script>
-  <script src="app-v7.js"></script>
+  <script src="app-v8.js"></script>
 </body>
 </html>

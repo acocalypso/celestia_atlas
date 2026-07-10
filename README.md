@@ -1,162 +1,205 @@
-# Celestia Atlas Offline — Full v7 Project
+# Celestia Atlas Offline v8
 
-A self-contained browser sky atlas with a native WebGL Milky Way sky dome, a Canvas celestial-sphere renderer, offline star and DSO catalogs, constellation figures, observer-sky calculations, local DSO photographs, and GitHub Pages deployment.
+A self-contained browser planetarium with a local Milky Way dome, offline star
+catalogue, a comprehensive OpenNGC deep-sky catalogue, local DSO photographs,
+and no runtime astronomy services.
 
-## Highlights
+## What changed in v8
 
-- No Aladin, HiPS, remote sky viewer, API, CDN, analytics, or runtime network dependency.
-- Native WebGL Milky Way panorama aligned to Galactic, equatorial, and observer coordinates.
-- Local DSO photographs projected directly at their catalogued sky positions when zoomed in.
-- Local catalog search for stars, Messier/NGC objects, aliases, and coordinates.
-- Observer-sky and equatorial atlas modes.
-- Offline PWA caching through `service-worker.js`.
-- Automatic DSO image indexing during GitHub Pages deployment.
-- Robust pointer release handling to prevent the sky remaining in drag mode.
-- WebGL fallback to the original calculated Galactic-plane overlay when WebGL is unavailable.
+- The GitHub Pages build downloads and converts the pinned OpenNGC release into
+  a local browser catalogue.
+- NGC, IC, Messier cross-identifiers, common names, coordinates, object type,
+  magnitudes, angular sizes, Hubble class, redshift and radial velocity are
+  preserved when available.
+- Faint DSOs appear progressively as the field of view narrows, so the full
+  catalogue remains usable without covering the wide sky in thousands of marks.
+- Search covers the complete generated catalogue and its aliases offline.
+- The NASA image downloader now accepts any catalogue object, supports large
+  resumable batches, filtering, offsets, dry runs, reports and relevance scoring.
 
-## Run locally
+## Runtime privacy and offline behavior
 
-From the repository root:
+The deployed atlas makes no catalogue, tile, API, analytics or font requests.
+`dso-catalog.js`, the Milky Way panorama and all DSO images are ordinary local
+files cached by the service worker.
 
-```bash
-python serve.py
-```
+Online access is used only by optional **build tools**:
 
-Open `http://localhost:8000`.
+- `build_openngc_catalog.py` downloads the source CSV while building.
+- `fetch_nasa_dso_images.py` downloads selected publication images into the
+  repository.
 
-A local HTTP server is recommended because service workers are not active when opening `index.html` directly through `file://`.
+After those files are generated, the website remains offline-capable.
 
-## Milky Way sky dome
+## GitHub Pages deployment
 
-The bundled file is:
-
-```text
-assets/milky-way.webp
-```
-
-It is a local, procedurally generated 2:1 equirectangular Galactic-coordinate panorama. The WebGL renderer maps it onto the inside of the sky sphere and keeps it aligned while you pan, zoom, change time, switch coordinates, or move the observer.
-
-You can replace the file with another 2:1 Galactic-coordinate panorama. Keep the filename unchanged, then increase the service-worker cache version before deployment.
-
-## DSO images in the sky
-
-Put images in:
+In the repository, select:
 
 ```text
-images/dso/
+Settings → Pages → Source → GitHub Actions
 ```
 
-Recommended names:
+Push the project to `main`. The included workflow will:
 
-```text
-m31.webp
-m42.jpg
-m51.png
-m104.webp
-ngc253.jpg
-ngc5128.jpg
-```
+1. Download the pinned OpenNGC release.
+2. Generate `dso-catalog.js` and `data/openngc-catalog.json`.
+3. Rebuild the local DSO image index.
+4. Assemble and deploy the static Pages artifact.
 
-Supported formats: WebP, JPEG, PNG, and AVIF.
-
-Create an optional sidecar JSON file with the same basename:
-
-```json
-{
-  "object": ["M31", "NGC 224", "Andromeda Galaxy"],
-  "title": "Andromeda Galaxy",
-  "alt": "The Andromeda Galaxy and its dust lanes",
-  "credit": "NASA, ESA and collaborators",
-  "source": "https://example.org/source-page",
-  "license": "Review source usage terms"
-}
-```
-
-Then regenerate the local index:
-
-```bash
-python tools/build_dso_image_index.py
-```
-
-The same images are used in two places:
-
-1. The object details panel.
-2. The sky itself as softly blended previews at the correct RA/Dec when the field of view is below about 48°.
-
-The GitHub Actions workflow runs the indexer automatically before deployment.
-
-## NASA build-time downloader
-
-Download configured sample targets:
-
-```bash
-python tools/fetch_nasa_dso_images.py --all
-```
-
-Or selected objects:
-
-```bash
-python tools/fetch_nasa_dso_images.py M31 M51 M104
-```
-
-The downloader stores local copies and metadata. The atlas never contacts NASA at runtime. Review every generated source, credit, and licence before publishing.
-
-## GitHub Pages
-
-In the repository, open **Settings → Pages** and set the source to **GitHub Actions**.
-
-Push to `main`. The included workflow:
-
-1. Generates `dso-images.js`.
-2. Builds the `_site` artifact.
-3. Copies the WebGL renderer and Milky Way panorama.
-4. Copies local DSO images.
-5. Deploys the result to GitHub Pages.
-
-For the repository `acocalypso/celestia_atlas`, the expected URL is:
+The site address is normally:
 
 ```text
 https://acocalypso.github.io/celestia_atlas/
 ```
 
-## Updating an existing installation
+The committed `dso-catalog.js` is a small curated fallback. The complete file is
+created inside GitHub Actions. To commit the generated full catalogue as well,
+run the catalogue builder locally before `git add`.
 
-This release uses `app-v7.js` and cache `celestia-atlas-offline-v7` to bypass older cached builds. After deployment, load:
+## Build the full catalogue locally
 
-```text
-https://acocalypso.github.io/celestia_atlas/?build=v7
+Python 3.10 or newer is recommended:
+
+```bat
+python tools\build_openngc_catalog.py
 ```
 
-The browser console should show:
+The default source is pinned for reproducibility:
 
 ```text
-Celestia Atlas app build v7
+OpenNGC v20260501
 ```
 
-If an older release still appears, unregister the old service worker and clear site data once in browser developer tools.
+Choose another tag or branch explicitly:
+
+```bat
+python tools\build_openngc_catalog.py --version master
+```
+
+Generated files:
+
+```text
+dso-catalog.js
+data/openngc-catalog.json
+data/openngc-meta.json
+```
+
+## NASA image downloader v2
+
+Pillow is optional but strongly recommended for local WebP conversion:
+
+```bat
+python -m pip install pillow
+```
+
+Download named objects:
+
+```bat
+python tools\fetch_nasa_dso_images.py M31 "NGC 253" M42
+```
+
+Download the prominent-object set:
+
+```bat
+python tools\fetch_nasa_dso_images.py --popular
+```
+
+Download a batch of catalogue galaxies brighter than magnitude 11:
+
+```bat
+python tools\fetch_nasa_dso_images.py --all --types galaxy --mag-max 11 --missing --limit 100
+```
+
+Continue with the next batch:
+
+```bat
+python tools\fetch_nasa_dso_images.py --all --types galaxy --mag-max 11 --missing --offset 100 --limit 100
+```
+
+Preview a selection without network downloads:
+
+```bat
+python tools\fetch_nasa_dso_images.py --all --types PN --mag-max 13 --limit 50 --list
+```
+
+Useful flags:
+
+```text
+--missing             skip objects that already have an image
+--overwrite           replace existing image files
+--types galaxy,PN     filter by type text or OpenNGC type code
+--mag-max 12          restrict known magnitudes
+--offset 100          begin at a later point in the selection
+--limit 100           batch size; 0 means unlimited
+--skip-failed         skip objects in the persistent failure state
+--dry-run             show planned NASA searches without downloading
+--format webp|jpg     local output format
+--max-dimension 1920  resize limit
+```
+
+The tool writes:
+
+```text
+images/dso/<object>.webp
+images/dso/<object>.json
+images/dso/download-report.json
+images/dso/.nasa-download-state.json
+```
+
+The state and report files are ignored by Git. Successfully downloaded images
+and attribution JSON files should be committed.
+
+The NASA Image and Video Library is a publication archive, not an all-sky survey.
+It will not contain a suitable photograph for every NGC/IC entry. Missing
+results are logged and do not stop the batch.
+
+After adding images manually, rebuild the index with:
+
+```bat
+python tools\build_dso_image_index.py
+```
+
+## Local preview
+
+```bat
+python serve.py
+```
+
+Open:
+
+```text
+http://localhost:8000
+```
+
+Do not test service-worker behavior through `file://`; use localhost or HTTPS.
 
 ## Project structure
 
 ```text
-.
-├── .github/workflows/pages.yml
-├── .gitignore
-├── .nojekyll
-├── app.js
-├── app-v7.js
-├── assets/
-│   ├── milky-way.webp
-│   └── README.md
-├── catalog.js
-├── dso-images.js
-├── images/dso/
-├── index.html
-├── manifest.webmanifest
-├── milky-way-renderer.js
-├── service-worker.js
-├── serve.py
-├── styles.css
-└── tools/
-    ├── build_dso_image_index.py
-    └── fetch_nasa_dso_images.py
+index.html
+styles.css
+catalog.js                 compact bright-star + curated fallback data
+dso-catalog.js             generated complete OpenNGC browser catalogue
+app-v8.js                  main atlas engine
+app.js                     compatibility copy of the main engine
+milky-way-renderer.js      local WebGL sky dome
+service-worker.js
+manifest.webmanifest
+assets/milky-way.webp
+images/dso/
+data/
+tools/build_openngc_catalog.py
+tools/build_dso_image_index.py
+tools/fetch_nasa_dso_images.py
+.github/workflows/pages.yml
 ```
+
+## Data attribution
+
+OpenNGC catalogue data is by Mattia Verga and contributors and is licensed under
+CC BY-SA 4.0. Keep `THIRD_PARTY_NOTICES.md` and the in-app attribution when
+redistributing a generated catalogue.
+
+NASA image sidecars retain the source URL and credit returned by the NASA Image
+and Video Library. Review each source page before publication because a NASA
+site can host third-party material with separate rights.

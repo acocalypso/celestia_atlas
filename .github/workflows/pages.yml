@@ -15,6 +15,9 @@ concurrency:
   group: github-pages
   cancel-in-progress: true
 
+env:
+  OPENNGC_VERSION: v20260501
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -26,8 +29,25 @@ jobs:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Generate DSO image index
+      - name: Build complete offline OpenNGC catalogue
+        run: python tools/build_openngc_catalog.py --version "$OPENNGC_VERSION"
+
+      - name: Generate local DSO image index
         run: python tools/build_dso_image_index.py
+
+      - name: Validate generated files
+        run: |
+          test -s dso-catalog.js
+          test -s data/openngc-catalog.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          payload=json.loads(Path('data/openngc-catalog.json').read_text(encoding='utf-8'))
+          count=len(payload.get('objects', []))
+          print(f'OpenNGC objects: {count:,}')
+          if count < 1000:
+              raise SystemExit('Generated catalogue is unexpectedly small')
+          PY
 
       - name: Assemble static website
         run: |
@@ -35,14 +55,16 @@ jobs:
 
           cp index.html _site/
           cp app.js _site/
-          cp app-v7.js _site/
+          cp app-v8.js _site/
           cp milky-way-renderer.js _site/
           cp catalog.js _site/
+          cp dso-catalog.js _site/
           cp dso-images.js _site/
           cp styles.css _site/
           cp manifest.webmanifest _site/
           cp service-worker.js _site/
           cp .nojekyll _site/
+          cp THIRD_PARTY_NOTICES.md _site/
 
           if [ -d assets ]; then
             cp -R assets _site/assets
@@ -50,6 +72,10 @@ jobs:
 
           if [ -d images ]; then
             cp -R images _site/images
+          fi
+
+          if [ -d data ]; then
+            cp -R data _site/data
           fi
 
           echo "Deployment contents:"

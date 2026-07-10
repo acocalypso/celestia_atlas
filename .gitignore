@@ -1,5 +1,6 @@
 __pycache__/
-*.py[cod]
-.DS_Store
-Thumbs.db
+*.pyc
+.cache/
+images/dso/.nasa-download-state.json
+images/dso/download-report.json
 _site/

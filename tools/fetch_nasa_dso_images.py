@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
-"""Download selected NASA Image Library results into images/dso.
+"""Batch-download local DSO images from the NASA Image and Video Library.
 
-This is a build-time helper only. The atlas never contacts NASA at runtime.
-Review the generated metadata and source page before publishing because NASA
-occasionally hosts third-party copyrighted material.
+This is a build-time tool. The atlas never contacts NASA at runtime.
 
-Examples:
-  python tools/fetch_nasa_dso_images.py M31 M51 M104
-  python tools/fetch_nasa_dso_images.py --all
+Typical usage:
+  python tools/build_openngc_catalog.py
+  python tools/fetch_nasa_dso_images.py M31 "NGC 253" M42
+  python tools/fetch_nasa_dso_images.py --popular
+  python tools/fetch_nasa_dso_images.py --all --types galaxy --mag-max 11 --limit 100
+  python tools/fetch_nasa_dso_images.py --all --missing --offset 100 --limit 100
+
+NASA's publication library does not contain a suitable photograph for every
+catalogue object. Missing results are recorded and do not stop a batch.
 """
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import re
 import sys
@@ -21,93 +26,85 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 try:
     from PIL import Image
-except ImportError:  # JPEG/PNG fallback remains usable
+except ImportError:
     Image = None
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "images" / "dso"
+DATA = ROOT / "data" / "openngc-catalog.json"
+CATALOG_JS = ROOT / "catalog.js"
 API = "https://images-api.nasa.gov"
-USER_AGENT = "CelestiaAtlasImageFetcher/1.1"
-TARGETS = {
-    "M31": "M31 Andromeda Galaxy Hubble",
-    "M32": "M32 galaxy Hubble",
-    "M33": "M33 Triangulum Galaxy Hubble",
-    "M51": "M51 Whirlpool Galaxy Hubble",
-    "M63": "M63 Sunflower Galaxy Hubble",
-    "M64": "M64 Black Eye Galaxy Hubble",
-    "M65": "M65 galaxy Hubble",
-    "M66": "M66 galaxy Hubble",
-    "M74": "M74 Phantom Galaxy Hubble",
-    "M81": "M81 Bode Galaxy Hubble",
-    "M82": "M82 Cigar Galaxy Hubble",
-    "M83": "M83 Southern Pinwheel Galaxy Hubble",
-    "M87": "M87 galaxy Hubble",
-    "M94": "M94 galaxy Hubble",
-    "M101": "M101 Pinwheel Galaxy Hubble",
-    "M104": "M104 Sombrero Galaxy Hubble",
-    "M106": "M106 galaxy Hubble",
-    "M110": "M110 galaxy Hubble",
-    "NGC253": "NGC 253 Sculptor Galaxy NASA",
-    "NGC5128": "NGC 5128 Centaurus A NASA",
+USER_AGENT = "CelestiaAtlasImageFetcher/2.0 (+https://github.com/acocalypso/celestia_atlas)"
+REPORT = OUT / "download-report.json"
+STATE = OUT / ".nasa-download-state.json"
+POPULAR = [
+    "M1", "M8", "M16", "M17", "M20", "M27", "M31", "M33", "M42", "M45",
+    "M51", "M57", "M63", "M64", "M74", "M81", "M82", "M83", "M87", "M97",
+    "M101", "M104", "M106", "NGC 253", "NGC 5128", "NGC 7000", "NGC 6960",
+]
+BAD_TITLE_WORDS = {
+    "artist", "illustration", "concept", "diagram", "poster", "logo", "infographic",
+    "animation", "simulation", "model", "chart", "map", "spectrum", "spectra",
 }
+GOOD_TITLE_WORDS = {"hubble", "webb", "jwst", "spitzer", "chandra", "galaxy", "nebula", "cluster"}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}
+BROWSER_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 
-def request(url: str, timeout: int) -> urllib.request.Request:
-    return urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": USER_AGENT,
-            "Accept": "application/json,image/*,*/*;q=0.8",
-        },
-    )
+def key(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (value or "").lower())
 
 
-def get_json(url: str, retries: int = 3) -> Any:
-    """Return decoded JSON, retrying transient NASA/API failures."""
-    last_error: Exception | None = None
+def slug(value: str) -> str:
+    return key(value) or "object"
+
+
+def request(url: str, accept: str = "application/json,image/*,*/*;q=0.8") -> urllib.request.Request:
+    return urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": accept})
+
+
+def get_json(url: str, retries: int = 4) -> Any:
+    last: Exception | None = None
     for attempt in range(retries):
         try:
-            with urllib.request.urlopen(request(url, 45), timeout=45) as response:
+            with urllib.request.urlopen(request(url), timeout=60) as response:
                 return json.load(response)
         except urllib.error.HTTPError as exc:
-            last_error = exc
-            # Retry throttling and server errors, but not permanent client errors.
+            last = exc
             if exc.code not in {408, 425, 429, 500, 502, 503, 504}:
                 raise
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-            last_error = exc
-
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+            last = exc
         if attempt + 1 < retries:
-            time.sleep(1.5 * (attempt + 1))
+            time.sleep(min(12, 1.5 * 2**attempt))
+    assert last is not None
+    raise last
 
-    assert last_error is not None
-    raise last_error
 
-
-def download(url: str, destination: Path, retries: int = 3) -> None:
-    last_error: Exception | None = None
+def download(url: str, destination: Path, retries: int = 4) -> None:
+    last: Exception | None = None
     for attempt in range(retries):
         try:
-            with urllib.request.urlopen(request(url, 90), timeout=90) as response, destination.open("wb") as target:
+            with urllib.request.urlopen(request(url, "image/*,*/*;q=0.8"), timeout=120) as response, destination.open("wb") as target:
                 while chunk := response.read(1024 * 256):
                     target.write(chunk)
+            if destination.stat().st_size < 1024:
+                raise OSError("downloaded asset is unexpectedly small")
             return
         except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError) as exc:
-            last_error = exc
+            last = exc
             destination.unlink(missing_ok=True)
             if attempt + 1 < retries:
-                time.sleep(1.5 * (attempt + 1))
-
-    assert last_error is not None
-    raise last_error
+                time.sleep(min(12, 1.5 * 2**attempt))
+    assert last is not None
+    raise last
 
 
 def collection_items(payload: Any) -> list[dict[str, Any]]:
-    """Normalize a Collection+JSON search response into item dictionaries."""
     if not isinstance(payload, dict):
         return []
     collection = payload.get("collection")
@@ -119,15 +116,8 @@ def collection_items(payload: Any) -> list[dict[str, Any]]:
 
 
 def asset_urls(payload: Any) -> list[str]:
-    """Normalize NASA asset manifests across known response formats.
-
-    The assets endpoint has returned both Collection+JSON objects and a plain
-    top-level list. Entries may themselves be URL strings or objects containing
-    an ``href`` field.
-    """
-    entries: list[Any]
     if isinstance(payload, list):
-        entries = payload
+        entries: list[Any] = payload
     elif isinstance(payload, dict):
         collection = payload.get("collection")
         if isinstance(collection, dict) and isinstance(collection.get("items"), list):
@@ -143,198 +133,408 @@ def asset_urls(payload: Any) -> list[str]:
 
     urls: list[str] = []
     for entry in entries:
-        url: Any = None
-        if isinstance(entry, str):
-            url = entry
-        elif isinstance(entry, dict):
-            url = entry.get("href") or entry.get("url")
+        url: Any = entry if isinstance(entry, str) else (entry.get("href") or entry.get("url") if isinstance(entry, dict) else None)
         if isinstance(url, str) and url.startswith(("https://", "http://")) and url not in urls:
             urls.append(url)
     return urls
 
 
-def extension_for_url(url: str) -> str:
-    path = urllib.parse.unquote(urllib.parse.urlparse(url).path)
-    return Path(path).suffix.lower()
+def extension(url: str) -> str:
+    return Path(urllib.parse.unquote(urllib.parse.urlparse(url).path)).suffix.lower()
 
 
-def choose_asset(urls: list[str]) -> str | None:
-    raster_extensions = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}
-    browser_extensions = {".jpg", ".jpeg", ".png"}
-    images = [url for url in urls if extension_for_url(url) in raster_extensions]
+def asset_score(url: str) -> int:
+    ext = extension(url)
+    if ext not in IMAGE_EXTENSIONS:
+        return -10_000
+    low = url.lower()
+    score = 0
+    if ext in BROWSER_EXTENSIONS:
+        score += 50
+    if "~orig" in low:
+        score += 45
+    elif "~large" in low:
+        score += 40
+    elif "~medium" in low:
+        score += 30
+    elif "~small" in low:
+        score += 10
+    if ext in {".tif", ".tiff"}:
+        score -= 30
+    return score
 
-    # Prefer reasonably sized browser-friendly derivatives over giant TIFFs.
-    for token in ("~large", "~medium", "~orig", "~small"):
-        for url in images:
-            if token in url.lower() and extension_for_url(url) in browser_extensions:
-                return url
-    return next((url for url in images if extension_for_url(url) in browser_extensions), None)
+
+def choose_asset(urls: Iterable[str]) -> str | None:
+    ranked = sorted(((asset_score(url), url) for url in urls), reverse=True)
+    return ranked[0][1] if ranked and ranked[0][0] > -1000 else None
 
 
 def item_data(item: dict[str, Any]) -> dict[str, Any]:
     data = item.get("data")
     if isinstance(data, list):
         return next((entry for entry in data if isinstance(entry, dict)), {})
-    if isinstance(data, dict):
-        return data
-    return {}
+    return data if isinstance(data, dict) else {}
+
+
+def object_names(obj: dict[str, Any]) -> list[str]:
+    values = [obj.get("id"), obj.get("catalogId"), obj.get("name"), *(obj.get("aliases") or [])]
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if not isinstance(value, str) or not value.strip():
+            continue
+        k = key(value)
+        if k and k not in seen:
+            seen.add(k)
+            result.append(value.strip())
+    return result
+
+
+def query_candidates(obj: dict[str, Any]) -> list[str]:
+    names = object_names(obj)
+    primary = names[0] if names else str(obj.get("id") or "")
+    common = str(obj.get("name") or "").strip()
+    type_name = str(obj.get("type") or "deep sky object")
+    queries = []
+    if common:
+        queries.extend([
+            f"{primary} {common} Hubble Webb",
+            f"{common} {type_name} NASA",
+        ])
+    queries.extend([
+        f"{primary} {type_name}",
+        primary,
+    ])
+    for alias in names[1:4]:
+        queries.append(f"{alias} {type_name}")
+    seen: set[str] = set()
+    return [q for q in queries if q and not (key(q) in seen or seen.add(key(q)))]
+
+
+def result_score(obj: dict[str, Any], data: dict[str, Any]) -> int:
+    title = str(data.get("title") or "")
+    description = str(data.get("description") or "")
+    keywords = data.get("keywords") or []
+    if isinstance(keywords, str):
+        keywords = [keywords]
+    haystack = " ".join([title, description, " ".join(map(str, keywords))]).lower()
+    compact = key(haystack)
+    score = 0
+    names = object_names(obj)
+    for index, name in enumerate(names[:8]):
+        nk = key(name)
+        if nk and nk in compact:
+            score += 60 if index == 0 else 35
+        if name.lower() in haystack:
+            score += 20
+    score += sum(8 for word in GOOD_TITLE_WORDS if word in title.lower())
+    score -= sum(45 for word in BAD_TITLE_WORDS if word in title.lower())
+    media_type = data.get("media_type")
+    if media_type == "image":
+        score += 20
+    return score
 
 
 def find_asset(item: dict[str, Any], data: dict[str, Any]) -> str | None:
-    """Find a downloadable image, tolerating endpoint and result variations."""
-    nasa_id = data.get("nasa_id")
     endpoints: list[str] = []
     href = item.get("href")
     if isinstance(href, str) and href:
         endpoints.append(href)
+    nasa_id = data.get("nasa_id")
     if isinstance(nasa_id, str) and nasa_id:
-        canonical = f"{API}/asset/{urllib.parse.quote(nasa_id, safe='')}"
-        if canonical not in endpoints:
-            endpoints.append(canonical)
-
-    for endpoint in endpoints:
+        endpoints.append(f"{API}/asset/{urllib.parse.quote(nasa_id, safe='')}")
+    for endpoint in dict.fromkeys(endpoints):
         try:
             chosen = choose_asset(asset_urls(get_json(endpoint)))
             if chosen:
                 return chosen
         except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
-            print(f"  Asset manifest unavailable ({endpoint}): {exc}", file=sys.stderr)
-
-    # Last-resort fallback: some search items include preview image links.
+            print(f"    asset manifest unavailable: {exc}", file=sys.stderr)
     links = item.get("links")
-    if isinstance(links, list):
-        chosen = choose_asset(asset_urls(links))
-        if chosen:
-            return chosen
+    return choose_asset(asset_urls(links)) if isinstance(links, list) else None
+
+
+def search_best(obj: dict[str, Any], page_size: int = 50) -> tuple[dict[str, Any], dict[str, Any], str, str, int] | None:
+    candidates: list[tuple[int, dict[str, Any], dict[str, Any], str]] = []
+    used_ids: set[str] = set()
+    used_queries: list[str] = []
+    for query in query_candidates(obj):
+        used_queries.append(query)
+        params = urllib.parse.urlencode({"q": query, "media_type": "image", "page_size": page_size})
+        payload = get_json(f"{API}/search?{params}")
+        for item in collection_items(payload):
+            data = item_data(item)
+            nasa_id = str(data.get("nasa_id") or "")
+            if nasa_id and nasa_id in used_ids:
+                continue
+            if nasa_id:
+                used_ids.add(nasa_id)
+            candidates.append((result_score(obj, data), item, data, query))
+        # Exact catalogued names often resolve on the first query. Do not make
+        # six requests when there are already strong candidates.
+        if candidates and max(row[0] for row in candidates) >= 90:
+            break
+
+    for score, item, data, query in sorted(candidates, key=lambda row: row[0], reverse=True)[:20]:
+        if score < 20:
+            continue
+        asset = find_asset(item, data)
+        if asset:
+            return item, data, asset, query, score
     return None
 
 
-def fetch_target(target: str, query: str, overwrite: bool) -> bool:
-    slug = target.lower().replace(" ", "")
-    webp_path = OUT / f"{slug}.webp"
-    jpg_path = OUT / f"{slug}.jpg"
-    if not overwrite and (webp_path.exists() or jpg_path.exists()):
-        print(f"Skip {target}: image already exists")
-        return True
-
-    params = urllib.parse.urlencode({"q": query, "media_type": "image", "page_size": 25})
+def parse_curated_catalog() -> list[dict[str, Any]]:
+    text = CATALOG_JS.read_text(encoding="utf-8")
+    marker = "window.DSO_DATA = "
+    start = text.find(marker)
+    if start < 0:
+        return []
+    start += len(marker)
+    end = text.find(";", start)
+    if end < 0:
+        return []
     try:
-        search = get_json(f"{API}/search?{params}")
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
-        print(f"NASA search failed for {target}: {exc}", file=sys.stderr)
-        return False
+        data = json.loads(text[start:end])
+    except json.JSONDecodeError:
+        return []
+    return data if isinstance(data, list) else []
 
-    items = collection_items(search)
-    if not items:
-        print(f"No NASA Image Library result for {target}", file=sys.stderr)
-        return False
 
-    selected_item: dict[str, Any] | None = None
-    selected_data: dict[str, Any] = {}
-    asset_url: str | None = None
+def load_catalog(auto_build: bool) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    if not DATA.exists() and auto_build:
+        builder = ROOT / "tools" / "build_openngc_catalog.py"
+        import subprocess
+        subprocess.run([sys.executable, str(builder)], cwd=ROOT, check=True)
+    if DATA.exists():
+        payload = json.loads(DATA.read_text(encoding="utf-8"))
+        return payload.get("objects", []), payload.get("meta", {})
+    fallback = parse_curated_catalog()
+    return fallback, {"name": "curated fallback", "objectCount": len(fallback)}
 
-    # A first search result can be a poster, graphic, or record without assets.
-    for item in items[:15]:
-        data = item_data(item)
-        candidate = find_asset(item, data)
-        if candidate:
-            selected_item = item
-            selected_data = data
-            asset_url = candidate
-            break
 
-    if selected_item is None or asset_url is None:
-        print(f"No downloadable JPEG/PNG image for {target}", file=sys.stderr)
-        return False
+def catalog_lookup(objects: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    lookup: dict[str, dict[str, Any]] = {}
+    for obj in objects:
+        for name in object_names(obj):
+            lookup.setdefault(key(name), obj)
+    return lookup
 
-    data = selected_data
-    nasa_id = data.get("nasa_id")
+
+def existing_image(obj: dict[str, Any]) -> Path | None:
+    for name in object_names(obj):
+        base = slug(name)
+        for ext in (".webp", ".jpg", ".jpeg", ".png", ".avif"):
+            path = OUT / f"{base}{ext}"
+            if path.exists():
+                return path
+    return None
+
+
+def read_state() -> dict[str, Any]:
+    if not STATE.exists():
+        return {"success": {}, "failed": {}}
+    try:
+        data = json.loads(STATE.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {"success": {}, "failed": {}}
+    except (json.JSONDecodeError, OSError):
+        return {"success": {}, "failed": {}}
+
+
+def save_state(state: dict[str, Any]) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    suffix = extension_for_url(asset_url) or ".jpg"
+    STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def make_output(obj: dict[str, Any], original: Path, max_dimension: int, quality: int, output_format: str) -> Path:
+    base = slug(str(obj.get("id") or obj.get("catalogId") or "object"))
+    if Image is None:
+        suffix = original.suffix.lower() if original.suffix.lower() in BROWSER_EXTENSIONS else ".jpg"
+        output = OUT / f"{base}{suffix}"
+        output.write_bytes(original.read_bytes())
+        return output
+
+    with Image.open(original) as image:
+        image = image.convert("RGB")
+        resampling = getattr(Image, "Resampling", Image)
+        image.thumbnail((max_dimension, max_dimension), resampling.LANCZOS)
+        if output_format == "jpg":
+            output = OUT / f"{base}.jpg"
+            image.save(output, "JPEG", quality=quality, optimize=True, progressive=True)
+        else:
+            output = OUT / f"{base}.webp"
+            image.save(output, "WEBP", quality=quality, method=6)
+    return output
+
+
+def fetch_one(obj: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
+    object_id = str(obj.get("id") or obj.get("catalogId") or "Unknown")
+    old = existing_image(obj)
+    if old and not args.overwrite:
+        return {"id": object_id, "status": "skipped-existing", "path": old.relative_to(ROOT).as_posix()}
+    if args.dry_run:
+        return {"id": object_id, "status": "dry-run", "queries": query_candidates(obj)}
 
     try:
-        with tempfile.TemporaryDirectory() as tmp:
-            original = Path(tmp) / ("source" + suffix)
-            print(f"Downloading {target}: {data.get('title', nasa_id or query)}")
+        best = search_best(obj, args.page_size)
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+        return {"id": object_id, "status": "failed", "error": f"NASA search failed: {exc}"}
+    if not best:
+        return {"id": object_id, "status": "not-found", "error": "No relevant downloadable NASA image found"}
+
+    _, data, asset_url, query, score = best
+    nasa_id = data.get("nasa_id")
+    suffix = extension(asset_url) or ".jpg"
+    OUT.mkdir(parents=True, exist_ok=True)
+    try:
+        with tempfile.TemporaryDirectory() as temporary:
+            original = Path(temporary) / f"source{suffix}"
             download(asset_url, original)
-            if Image is not None:
-                with Image.open(original) as image:
-                    image = image.convert("RGB")
-                    resampling = getattr(Image, "Resampling", Image)
-                    image.thumbnail((1920, 1920), resampling.LANCZOS)
-                    image.save(webp_path, "WEBP", quality=84, method=6)
-                output_path = webp_path
-            else:
-                safe_suffix = suffix if suffix in {".jpg", ".jpeg", ".png"} else ".jpg"
-                output_path = OUT / f"{slug}{safe_suffix}"
-                output_path.write_bytes(original.read_bytes())
+            output = make_output(obj, original, args.max_dimension, args.quality, args.format)
     except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
-        print(f"Download/conversion failed for {target}: {exc}", file=sys.stderr)
-        return False
+        return {"id": object_id, "status": "failed", "error": f"Download/conversion failed: {exc}"}
 
     creators = [data.get("photographer"), data.get("secondary_creator"), data.get("center")]
-    credit = " / ".join(dict.fromkeys(str(x).strip() for x in creators if x)) or "NASA"
+    credit = " / ".join(dict.fromkeys(str(value).strip() for value in creators if value)) or "NASA"
     metadata = {
-        "object": target,
-        "title": data.get("title") or f"{target} image",
-        "alt": data.get("description_508") or data.get("title") or f"Astronomical image of {target}",
+        "object": object_names(obj),
+        "title": data.get("title") or f"{object_id} image",
+        "alt": data.get("description_508") or data.get("title") or f"Astronomical image of {object_id}",
         "credit": credit,
         "source": f"https://images.nasa.gov/details/{urllib.parse.quote(str(nasa_id or ''))}" if nasa_id else "https://images.nasa.gov/",
-        "license": "Review the source page. NASA content is generally available under NASA media usage guidelines, but third-party material may have separate rights.",
+        "license": "Review the NASA source page. NASA media is generally available under NASA media usage guidelines; third-party material may have separate rights.",
+        "provider": "NASA Image and Video Library",
         "nasa_id": nasa_id,
         "date_created": data.get("date_created"),
         "description": data.get("description"),
         "downloaded_from": asset_url,
+        "search_query": query,
+        "match_score": score,
+        "downloaded_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
     }
-    output_path.with_suffix(".json").write_text(
-        json.dumps(metadata, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
-    return True
+    output.with_suffix(".json").write_text(json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return {"id": object_id, "status": "downloaded", "path": output.relative_to(ROOT).as_posix(), "nasa_id": nasa_id, "score": score}
+
+
+def type_matches(obj: dict[str, Any], filters: set[str]) -> bool:
+    if not filters:
+        return True
+    haystack = f"{obj.get('typeCode', '')} {obj.get('type', '')}".lower()
+    return any(value in haystack for value in filters)
+
+
+def resolve_selection(objects: list[dict[str, Any]], args: argparse.Namespace) -> list[dict[str, Any]]:
+    lookup = catalog_lookup(objects)
+    selected: list[dict[str, Any]] = []
+    requested = list(args.targets)
+    if args.popular:
+        requested.extend(POPULAR)
+    if args.all:
+        selected.extend(objects)
+    for target in requested:
+        obj = lookup.get(key(target))
+        if obj is None:
+            obj = {"id": target, "catalogId": target, "name": "", "type": "Deep-sky object", "aliases": []}
+        selected.append(obj)
+
+    filters = {value.strip().lower() for raw in args.types for value in raw.split(",") if value.strip()}
+    filtered: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for obj in selected:
+        identity = key(str(obj.get("catalogId") or obj.get("id") or ""))
+        if not identity or identity in seen:
+            continue
+        seen.add(identity)
+        if not type_matches(obj, filters):
+            continue
+        mag = obj.get("mag")
+        if args.mag_max is not None and isinstance(mag, (int, float)) and mag > args.mag_max:
+            continue
+        if args.missing and existing_image(obj):
+            continue
+        filtered.append(obj)
+    start = max(0, args.offset)
+    end = None if args.limit == 0 else start + max(0, args.limit)
+    return filtered[start:end]
 
 
 def rebuild_index() -> None:
-    build = ROOT / "tools" / "build_dso_image_index.py"
-    namespace = {"__name__": "__main__", "__file__": str(build)}
-    exec(compile(build.read_text(encoding="utf-8"), str(build), "exec"), namespace)
+    import subprocess
+    subprocess.run([sys.executable, str(ROOT / "tools" / "build_dso_image_index.py")], cwd=ROOT, check=True)
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("targets", nargs="*", help="DSO IDs such as M31, M51, NGC253")
-    parser.add_argument("--all", action="store_true", help="Download all configured galaxy targets")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("targets", nargs="*", help="Any catalogue ID or alias, e.g. M31, NGC253, Andromeda Galaxy")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--popular", action="store_true", help="Download a curated list of prominent DSOs")
+    group.add_argument("--all", action="store_true", help="Select all objects in the generated OpenNGC catalogue")
+    parser.add_argument("--types", action="append", default=[], help="Filter by type text/code; comma-separated, e.g. galaxy,PN")
+    parser.add_argument("--mag-max", type=float, help="Only include objects at or brighter than this magnitude when known")
+    parser.add_argument("--missing", action="store_true", help="Only select objects without a local image")
+    parser.add_argument("--offset", type=int, default=0, help="Skip this many selected objects")
+    parser.add_argument("--limit", type=int, default=100, help="Maximum batch size; 0 means unlimited (default: 100)")
+    parser.add_argument("--delay", type=float, default=0.8, help="Seconds between NASA searches (default: 0.8)")
+    parser.add_argument("--page-size", type=int, default=50, choices=range(1, 101), metavar="1-100")
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--skip-failed", action="store_true", help="Skip objects recorded as failed in the state file")
+    parser.add_argument("--auto-build-catalog", action="store_true", help="Build/download OpenNGC if generated JSON is absent")
+    parser.add_argument("--max-dimension", type=int, default=1920)
+    parser.add_argument("--quality", type=int, default=84)
+    parser.add_argument("--format", choices=("webp", "jpg"), default="webp")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--list", action="store_true", help="List selected objects and exit")
     args = parser.parse_args()
 
-    requested = list(TARGETS) if args.all else [x.upper().replace(" ", "") for x in args.targets]
-    if not requested:
-        parser.error("specify one or more targets, or use --all")
+    if not (args.targets or args.popular or args.all):
+        parser.error("specify targets, --popular, or --all")
+    if args.limit < 0 or args.offset < 0:
+        parser.error("--limit and --offset must be non-negative")
 
-    unknown = [x for x in requested if x not in TARGETS]
-    if unknown:
-        print("Unknown target(s): " + ", ".join(unknown), file=sys.stderr)
-        print("Available: " + ", ".join(TARGETS), file=sys.stderr)
-        return 2
+    objects, meta = load_catalog(args.auto_build_catalog)
+    selection = resolve_selection(objects, args)
+    print(f"Catalogue: {meta.get('name', 'unknown')} ({len(objects):,} objects available)")
+    print(f"Selected: {len(selection):,} objects (offset {args.offset}, limit {'none' if args.limit == 0 else args.limit})")
+    if args.list:
+        for obj in selection:
+            print(f"{obj.get('id', ''):12} {obj.get('type', ''):26} {obj.get('name', '')}")
+        return 0
 
-    results: list[bool] = []
-    for target in requested:
-        try:
-            results.append(fetch_target(target, TARGETS[target], args.overwrite))
-        except KeyboardInterrupt:
-            print("\nCancelled.", file=sys.stderr)
-            break
-        except Exception as exc:  # Keep --all running when one external record is malformed.
-            print(f"Unexpected failure for {target}: {exc}", file=sys.stderr)
-            results.append(False)
+    state = read_state()
+    results: list[dict[str, Any]] = []
+    for index, obj in enumerate(selection, 1):
+        object_id = str(obj.get("id") or obj.get("catalogId") or "Unknown")
+        if args.skip_failed and key(object_id) in state.get("failed", {}):
+            result = {"id": object_id, "status": "skipped-previous-failure"}
+        else:
+            print(f"[{index}/{len(selection)}] {object_id} — {obj.get('name') or obj.get('type') or ''}")
+            result = fetch_one(obj, args)
+        results.append(result)
+        print(f"  {result['status']}{': ' + result.get('error', '') if result.get('error') else ''}")
+        stamp = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
+        identity = key(object_id)
+        if result["status"] in {"downloaded", "skipped-existing"}:
+            state.setdefault("success", {})[identity] = {**result, "updatedAt": stamp}
+            state.setdefault("failed", {}).pop(identity, None)
+        elif result["status"] in {"failed", "not-found"}:
+            state.setdefault("failed", {})[identity] = {**result, "updatedAt": stamp}
+        save_state(state)
+        if index < len(selection) and not args.dry_run:
+            time.sleep(max(0, args.delay))
 
-    # Always refresh the index so successfully downloaded images are usable even
-    # when one or more targets failed.
+    OUT.mkdir(parents=True, exist_ok=True)
+    report = {
+        "generatedAt": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
+        "catalog": meta,
+        "selectionCount": len(selection),
+        "results": results,
+    }
+    REPORT.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     rebuild_index()
-
-    failures = sum(not result for result in results)
-    if failures:
-        print(f"Completed with {failures} failed target(s).", file=sys.stderr)
-        return 1
-    return 0
+    failures = sum(result["status"] in {"failed", "not-found"} for result in results)
+    downloaded = sum(result["status"] == "downloaded" for result in results)
+    print(f"Finished: {downloaded} downloaded, {failures} unavailable/failed. Report: {REPORT.relative_to(ROOT)}")
+    return 1 if failures and not downloaded else 0
 
 
 if __name__ == "__main__":
