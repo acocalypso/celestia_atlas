@@ -73,6 +73,8 @@ export interface CelestiaAtlasViewer {
 export function createCelestiaAtlasViewer(options: {
   container: HTMLElement;
   catalog?: unknown[];
+  stars?: unknown[];
+  constellations?: Record<string, Array<[string, string]>>;
   observer?: Observer;
   utcMs?: number;
   devicePixelRatioCap?: number;

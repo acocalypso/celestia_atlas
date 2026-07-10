@@ -2,11 +2,14 @@ import {
   validateEquatorialCoordinates,
   validateObserver,
 } from "./core/coordinates.js";
+import { projectEquatorial, unprojectEquatorial } from "./core/projection.js";
 
 export function createCelestiaAtlasViewer(options) {
   const {
     container,
     catalog = [],
+    stars = [],
+    constellations = {},
     onSelect,
     onViewChange,
     devicePixelRatioCap = 2,
@@ -44,6 +47,13 @@ export function createCelestiaAtlasViewer(options) {
   };
   let drag = null;
   let frameId = null;
+  const searchableObjects = [...stars, ...catalog];
+  const starsByName = new Map();
+  for (const star of stars) {
+    starsByName.set(String(star.name).toLocaleLowerCase(), star);
+    if (star.alias)
+      starsByName.set(String(star.alias).toLocaleLowerCase(), star);
+  }
 
   const assertAlive = () => {
     if (destroyed) throw new Error("Celestia Atlas viewer has been destroyed");
@@ -59,44 +69,104 @@ export function createCelestiaAtlasViewer(options) {
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.fillStyle = display.nightMode ? "#080000" : "#03060d";
     context.fillRect(0, 0, width, height);
-    const scale = width / view.fovDeg;
-    const project = (coordinates) => ({
-      x:
-        width / 2 +
-        (((coordinates.raDeg - view.center.raDeg + 540) % 360) - 180) * scale,
-      y: height / 2 - (coordinates.decDeg - view.center.decDeg) * scale,
-    });
+    const scale = width / (2 * Math.tan((view.fovDeg * Math.PI) / 360));
+    const project = (coordinates) =>
+      projectEquatorial(coordinates, view, width, height);
+    const strokeCurve = (coordinates) => {
+      context.beginPath();
+      let drawing = false;
+      for (const coordinate of coordinates) {
+        const point = project(coordinate);
+        if (
+          !point ||
+          point.x < -width ||
+          point.x > width * 2 ||
+          point.y < -height ||
+          point.y > height * 2
+        ) {
+          drawing = false;
+          continue;
+        }
+        if (drawing) context.lineTo(point.x, point.y);
+        else {
+          context.moveTo(point.x, point.y);
+          drawing = true;
+        }
+      }
+      context.stroke();
+    };
     if (display.grid) {
       context.strokeStyle = display.nightMode
         ? "rgba(255,80,70,.2)"
         : "rgba(119,158,194,.2)";
       context.lineWidth = 1;
       for (let ra = 0; ra < 360; ra += 15) {
-        const top = project({ raDeg: ra, decDeg: 90 });
-        const bottom = project({ raDeg: ra, decDeg: -90 });
-        if (top.x >= 0 && top.x <= width) {
-          context.beginPath();
-          context.moveTo(top.x, top.y);
-          context.lineTo(bottom.x, bottom.y);
-          context.stroke();
-        }
+        strokeCurve(
+          Array.from({ length: 37 }, (_, index) => ({
+            raDeg: ra,
+            decDeg: -90 + index * 5,
+          })),
+        );
       }
       for (let dec = -75; dec <= 75; dec += 15) {
-        const y = project({ raDeg: view.center.raDeg, decDeg: dec }).y;
-        if (y >= 0 && y <= height) {
-          context.beginPath();
-          context.moveTo(0, y);
-          context.lineTo(width, y);
-          context.stroke();
-        }
+        strokeCurve(
+          Array.from({ length: 73 }, (_, index) => ({
+            raDeg: index * 5,
+            decDeg: dec,
+          })),
+        );
       }
     }
     hitTargets = [];
+    context.strokeStyle = display.nightMode
+      ? "rgba(255,80,70,.32)"
+      : "rgba(125,151,255,.32)";
+    for (const lines of Object.values(constellations)) {
+      for (const [startName, endName] of lines) {
+        const start = starsByName.get(String(startName).toLocaleLowerCase());
+        const end = starsByName.get(String(endName).toLocaleLowerCase());
+        const startPoint = start && project(start);
+        const endPoint = end && project(end);
+        if (!startPoint || !endPoint) continue;
+        if (
+          Math.hypot(startPoint.x - endPoint.x, startPoint.y - endPoint.y) >
+          width
+        )
+          continue;
+        context.beginPath();
+        context.moveTo(startPoint.x, startPoint.y);
+        context.lineTo(endPoint.x, endPoint.y);
+        context.stroke();
+      }
+    }
+    for (const star of stars) {
+      const point = project(star);
+      if (
+        !point ||
+        point.x < 0 ||
+        point.x > width ||
+        point.y < 0 ||
+        point.y > height
+      )
+        continue;
+      const radius = Math.max(0.7, Math.min(4, 3.5 - (star.mag ?? 4) * 0.45));
+      context.fillStyle = display.nightMode ? "#ff584f" : "#edf5ff";
+      context.beginPath();
+      context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+      context.fill();
+      hitTargets.push({ x: point.x, y: point.y, object: star });
+      if (display.labels && (star.mag < 1.5 || view.fovDeg < 25)) {
+        context.font = "10px system-ui";
+        context.fillText(star.name, point.x + radius + 3, point.y - 3);
+      }
+    }
     if (display.deepSkyObjects)
       for (const object of catalog) {
         if (!Number.isFinite(object.raDeg) || !Number.isFinite(object.decDeg))
           continue;
-        const { x, y } = project(object);
+        const point = project(object);
+        if (!point) continue;
+        const { x, y } = point;
         if (x >= 0 && x <= width && y >= 0 && y <= height) {
           const isSelected = selected === object;
           context.fillStyle = isSelected
@@ -115,15 +185,18 @@ export function createCelestiaAtlasViewer(options) {
         }
       }
     if (mount?.connected) {
-      const { x, y } = project(mount.coordinates);
-      context.strokeStyle = mount.stale ? "#f6c978" : "#62d8ff";
-      context.beginPath();
-      context.arc(x, y, 8, 0, Math.PI * 2);
-      context.moveTo(x - 12, y);
-      context.lineTo(x + 12, y);
-      context.moveTo(x, y - 12);
-      context.lineTo(x, y + 12);
-      context.stroke();
+      const point = project(mount.coordinates);
+      if (point) {
+        const { x, y } = point;
+        context.strokeStyle = mount.stale ? "#f6c978" : "#62d8ff";
+        context.beginPath();
+        context.arc(x, y, 8, 0, Math.PI * 2);
+        context.moveTo(x - 12, y);
+        context.lineTo(x + 12, y);
+        context.moveTo(x, y - 12);
+        context.lineTo(x, y + 12);
+        context.stroke();
+      }
     }
     if (fieldOfView) {
       const overlayWidth = fieldOfView.widthDeg * scale;
@@ -188,21 +261,14 @@ export function createCelestiaAtlasViewer(options) {
     if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 3)
       drag.moved = true;
     const width = Math.max(1, canvas.clientWidth);
-    const next = {
-      raDeg:
-        (drag.center.raDeg -
-          ((event.clientX - drag.x) / width) * view.fovDeg +
-          360) %
-        360,
-      decDeg: Math.max(
-        -90,
-        Math.min(
-          90,
-          drag.center.decDeg + ((event.clientY - drag.y) / width) * view.fovDeg,
-        ),
-      ),
-      frame: drag.center.frame,
-    };
+    const height = Math.max(1, canvas.clientHeight);
+    const next = unprojectEquatorial(
+      width / 2 - (event.clientX - drag.x),
+      height / 2 - (event.clientY - drag.y),
+      { ...view, center: drag.center },
+      width,
+      height,
+    );
     view = { ...view, center: next };
     onViewChange?.(structuredClone(view));
     invalidate();
@@ -397,7 +463,7 @@ export function createCelestiaAtlasViewer(options) {
       assertAlive();
       const needle = String(query).trim().toLocaleLowerCase();
       if (!needle) return [];
-      return catalog
+      return searchableObjects
         .filter((item) =>
           [item.name, item.id, ...(item.aliases ?? [])].some((text) =>
             String(text ?? "")
