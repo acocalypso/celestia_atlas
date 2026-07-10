@@ -4,6 +4,7 @@ import {
   validateObserver,
 } from "./core/coordinates.js";
 import { projectEquatorial, unprojectEquatorial } from "./core/projection.js";
+import { getSolarSystemObjects } from "./core/solar-system.js";
 
 export function createCelestiaAtlasViewer(options) {
   const {
@@ -47,6 +48,7 @@ export function createCelestiaAtlasViewer(options) {
     constellations: true,
     labels: true,
     deepSkyObjects: true,
+    solarSystem: true,
     horizon: true,
     nightMode: false,
   };
@@ -177,7 +179,7 @@ export function createCelestiaAtlasViewer(options) {
         if (!point) continue;
         const { x, y } = point;
         if (x >= 0 && x <= width && y >= 0 && y <= height) {
-          const isSelected = selected === object;
+          const isSelected = selected?.id === object.id;
           context.fillStyle = isSelected
             ? "#f6c978"
             : display.nightMode
@@ -193,6 +195,33 @@ export function createCelestiaAtlasViewer(options) {
           }
         }
       }
+    if (display.solarSystem) {
+      for (const object of getSolarSystemObjects(currentUtcMs(), observer)) {
+        const point = project(object);
+        if (!point) continue;
+        const { x, y } = point;
+        if (x < 0 || x > width || y < 0 || y > height) continue;
+        const isSelected = selected?.id === object.id;
+        const radius = isSelected
+          ? 7
+          : Math.max(3, Math.min(6, 5 - (object.mag ?? 5) * 0.18));
+        context.fillStyle = display.nightMode ? "#ff584f" : "#f6c978";
+        context.beginPath();
+        context.arc(x, y, radius, 0, Math.PI * 2);
+        context.fill();
+        if (isSelected) {
+          context.strokeStyle = display.nightMode ? "#ffaaa4" : "#fff1bd";
+          context.beginPath();
+          context.arc(x, y, radius + 3, 0, Math.PI * 2);
+          context.stroke();
+        }
+        hitTargets.push({ x, y, object });
+        if (display.labels) {
+          context.font = "11px system-ui";
+          context.fillText(object.name, x + radius + 4, y - 4);
+        }
+      }
+    }
     if (mount?.connected) {
       const point = project(mount.coordinates);
       if (point) {
@@ -542,14 +571,14 @@ export function createCelestiaAtlasViewer(options) {
         target.coordinates ?? target,
       );
       view = { center, fovDeg: Math.max(0.05, Math.min(180, fovDeg)) };
-      selected = catalog.find((item) => item.id === target.id) ?? null;
+      selected = target.id ? { ...target, id: target.id } : null;
       onViewChange?.(structuredClone(view));
       invalidate();
     },
     select(value) {
       assertAlive();
       const coordinates = validateEquatorialCoordinates(value.coordinates);
-      selected = catalog.find((item) => item.id === value.id) ?? null;
+      selected = value.id ? { ...value, id: value.id } : null;
       onSelect?.({ ...value, coordinates });
       invalidate();
     },
@@ -557,7 +586,10 @@ export function createCelestiaAtlasViewer(options) {
       assertAlive();
       const needle = String(query).trim().toLocaleLowerCase();
       if (!needle) return [];
-      return searchableObjects
+      const solarSystemObjects = display.solarSystem
+        ? getSolarSystemObjects(currentUtcMs(), observer)
+        : [];
+      return [...solarSystemObjects, ...searchableObjects]
         .filter((item) =>
           [item.name, item.id, ...(item.aliases ?? [])].some((text) =>
             String(text ?? "")

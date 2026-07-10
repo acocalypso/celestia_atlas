@@ -13,5 +13,8 @@
   "scripts": {
     "test": "node --test tests/*.test.js",
     "build:bright-sky": "node tools/build_bright_sky_catalog.mjs"
+  },
+  "dependencies": {
+    "astronomy-engine": "2.1.19"
   }
 }

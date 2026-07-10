@@ -38,6 +38,18 @@ export interface SelectedTarget {
   angularSizeArcMin?: { major?: number; minor?: number };
   catalogueSource?: string;
 }
+export interface SolarSystemObject extends SelectedTarget {
+  id: string;
+  objectType: string;
+  magnitude: number;
+  phaseFraction: number;
+  distanceAu: number;
+  catalogueSource: "Astronomy Engine";
+  raDeg: number;
+  decDeg: number;
+  frame: "J2000";
+  epochJulianYear: 2000;
+}
 export interface ViewState {
   center: EquatorialCoordinates;
   fovDeg: number;
@@ -63,6 +75,7 @@ export interface CelestiaAtlasViewer {
       constellations: boolean;
       labels: boolean;
       deepSkyObjects: boolean;
+      solarSystem: boolean;
       horizon: boolean;
       nightMode: boolean;
     }>,
@@ -86,3 +99,7 @@ export function createCelestiaAtlasViewer(options: {
   onSelect?: (value: SelectedTarget) => void;
   onViewChange?: (value: ViewState) => void;
 }): CelestiaAtlasViewer;
+export function getSolarSystemObjects(
+  timestampUtcMs: number,
+  observer: Observer,
+): SolarSystemObject[];

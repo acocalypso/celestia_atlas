@@ -4,3 +4,4 @@ __pycache__/
 images/dso/.nasa-download-state.json
 images/dso/download-report.json
 _site/
+node_modules/

@@ -1,5 +1,17 @@
 # Third-party notices
 
+## Astronomy Engine
+
+Solar-system positions, illumination and visual magnitudes are calculated with
+**Astronomy Engine** by Donald Cross.
+
+- Project: https://github.com/cosinekitty/astronomy
+- Version pinned by this project: `2.1.19`
+- Licence: MIT
+
+Astronomy Engine is distributed under the MIT licence. Its copyright and
+permission notice are available in the upstream project.
+
 ## OpenNGC
 
 The generated deep-sky catalogue is based on **OpenNGC**, created by Mattia
