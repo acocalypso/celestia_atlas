@@ -87,20 +87,16 @@
 
     <section id="detailsPanel" class="details-panel glass" aria-live="polite" aria-hidden="true">
       <button class="panel-close detail-close" data-close="detailsPanel" aria-label="Close object details">×</button>
-      <div id="objectMedia" class="object-media">
-        <img id="objectImage" class="object-image" alt="" hidden decoding="async">
-        <canvas id="objectSketch" width="540" height="220" aria-hidden="true"></canvas>
-        <div id="objectImageCaption" class="object-image-caption" hidden></div>
-      </div>
+      <canvas id="objectSketch" width="540" height="220" aria-hidden="true"></canvas>
       <div id="detailsContent"></div>
     </section>
 
     <section id="aboutPanel" class="about-panel glass" aria-hidden="true" aria-labelledby="aboutTitle">
       <div class="panel-heading"><div><p class="eyebrow">SELF-CONTAINED</p><h2 id="aboutTitle">About this atlas</h2></div><button class="panel-close" data-close="aboutPanel" aria-label="Close about panel">×</button></div>
-      <p>This build uses a custom native Canvas celestial-sphere renderer. It has no Aladin, Stellarium Web, Three.js, external fonts, online catalog calls, or runtime image APIs. Optional DSO photographs are local files stored with the app.</p>
+      <p>This build uses a custom native Canvas celestial-sphere renderer. It has no Aladin, Stellarium Web, Three.js, external fonts, remote imagery, or online catalog calls.</p>
       <div class="data-stats"><div><strong id="starCount">—</strong><span>local bright stars</span></div><div><strong id="dsoCount">—</strong><span>local deep-sky objects</span></div><div><strong id="constCount">—</strong><span>constellation figures</span></div></div>
       <h3>Data scope</h3>
-      <p>The compact catalog is designed for naked-eye navigation and popular telescope targets. Coordinates are J2000. The Milky Way overlay is a calculated galactic-coordinate plane. When a matching file exists in <code>images/dso</code>, the details panel shows that local photograph; otherwise it shows a clearly marked schematic view.</p>
+      <p>The compact catalog is designed for naked-eye navigation and popular telescope targets. Coordinates are J2000. The Milky Way overlay is a calculated galactic-coordinate plane, not a photographic image. Object sketches are schematic.</p>
       <h3>Controls</h3>
       <p>Drag to pan, wheel or pinch to zoom, click an object for details, and use <kbd>/</kbd>, <kbd>G</kbd>, <kbd>C</kbd>, <kbd>D</kbd>, <kbd>L</kbd>, <kbd>H</kbd>, <kbd>N</kbd>, <kbd>R</kbd>, or <kbd>F</kbd>.</p>
       <h3>Offline installation</h3>
@@ -115,7 +111,6 @@
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <div id="loadingScreen" class="loading-screen"><div class="loader-orbit"><span></span><span></span><i></i></div><p class="eyebrow">CELESTIA ATLAS</p><h1>Building the local sky</h1><p>No network connection required</p></div>
   </main>
-  <script src="dso-images.js"></script>
   <script src="catalog.js"></script>
   <script src="app.js"></script>
 </body>
