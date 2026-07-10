@@ -185,7 +185,7 @@ styles.css
 catalog.js                 compact bright-star + curated fallback data
 dso-catalog.js             generated complete OpenNGC browser catalogue
 app-v8.js                  main atlas engine
-app.js                     compatibility copy of the main engine
+app.js                     compatibility loader for the main engine
 milky-way-renderer.js      local WebGL sky dome
 service-worker.js
 manifest.webmanifest
