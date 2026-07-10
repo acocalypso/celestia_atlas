@@ -56,6 +56,7 @@ export interface CelestiaAtlasViewer {
   setDisplayOptions(
     value: Partial<{
       grid: boolean;
+      constellations: boolean;
       labels: boolean;
       deepSkyObjects: boolean;
       horizon: boolean;

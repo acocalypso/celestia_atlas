@@ -40,6 +40,7 @@ export function createCelestiaAtlasViewer(options) {
   let selected = null;
   let display = {
     grid: true,
+    constellations: true,
     labels: true,
     deepSkyObjects: true,
     horizon: true,
@@ -121,24 +122,25 @@ export function createCelestiaAtlasViewer(options) {
     context.strokeStyle = display.nightMode
       ? "rgba(255,80,70,.32)"
       : "rgba(125,151,255,.32)";
-    for (const lines of Object.values(constellations)) {
-      for (const [startName, endName] of lines) {
-        const start = starsByName.get(String(startName).toLocaleLowerCase());
-        const end = starsByName.get(String(endName).toLocaleLowerCase());
-        const startPoint = start && project(start);
-        const endPoint = end && project(end);
-        if (!startPoint || !endPoint) continue;
-        if (
-          Math.hypot(startPoint.x - endPoint.x, startPoint.y - endPoint.y) >
-          width
-        )
-          continue;
-        context.beginPath();
-        context.moveTo(startPoint.x, startPoint.y);
-        context.lineTo(endPoint.x, endPoint.y);
-        context.stroke();
+    if (display.constellations)
+      for (const lines of Object.values(constellations)) {
+        for (const [startName, endName] of lines) {
+          const start = starsByName.get(String(startName).toLocaleLowerCase());
+          const end = starsByName.get(String(endName).toLocaleLowerCase());
+          const startPoint = start && project(start);
+          const endPoint = end && project(end);
+          if (!startPoint || !endPoint) continue;
+          if (
+            Math.hypot(startPoint.x - endPoint.x, startPoint.y - endPoint.y) >
+            width
+          )
+            continue;
+          context.beginPath();
+          context.moveTo(startPoint.x, startPoint.y);
+          context.lineTo(endPoint.x, endPoint.y);
+          context.stroke();
+        }
       }
-    }
     for (const star of stars) {
       const point = project(star);
       if (
