@@ -1,6 +1,16 @@
 try{importScripts('./dso-images.js')}catch(e){}
-const CACHE='celestia-atlas-offline-v6';
-const CORE=['./','./index.html','./styles.css','./dso-images.js','./catalog.js','./app-v6.js','./manifest.webmanifest'];
+const CACHE='celestia-atlas-offline-v7';
+const CORE=[
+  './',
+  './index.html',
+  './styles.css',
+  './dso-images.js',
+  './catalog.js',
+  './milky-way-renderer.js',
+  './app-v7.js',
+  './manifest.webmanifest',
+  './assets/milky-way.webp'
+];
 const IMAGES=Array.isArray(globalThis.DSO_IMAGE_FILES)?globalThis.DSO_IMAGE_FILES:[];
 
 self.addEventListener('install',event=>event.waitUntil((async()=>{
@@ -46,7 +56,7 @@ self.addEventListener('fetch',event=>{
     event.respondWith(networkFirst(event.request,'./index.html'));
     return;
   }
-  if(url.pathname.includes('/images/dso/')){
+  if(url.pathname.includes('/images/dso/')||url.pathname.includes('/assets/')){
     event.respondWith(cacheFirst(event.request));
     return;
   }

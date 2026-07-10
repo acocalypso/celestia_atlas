@@ -35,13 +35,18 @@ jobs:
 
           cp index.html _site/
           cp app.js _site/
-          cp app-v6.js _site/
+          cp app-v7.js _site/
+          cp milky-way-renderer.js _site/
           cp catalog.js _site/
           cp dso-images.js _site/
           cp styles.css _site/
           cp manifest.webmanifest _site/
           cp service-worker.js _site/
           cp .nojekyll _site/
+
+          if [ -d assets ]; then
+            cp -R assets _site/assets
+          fi
 
           if [ -d images ]; then
             cp -R images _site/images

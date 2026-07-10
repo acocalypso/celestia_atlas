@@ -1,5 +1,18 @@
 # Changelog
 
+## v7
+
+- Added a native WebGL sky dome with a local equirectangular Milky Way panorama.
+- Aligned the Milky Way texture with Galactic, equatorial, and horizontal coordinates.
+- Added a Milky Way brightness control and shared URL state.
+- Added local DSO photograph previews directly on the sky at catalogued RA/Dec positions.
+- Scaled DSO previews from angular size, field of view, and view depth.
+- Added a switch to disable DSO image previews independently of DSO markers.
+- Added a fallback calculated Galactic-plane overlay when WebGL or the texture is unavailable.
+- Updated the GitHub Pages workflow to publish the renderer and `assets` folder.
+- Updated the service worker to cache the new sky-dome assets offline.
+- Preserved all v6 image-panel and pointer-release fixes.
+
 ## v6
 
 - Added cache-proof `app-v6.js` entry point.

@@ -4,13 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#050812">
-  <meta name="description" content="Celestia Atlas Offline — a self-contained interactive sky atlas with no external services or libraries.">
+  <meta name="description" content="Celestia Atlas Offline v7 — a self-contained interactive sky atlas with no external services or libraries.">
   <title>Celestia Atlas Offline</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <main id="app" class="app-shell">
+    <canvas id="milkyCanvas" class="milky-canvas" aria-hidden="true"></canvas>
     <canvas id="skyCanvas" aria-label="Interactive offline sky map" tabindex="0"></canvas>
     <div class="vignette" aria-hidden="true"></div>
 
@@ -76,7 +77,10 @@
       </div>
       <div class="location-actions"><button id="applyLocationButton" type="button">Apply</button><button id="locateButton" type="button" class="accent">Use device location</button></div>
 
-      <div class="toggle-row"><span>Milky Way plane</span><label class="switch"><input id="milkyWaySwitch" type="checkbox" checked><i></i></label></div>
+      <div class="toggle-row"><span>Milky Way panorama</span><label class="switch"><input id="milkyWaySwitch" type="checkbox" checked><i></i></label></div>
+      <label class="range-label compact" for="milkyWayOpacity"><span>Milky Way brightness</span><strong id="milkyWayOpacityValue">90%</strong></label>
+      <input id="milkyWayOpacity" type="range" min="0" max="130" step="5" value="90">
+      <div class="toggle-row"><span>DSO image previews</span><label class="switch"><input id="dsoImageSwitch" type="checkbox" checked><i></i></label></div>
       <div class="toggle-row"><span>Hide below horizon</span><label class="switch"><input id="horizonSwitch" type="checkbox" checked><i></i></label></div>
       <div class="toggle-row"><span>Cardinal directions</span><label class="switch"><input id="cardinalSwitch" type="checkbox" checked><i></i></label></div>
 
@@ -97,10 +101,10 @@
 
     <section id="aboutPanel" class="about-panel glass" aria-hidden="true" aria-labelledby="aboutTitle">
       <div class="panel-heading"><div><p class="eyebrow">SELF-CONTAINED</p><h2 id="aboutTitle">About this atlas</h2></div><button class="panel-close" data-close="aboutPanel" aria-label="Close about panel">×</button></div>
-      <p>This build uses a custom native Canvas celestial-sphere renderer. It has no Aladin, Stellarium Web, Three.js, external fonts, remote imagery, or online catalog calls.</p>
+      <p>This build uses a native WebGL sky-dome for the local Milky Way panorama and a custom Canvas celestial-sphere renderer for stars, constellations, labels, and deep-sky objects. It has no Aladin, Stellarium Web, Three.js, external fonts, remote imagery, or online catalog calls.</p>
       <div class="data-stats"><div><strong id="starCount">—</strong><span>local bright stars</span></div><div><strong id="dsoCount">—</strong><span>local deep-sky objects</span></div><div><strong id="constCount">—</strong><span>constellation figures</span></div></div>
       <h3>Data scope</h3>
-      <p>The compact catalog is designed for naked-eye navigation and popular telescope targets. Coordinates are J2000. The Milky Way overlay is a calculated galactic-coordinate plane, not a photographic image. Object sketches are schematic.</p>
+      <p>The compact catalog is designed for naked-eye navigation and popular telescope targets. Coordinates are J2000. The bundled Milky Way panorama is a locally generated visual representation aligned to Galactic coordinates. Local DSO photographs are projected at their catalogued sky positions when available. Object sketches remain schematic fallbacks.</p>
       <h3>Controls</h3>
       <p>Drag to pan, wheel or pinch to zoom, click an object for details, and use <kbd>/</kbd>, <kbd>G</kbd>, <kbd>C</kbd>, <kbd>D</kbd>, <kbd>L</kbd>, <kbd>H</kbd>, <kbd>N</kbd>, <kbd>R</kbd>, or <kbd>F</kbd>.</p>
       <h3>Offline installation</h3>
@@ -117,6 +121,7 @@
   </main>
   <script src="dso-images.js"></script>
   <script src="catalog.js"></script>
-  <script src="app-v6.js"></script>
+  <script src="milky-way-renderer.js"></script>
+  <script src="app-v7.js"></script>
 </body>
 </html>

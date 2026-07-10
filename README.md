@@ -1,17 +1,18 @@
-# Celestia Atlas Offline — Full v6 Project
+# Celestia Atlas Offline — Full v7 Project
 
-A self-contained browser sky atlas with a native Canvas renderer, offline star and DSO catalogs, constellation figures, observer-sky calculations, local DSO images, and GitHub Pages deployment.
+A self-contained browser sky atlas with a native WebGL Milky Way sky dome, a Canvas celestial-sphere renderer, offline star and DSO catalogs, constellation figures, observer-sky calculations, local DSO photographs, and GitHub Pages deployment.
 
 ## Highlights
 
 - No Aladin, HiPS, remote sky viewer, API, CDN, analytics, or runtime network dependency.
+- Native WebGL Milky Way panorama aligned to Galactic, equatorial, and observer coordinates.
+- Local DSO photographs projected directly at their catalogued sky positions when zoomed in.
 - Local catalog search for stars, Messier/NGC objects, aliases, and coordinates.
 - Observer-sky and equatorial atlas modes.
-- Local galaxy/nebula/cluster images loaded from `images/dso/`.
 - Offline PWA caching through `service-worker.js`.
 - Automatic DSO image indexing during GitHub Pages deployment.
 - Robust pointer release handling to prevent the sky remaining in drag mode.
-- Defensive image-panel creation for older cached HTML.
+- WebGL fallback to the original calculated Galactic-plane overlay when WebGL is unavailable.
 
 ## Run locally
 
@@ -25,7 +26,19 @@ Open `http://localhost:8000`.
 
 A local HTTP server is recommended because service workers are not active when opening `index.html` directly through `file://`.
 
-## Add DSO images
+## Milky Way sky dome
+
+The bundled file is:
+
+```text
+assets/milky-way.webp
+```
+
+It is a local, procedurally generated 2:1 equirectangular Galactic-coordinate panorama. The WebGL renderer maps it onto the inside of the sky sphere and keeps it aligned while you pan, zoom, change time, switch coordinates, or move the observer.
+
+You can replace the file with another 2:1 Galactic-coordinate panorama. Keep the filename unchanged, then increase the service-worker cache version before deployment.
+
+## DSO images in the sky
 
 Put images in:
 
@@ -65,7 +78,12 @@ Then regenerate the local index:
 python tools/build_dso_image_index.py
 ```
 
-The GitHub Actions workflow runs this command automatically before deployment.
+The same images are used in two places:
+
+1. The object details panel.
+2. The sky itself as softly blended previews at the correct RA/Dec when the field of view is below about 48°.
+
+The GitHub Actions workflow runs the indexer automatically before deployment.
 
 ## NASA build-time downloader
 
@@ -81,7 +99,7 @@ Or selected objects:
 python tools/fetch_nasa_dso_images.py M31 M51 M104
 ```
 
-The downloader stores local copies and metadata. The atlas never contacts NASA at runtime. Review every generated source, credit, and license before publishing.
+The downloader stores local copies and metadata. The atlas never contacts NASA at runtime. Review every generated source, credit, and licence before publishing.
 
 ## GitHub Pages
 
@@ -91,8 +109,9 @@ Push to `main`. The included workflow:
 
 1. Generates `dso-images.js`.
 2. Builds the `_site` artifact.
-3. Copies local DSO images.
-4. Deploys the result to GitHub Pages.
+3. Copies the WebGL renderer and Milky Way panorama.
+4. Copies local DSO images.
+5. Deploys the result to GitHub Pages.
 
 For the repository `acocalypso/celestia_atlas`, the expected URL is:
 
@@ -102,16 +121,16 @@ https://acocalypso.github.io/celestia_atlas/
 
 ## Updating an existing installation
 
-This release uses `app-v6.js` and cache `celestia-atlas-offline-v6` to bypass older cached builds. After deployment, load:
+This release uses `app-v7.js` and cache `celestia-atlas-offline-v7` to bypass older cached builds. After deployment, load:
 
 ```text
-https://acocalypso.github.io/celestia_atlas/?build=v6
+https://acocalypso.github.io/celestia_atlas/?build=v7
 ```
 
 The browser console should show:
 
 ```text
-Celestia Atlas app build v6
+Celestia Atlas app build v7
 ```
 
 If an older release still appears, unregister the old service worker and clear site data once in browser developer tools.
@@ -124,12 +143,16 @@ If an older release still appears, unregister the old service worker and clear s
 ├── .gitignore
 ├── .nojekyll
 ├── app.js
-├── app-v6.js
+├── app-v7.js
+├── assets/
+│   ├── milky-way.webp
+│   └── README.md
 ├── catalog.js
 ├── dso-images.js
 ├── images/dso/
 ├── index.html
 ├── manifest.webmanifest
+├── milky-way-renderer.js
 ├── service-worker.js
 ├── serve.py
 ├── styles.css
