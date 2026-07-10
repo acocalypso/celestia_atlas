@@ -34,6 +34,7 @@ export function createCelestiaAtlasViewer(options) {
   );
   let utcMs = Number.isFinite(options.utcMs) ? options.utcMs : Date.now();
   let clockSetAt = performance.now();
+  let timeRate = 1;
   let view = { center: { raDeg: 0, decDeg: 0, frame: "ICRS" }, fovDeg: 70 };
   let mount = null;
   let mountFollow = false;
@@ -63,6 +64,8 @@ export function createCelestiaAtlasViewer(options) {
   const assertAlive = () => {
     if (destroyed) throw new Error("Celestia Atlas viewer has been destroyed");
   };
+  const currentUtcMs = () =>
+    utcMs + (performance.now() - clockSetAt) * timeRate;
   const draw = () => {
     frameId = null;
     if (destroyed || paused) return;
@@ -246,14 +249,14 @@ export function createCelestiaAtlasViewer(options) {
       context.strokeStyle = "#f6c978";
       context.beginPath();
       let drawing = false;
-      const currentUtcMs = utcMs + (performance.now() - clockSetAt);
+      const horizonUtcMs = currentUtcMs();
       for (let index = 0; index < horizon.length; index += 1) {
         const point = horizon[index];
         const projected = project(
           horizontalToEquatorial(
             point,
             observer,
-            currentUtcMs,
+            horizonUtcMs,
             view.center.frame,
           ),
         );
@@ -409,6 +412,19 @@ export function createCelestiaAtlasViewer(options) {
       clockSetAt = performance.now();
       invalidate();
     },
+    setTimeRate(value) {
+      assertAlive();
+      if (!Number.isFinite(value))
+        throw new TypeError("Time rate must be finite");
+      utcMs = currentUtcMs();
+      clockSetAt = performance.now();
+      timeRate = value;
+      invalidate();
+    },
+    getTime() {
+      assertAlive();
+      return currentUtcMs();
+    },
     setView(value) {
       assertAlive();
       const center = validateEquatorialCoordinates(value?.center);
@@ -553,7 +569,13 @@ export function createCelestiaAtlasViewer(options) {
     },
     getState() {
       assertAlive();
-      return structuredClone({ observer, utcMs, view, paused });
+      return structuredClone({
+        observer,
+        utcMs: currentUtcMs(),
+        timeRate,
+        view,
+        paused,
+      });
     },
     destroy() {
       if (destroyed) return;
