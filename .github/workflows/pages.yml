@@ -35,16 +35,13 @@ jobs:
 
           cp index.html _site/
           cp app.js _site/
+          cp app-v6.js _site/
           cp catalog.js _site/
           cp dso-images.js _site/
           cp styles.css _site/
           cp manifest.webmanifest _site/
           cp service-worker.js _site/
           cp .nojekyll _site/
-
-          if [ -f celestia-atlas-offline.html ]; then
-            cp celestia-atlas-offline.html _site/
-          fi
 
           if [ -d images ]; then
             cp -R images _site/images

@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-console.info('Celestia Atlas app build v5');
+console.info('Celestia Atlas app build v6');
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const DEG=Math.PI/180, RAD=180/Math.PI, TAU=Math.PI*2;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
