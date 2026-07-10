@@ -87,7 +87,11 @@
 
     <section id="detailsPanel" class="details-panel glass" aria-live="polite" aria-hidden="true">
       <button class="panel-close detail-close" data-close="detailsPanel" aria-label="Close object details">×</button>
-      <canvas id="objectSketch" width="540" height="220" aria-hidden="true"></canvas>
+      <div class="object-media">
+        <img id="objectImage" class="object-image" alt="" hidden decoding="async">
+        <canvas id="objectSketch" width="540" height="220" aria-hidden="true"></canvas>
+        <div id="objectImageCaption" class="object-image-caption" hidden></div>
+      </div>
       <div id="detailsContent"></div>
     </section>
 
@@ -111,7 +115,8 @@
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <div id="loadingScreen" class="loading-screen"><div class="loader-orbit"><span></span><span></span><i></i></div><p class="eyebrow">CELESTIA ATLAS</p><h1>Building the local sky</h1><p>No network connection required</p></div>
   </main>
-  <script src="catalog.js"></script>
-  <script src="app.js"></script>
+  <script src="dso-images.js?v=4"></script>
+  <script src="catalog.js?v=4"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

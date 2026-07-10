@@ -7,7 +7,14 @@ const norm360=v=>(v%360+360)%360;
 const norm180=v=>((v+180)%360+360)%360-180;
 const canvas=$('#skyCanvas'), ctx=canvas.getContext('2d',{alpha:false});
 const sketch=$('#objectSketch'), sctx=sketch.getContext('2d');
-const objectImage=$('#objectImage'), objectImageCaption=$('#objectImageCaption');
+let objectImage=$('#objectImage'), objectImageCaption=$('#objectImageCaption');
+// Defensive fallback for older/cached HTML: create the image UI if it is missing.
+if(!objectImage||!objectImageCaption){
+  let media=sketch.closest('.object-media');
+  if(!media){media=document.createElement('div');media.className='object-media';sketch.before(media);media.appendChild(sketch)}
+  if(!objectImage){objectImage=document.createElement('img');objectImage.id='objectImage';objectImage.className='object-image';objectImage.alt='';objectImage.hidden=true;objectImage.decoding='async';media.prepend(objectImage)}
+  if(!objectImageCaption){objectImageCaption=document.createElement('div');objectImageCaption.id='objectImageCaption';objectImageCaption.className='object-image-caption';objectImageCaption.hidden=true;media.appendChild(objectImageCaption)}
+}
 const state={mode:'horizontal',centerLon:180,centerLat:35,fov:70,magLimit:5.5,starScale:1,grid:true,constellations:true,dso:true,labels:true,milkyWay:true,hideBelow:true,cardinals:true,night:false,lat:52.52,lon:13.405,time:new Date(),playing:false,selected:null,pointer:null};
 let dpr=1,w=0,h=0,focal=1,forward=[1,0,0],right=[0,1,0],up=[0,0,1],hitTargets=[],drag=null,pinch=null,toastTimer=0,lastFrame=performance.now(),detailImageToken=0;
 const starByName=new Map(STAR_DATA.map(s=>[s.name.toLowerCase(),s]));
