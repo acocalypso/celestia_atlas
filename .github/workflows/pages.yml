@@ -1,0 +1,43 @@
+name: Deploy Celestia Atlas to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Generate local DSO image index
+        run: python tools/build_dso_image_index.py
+      - name: Assemble static site
+        run: |
+          mkdir -p _site
+          cp index.html app.js catalog.js dso-images.js styles.css manifest.webmanifest service-worker.js .nojekyll _site/
+          test ! -f celestia-atlas-offline.html || cp celestia-atlas-offline.html _site/
+          cp -R images _site/images
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
