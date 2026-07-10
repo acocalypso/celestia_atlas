@@ -1,5 +1,9 @@
 # Celestia Atlas Offline v8
 
+Celestia Atlas source code is licensed under GNU GPL v3 or later. See
+`LICENSE`. Bundled and generated third-party data retains the separate terms
+listed in `THIRD_PARTY_NOTICES.md`.
+
 A self-contained browser planetarium with a local Milky Way dome, offline star
 catalogue, a comprehensive OpenNGC deep-sky catalogue, local DSO photographs,
 and no runtime astronomy services.

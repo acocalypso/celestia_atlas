@@ -16,6 +16,7 @@ import csv
 import datetime as dt
 import io
 import json
+import os
 import re
 import sys
 import time
@@ -295,11 +296,9 @@ def deduplicate(objects: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def write_outputs(objects: list[dict[str, Any]], version: str, sources: list[str]) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    generated = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
     meta = {
         "name": "OpenNGC offline DSO catalogue",
         "version": version,
-        "generatedAt": generated,
         "objectCount": len(objects),
         "license": "CC-BY-SA-4.0",
         "attribution": "OpenNGC by Mattia Verga and contributors",
@@ -307,6 +306,10 @@ def write_outputs(objects: list[dict[str, Any]], version: str, sources: list[str
         "sources": sources,
         "excludedTypes": sorted(EXCLUDED_TYPES),
     }
+    source_date_epoch = os.environ.get("SOURCE_DATE_EPOCH")
+    if source_date_epoch:
+        generated = dt.datetime.fromtimestamp(int(source_date_epoch), dt.timezone.utc).replace(microsecond=0)
+        meta["generatedAt"] = generated.isoformat()
     payload = {"meta": meta, "objects": objects}
     (DATA_DIR / "openngc-catalog.json").write_text(
         json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
@@ -339,7 +342,9 @@ def main() -> int:
             if name == "addendum.csv":
                 continue
             raise
-        sources.append(source)
+        # Record stable public provenance rather than a machine-specific cache
+        # path so online and offline builds produce identical output.
+        sources.append(BASE.format(version=args.version, name=name))
         for row in rows_from_text(text):
             obj = object_from_row(row, name)
             if obj:
