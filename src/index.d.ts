@@ -51,6 +51,8 @@ export interface CelestiaAtlasViewer {
   setTime(timestampUtcMs: number): void;
   setView(value: ViewState): void;
   setMountPosition(value: MountPosition | null): void;
+  setMountFollow(value: boolean): void;
+  focusMount(): boolean;
   setFieldOfView(value: FieldOfViewOverlay | null): void;
   setHorizon(value: HorizonPoint[]): void;
   setDisplayOptions(

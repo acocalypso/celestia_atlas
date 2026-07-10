@@ -36,6 +36,7 @@ export function createCelestiaAtlasViewer(options) {
   let clockSetAt = performance.now();
   let view = { center: { raDeg: 0, decDeg: 0, frame: "ICRS" }, fovDeg: 70 };
   let mount = null;
+  let mountFollow = false;
   let fieldOfView = null;
   let horizon = [];
   let hitTargets = [];
@@ -204,8 +205,8 @@ export function createCelestiaAtlasViewer(options) {
       }
     }
     if (fieldOfView) {
-      const overlayWidth = fieldOfView.widthDeg * scale;
-      const overlayHeight = fieldOfView.heightDeg * scale;
+      const panelWidth = fieldOfView.widthDeg * scale;
+      const panelHeight = fieldOfView.heightDeg * scale;
       context.save();
       context.translate(width / 2, height / 2);
       const direction =
@@ -214,12 +215,31 @@ export function createCelestiaAtlasViewer(options) {
           : -1;
       context.rotate((direction * fieldOfView.rotationDeg * Math.PI) / 180);
       context.strokeStyle = "#64e39c";
-      context.strokeRect(
-        -overlayWidth / 2,
-        -overlayHeight / 2,
-        overlayWidth,
-        overlayHeight,
-      );
+      const mosaic = fieldOfView.mosaic;
+      if (mosaic) {
+        const overlap = mosaic.overlapPercent / 100;
+        const stepX = panelWidth * (1 - overlap);
+        const stepY = panelHeight * (1 - overlap);
+        for (let row = 0; row < mosaic.rows; row += 1) {
+          for (let column = 0; column < mosaic.columns; column += 1) {
+            const x = (column - (mosaic.columns - 1) / 2) * stepX;
+            const y = (row - (mosaic.rows - 1) / 2) * stepY;
+            context.strokeRect(
+              x - panelWidth / 2,
+              y - panelHeight / 2,
+              panelWidth,
+              panelHeight,
+            );
+          }
+        }
+      } else {
+        context.strokeRect(
+          -panelWidth / 2,
+          -panelHeight / 2,
+          panelWidth,
+          panelHeight,
+        );
+      }
       context.restore();
     }
     if (display.horizon && horizon.length > 1) {
@@ -416,8 +436,29 @@ export function createCelestiaAtlasViewer(options) {
           ...value,
           coordinates: validateEquatorialCoordinates(value.coordinates),
         };
+        if (mountFollow && mount.connected) {
+          view = { ...view, center: mount.coordinates };
+          onViewChange?.(structuredClone(view));
+        }
       }
       invalidate();
+    },
+    setMountFollow(value) {
+      assertAlive();
+      mountFollow = Boolean(value);
+      if (mountFollow && mount?.connected) {
+        view = { ...view, center: mount.coordinates };
+        onViewChange?.(structuredClone(view));
+      }
+      invalidate();
+    },
+    focusMount() {
+      assertAlive();
+      if (!mount?.connected) return false;
+      view = { ...view, center: mount.coordinates };
+      onViewChange?.(structuredClone(view));
+      invalidate();
+      return true;
     },
     setFieldOfView(value) {
       assertAlive();
@@ -438,6 +479,19 @@ export function createCelestiaAtlasViewer(options) {
           ].includes(value.rotationConvention)
         )
           throw new TypeError("FOV rotation convention is required");
+        if (value.mosaic) {
+          const { columns, rows, overlapPercent } = value.mosaic;
+          if (
+            !Number.isInteger(columns) ||
+            columns < 1 ||
+            !Number.isInteger(rows) ||
+            rows < 1 ||
+            !Number.isFinite(overlapPercent) ||
+            overlapPercent < 0 ||
+            overlapPercent >= 100
+          )
+            throw new TypeError("Invalid mosaic configuration");
+        }
         fieldOfView = structuredClone(value);
       }
       invalidate();
