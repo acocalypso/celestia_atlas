@@ -1,5 +1,6 @@
 import {
   validateEquatorialCoordinates,
+  horizontalToEquatorial,
   validateObserver,
 } from "./core/coordinates.js";
 import { projectEquatorial, unprojectEquatorial } from "./core/projection.js";
@@ -32,6 +33,7 @@ export function createCelestiaAtlasViewer(options) {
     options.observer ?? { latitudeDeg: 0, longitudeDeg: 0, elevationM: 0 },
   );
   let utcMs = Number.isFinite(options.utcMs) ? options.utcMs : Date.now();
+  let clockSetAt = performance.now();
   let view = { center: { raDeg: 0, decDeg: 0, frame: "ICRS" }, fovDeg: 70 };
   let mount = null;
   let fieldOfView = null;
@@ -48,6 +50,7 @@ export function createCelestiaAtlasViewer(options) {
   };
   let drag = null;
   let frameId = null;
+  let clockTimer = null;
   const searchableObjects = [...stars, ...catalog];
   const starsByName = new Map();
   for (const star of stars) {
@@ -222,12 +225,27 @@ export function createCelestiaAtlasViewer(options) {
     if (display.horizon && horizon.length > 1) {
       context.strokeStyle = "#f6c978";
       context.beginPath();
+      let drawing = false;
+      const currentUtcMs = utcMs + (performance.now() - clockSetAt);
       for (let index = 0; index < horizon.length; index += 1) {
         const point = horizon[index];
-        const x = (point.azimuthDeg / 360) * width;
-        const y = height - ((point.altitudeDeg + 90) / 180) * height;
-        if (index === 0) context.moveTo(x, y);
-        else context.lineTo(x, y);
+        const projected = project(
+          horizontalToEquatorial(
+            point,
+            observer,
+            currentUtcMs,
+            view.center.frame,
+          ),
+        );
+        if (!projected) {
+          drawing = false;
+          continue;
+        }
+        if (drawing) context.lineTo(projected.x, projected.y);
+        else {
+          context.moveTo(projected.x, projected.y);
+          drawing = true;
+        }
       }
       context.stroke();
     }
@@ -343,13 +361,16 @@ export function createCelestiaAtlasViewer(options) {
     resume() {
       assertAlive();
       paused = false;
+      if (clockTimer === null) clockTimer = setInterval(invalidate, 60000);
       invalidate();
     },
     pause() {
       assertAlive();
       paused = true;
       if (frameId !== null) cancelAnimationFrame(frameId);
+      if (clockTimer !== null) clearInterval(clockTimer);
       frameId = null;
+      clockTimer = null;
     },
     resize() {
       assertAlive();
@@ -365,6 +386,7 @@ export function createCelestiaAtlasViewer(options) {
       if (!Number.isFinite(value))
         throw new TypeError("UTC time must be milliseconds");
       utcMs = value;
+      clockSetAt = performance.now();
       invalidate();
     },
     setView(value) {
@@ -483,6 +505,7 @@ export function createCelestiaAtlasViewer(options) {
       if (destroyed) return;
       destroyed = true;
       if (frameId !== null) cancelAnimationFrame(frameId);
+      if (clockTimer !== null) clearInterval(clockTimer);
       resizeObserver.disconnect();
       canvas.removeEventListener("pointerdown", pointerDown);
       canvas.removeEventListener("pointermove", pointerMove);
@@ -492,6 +515,7 @@ export function createCelestiaAtlasViewer(options) {
       canvas.removeEventListener("wheel", wheel);
       canvas.remove();
       frameId = null;
+      clockTimer = null;
     },
   });
 }
