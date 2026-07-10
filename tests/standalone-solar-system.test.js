@@ -1,29 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import vm from "node:vm";
-import { getSolarSystemObjects } from "../src/index.js";
+import { getCometObjects, getSolarSystemObjects } from "../src/index.js";
+import "../standalone-engine-bridge.js";
 
 test("standalone solar-system adapter matches the embeddable engine", () => {
-  const context = { console };
-  context.globalThis = context;
-  vm.createContext(context);
-  vm.runInContext(
-    fs.readFileSync("vendor/astronomy-engine-2.1.19.min.js", "utf8"),
-    context,
-  );
-  vm.runInContext(
-    fs.readFileSync("solar-system-standalone.js", "utf8"),
-    context,
-  );
-
   const timestampUtcMs = Date.parse("2024-02-29T00:00:00Z");
   const observer = {
     latitudeDeg: 52.52,
     longitudeDeg: 13.405,
     elevationM: 40,
   };
-  const standalone = context.CelestiaAtlasSolarSystem.getObjects(
+  const standalone = globalThis.CelestiaAtlasSolarSystem.getObjects(
     timestampUtcMs,
     observer,
   );
@@ -36,4 +23,22 @@ test("standalone solar-system adapter matches the embeddable engine", () => {
     assert.ok(Math.abs(standalone[index].dec - embedded[index].decDeg) < 1e-12);
     assert.equal(standalone[index].mag, embedded[index].magnitude);
   }
+});
+
+test("standalone comet adapter uses the embeddable comet engine", () => {
+  const timestampUtcMs = Date.parse("2024-04-01T00:00:00Z");
+  const observer = {
+    latitudeDeg: 52.52,
+    longitudeDeg: 13.405,
+    elevationM: 40,
+  };
+  const standalone = globalThis.CelestiaAtlasComets.getObjects(
+    timestampUtcMs,
+    observer,
+  );
+  const embedded = getCometObjects(timestampUtcMs, observer);
+  assert.equal(standalone.length, 1214);
+  assert.equal(standalone[0].id, embedded[0].id);
+  assert.equal(standalone[0].ra * 15, embedded[0].raDeg);
+  assert.equal(standalone[0].dec, embedded[0].decDeg);
 });

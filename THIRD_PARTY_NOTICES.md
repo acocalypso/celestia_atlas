@@ -1,5 +1,20 @@
 # Third-party notices
 
+## IAU Minor Planet Center comet elements
+
+The offline comet catalogue is generated from an IAU Minor Planet Center
+`CometEls.txt` snapshot using the MPC Ephemerides and Orbital Elements comet
+format.
+
+- Project: https://www.minorplanetcenter.net/
+- Format documentation: https://docs.minorplanetcenter.net/mpc-ops-docs/orbits/comet-orbit-format/
+- Pinned source SHA-256: `8e7bb528fac5c5e8f0f11c72f4fa1102ee50220bab8654a4fedba1a558e68a8f`
+- Records: 1,214
+
+Celestia Atlas changes include fixed-column parsing, compact JSON/JavaScript
+conversion, two-body universal-variable propagation, light-time correction,
+observer parallax, search metadata and approximate magnitude calculation.
+
 ## Astronomy Engine
 
 Solar-system positions, illumination and visual magnitudes are calculated with

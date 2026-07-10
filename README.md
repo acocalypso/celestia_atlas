@@ -6,7 +6,8 @@ listed in `THIRD_PARTY_NOTICES.md`.
 
 A self-contained browser planetarium with a local Milky Way dome, offline star
 catalogue, a comprehensive OpenNGC deep-sky catalogue, local DSO photographs,
-live offline Sun, Moon and planet positions, and no runtime astronomy services.
+live offline Sun, Moon, planet and comet positions, and no runtime astronomy
+services.
 
 ## What changed in v8
 
@@ -20,6 +21,8 @@ live offline Sun, Moon and planet positions, and no runtime astronomy services.
 - Search covers the complete generated catalogue and its aliases offline.
 - Search and rendering include topocentric J2000 positions for the Sun, Moon,
   planets and Pluto at the selected observer location and time.
+- A pinned 1,214-record Minor Planet Center catalogue provides offline comet
+  search and approximate topocentric positions without runtime requests.
 - The NASA image downloader now accepts any catalogue object, supports large
   resumable batches, filtering, offsets, dry runs, reports and relevance scoring.
 

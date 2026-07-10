@@ -50,6 +50,17 @@ export interface SolarSystemObject extends SelectedTarget {
   frame: "J2000";
   epochJulianYear: 2000;
 }
+export interface CometObject extends SelectedTarget {
+  id: string;
+  objectType: "comet";
+  distanceAu: number;
+  heliocentricDistanceAu: number;
+  catalogueSource: "IAU Minor Planet Center";
+  raDeg: number;
+  decDeg: number;
+  frame: "J2000";
+  epochJulianYear: 2000;
+}
 export interface ViewState {
   center: EquatorialCoordinates;
   fovDeg: number;
@@ -76,6 +87,7 @@ export interface CelestiaAtlasViewer {
       labels: boolean;
       deepSkyObjects: boolean;
       solarSystem: boolean;
+      comets: boolean;
       horizon: boolean;
       nightMode: boolean;
     }>,
@@ -103,3 +115,8 @@ export function getSolarSystemObjects(
   timestampUtcMs: number,
   observer: Observer,
 ): SolarSystemObject[];
+export function getCometObjects(
+  timestampUtcMs: number,
+  observer: Observer,
+  elements?: unknown[],
+): CometObject[];

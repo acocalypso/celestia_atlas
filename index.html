@@ -23,7 +23,7 @@
 
       <form id="searchForm" class="search" role="search" autocomplete="off">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"/></svg>
-        <input id="searchInput" type="search" spellcheck="false" placeholder="Search Sirius, M31, NGC 224, or 10.68 41.27" aria-label="Search local sky catalog">
+        <input id="searchInput" type="search" spellcheck="false" placeholder="Search Sirius, M31, Jupiter, 12P, or coordinates" aria-label="Search local sky catalog">
         <kbd>/</kbd>
         <button type="submit">Go</button>
         <div id="searchResults" class="search-results" role="listbox"></div>
@@ -125,8 +125,10 @@
   <script src="catalog.js"></script>
   <script src="dso-catalog.js"></script>
   <script src="milky-way-renderer.js"></script>
-  <script src="vendor/astronomy-engine-2.1.19.min.js"></script>
-  <script src="solar-system-standalone.js"></script>
+  <script type="importmap">
+    { "imports": { "astronomy-engine": "./vendor/astronomy-engine-2.1.19.esm.js" } }
+  </script>
+  <script type="module" src="standalone-engine-bridge.js"></script>
   <script src="app-v8.js"></script>
 </body>
 </html>

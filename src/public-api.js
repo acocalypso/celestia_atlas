@@ -5,6 +5,7 @@ import {
 } from "./core/coordinates.js";
 import { projectEquatorial, unprojectEquatorial } from "./core/projection.js";
 import { getSolarSystemObjects } from "./core/solar-system.js";
+import { getCometObjects } from "./core/comets.js";
 
 export function createCelestiaAtlasViewer(options) {
   const {
@@ -49,12 +50,14 @@ export function createCelestiaAtlasViewer(options) {
     labels: true,
     deepSkyObjects: true,
     solarSystem: true,
+    comets: true,
     horizon: true,
     nightMode: false,
   };
   let drag = null;
   let frameId = null;
   let clockTimer = null;
+  let cometCache = { key: "", objects: [] };
   const searchableObjects = [...stars, ...catalog];
   const starsByName = new Map();
   for (const star of stars) {
@@ -68,6 +71,13 @@ export function createCelestiaAtlasViewer(options) {
   };
   const currentUtcMs = () =>
     utcMs + (performance.now() - clockSetAt) * timeRate;
+  const currentComets = () => {
+    const timestamp = currentUtcMs();
+    const key = `${Math.floor(timestamp / 60000)}:${observer.latitudeDeg}:${observer.longitudeDeg}:${observer.elevationM}`;
+    if (cometCache.key !== key)
+      cometCache = { key, objects: getCometObjects(timestamp, observer) };
+    return cometCache.objects;
+  };
   const draw = () => {
     frameId = null;
     if (destroyed || paused) return;
@@ -219,6 +229,45 @@ export function createCelestiaAtlasViewer(options) {
         if (display.labels) {
           context.font = "11px system-ui";
           context.fillText(object.name, x + radius + 4, y - 4);
+        }
+      }
+    }
+    if (display.comets) {
+      const magnitudeLimit = view.fovDeg > 55 ? 8 : view.fovDeg > 25 ? 12 : 18;
+      for (const object of currentComets()) {
+        const isSelected = selected?.id === object.id;
+        if (!isSelected && (!Number.isFinite(object.mag) || object.mag > magnitudeLimit))
+          continue;
+        const point = project(object);
+        if (!point) continue;
+        const { x, y } = point;
+        if (x < 0 || x > width || y < 0 || y > height) continue;
+        const radius = isSelected ? 6 : 3.5;
+        context.save();
+        context.fillStyle = display.nightMode ? "#ff584f" : "#80e2c2";
+        context.shadowColor = context.fillStyle;
+        context.shadowBlur = 6;
+        context.beginPath();
+        context.arc(x, y, radius, 0, Math.PI * 2);
+        context.fill();
+        context.shadowBlur = 0;
+        context.strokeStyle = context.fillStyle;
+        context.beginPath();
+        context.moveTo(x + radius, y);
+        context.lineTo(x + radius + 8, y + 4);
+        context.stroke();
+        if (isSelected) {
+          context.strokeStyle = "#fff1bd";
+          context.beginPath();
+          context.arc(x, y, radius + 3, 0, Math.PI * 2);
+          context.stroke();
+        }
+        context.restore();
+        hitTargets.push({ x, y, object });
+        if (display.labels && (isSelected || object.mag <= 10 || view.fovDeg < 20)) {
+          context.font = "10px system-ui";
+          context.fillStyle = display.nightMode ? "#ff8178" : "#a7f3dc";
+          context.fillText(object.name, x + radius + 5, y - 4);
         }
       }
     }
@@ -589,7 +638,8 @@ export function createCelestiaAtlasViewer(options) {
       const solarSystemObjects = display.solarSystem
         ? getSolarSystemObjects(currentUtcMs(), observer)
         : [];
-      return [...solarSystemObjects, ...searchableObjects]
+      const comets = display.comets ? currentComets() : [];
+      return [...solarSystemObjects, ...comets, ...searchableObjects]
         .filter((item) =>
           [item.name, item.id, ...(item.aliases ?? [])].some((text) =>
             String(text ?? "")

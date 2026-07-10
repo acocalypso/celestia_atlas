@@ -4,6 +4,10 @@
 
 - Added live offline Sun, Moon, planet and Pluto rendering, search, selection
   and observer/time-dependent topocentric J2000 positions to the standalone app.
+- Added a reproducible 1,214-record MPC comet catalogue with universal-variable
+  propagation, light-time correction, rendering, search and selection.
+- Changed the standalone app to load the same framework-neutral engine modules
+  as embedded consumers instead of maintaining a duplicate ephemeris adapter.
 
 ## v8
 

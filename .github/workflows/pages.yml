@@ -56,7 +56,7 @@ jobs:
           cp index.html _site/
           cp app.js _site/
           cp app-v8.js _site/
-          cp solar-system-standalone.js _site/
+          cp standalone-engine-bridge.js _site/
           cp milky-way-renderer.js _site/
           cp catalog.js _site/
           cp dso-catalog.js _site/
@@ -81,6 +81,10 @@ jobs:
 
           if [ -d data ]; then
             cp -R data _site/data
+          fi
+
+          if [ -d src ]; then
+            cp -R src _site/src
           fi
 
           echo "Deployment contents:"
