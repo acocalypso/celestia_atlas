@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Added live offline Sun, Moon, planet and Pluto rendering, search, selection
+  and observer/time-dependent topocentric J2000 positions to the standalone app.
+
 ## v8
 
 - Added reproducible full OpenNGC NGC/IC + addendum catalogue generation.

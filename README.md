@@ -6,7 +6,7 @@ listed in `THIRD_PARTY_NOTICES.md`.
 
 A self-contained browser planetarium with a local Milky Way dome, offline star
 catalogue, a comprehensive OpenNGC deep-sky catalogue, local DSO photographs,
-and no runtime astronomy services.
+live offline Sun, Moon and planet positions, and no runtime astronomy services.
 
 ## What changed in v8
 
@@ -18,14 +18,16 @@ and no runtime astronomy services.
 - Faint DSOs appear progressively as the field of view narrows, so the full
   catalogue remains usable without covering the wide sky in thousands of marks.
 - Search covers the complete generated catalogue and its aliases offline.
+- Search and rendering include topocentric J2000 positions for the Sun, Moon,
+  planets and Pluto at the selected observer location and time.
 - The NASA image downloader now accepts any catalogue object, supports large
   resumable batches, filtering, offsets, dry runs, reports and relevance scoring.
 
 ## Runtime privacy and offline behavior
 
 The deployed atlas makes no catalogue, tile, API, analytics or font requests.
-`dso-catalog.js`, the Milky Way panorama and all DSO images are ordinary local
-files cached by the service worker.
+`dso-catalog.js`, the Astronomy Engine browser build, the Milky Way panorama
+and all DSO images are ordinary local files cached by the service worker.
 
 Online access is used only by optional **build tools**:
 
