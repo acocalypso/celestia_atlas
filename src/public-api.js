@@ -4,7 +4,10 @@ import {
   validateObserver,
 } from "./core/coordinates.js";
 import { projectEquatorial, unprojectEquatorial } from "./core/projection.js";
-import { getSolarSystemObjects } from "./core/solar-system.js";
+import {
+  getJupiterMoonObjects,
+  getSolarSystemObjects,
+} from "./core/solar-system.js";
 import { getCometObjects } from "./core/comets.js";
 import {
   eclipticToEquatorial,
@@ -303,7 +306,12 @@ export function createCelestiaAtlasViewer(options) {
         }
       }
     if (display.solarSystem) {
-      for (const object of getSolarSystemObjects(currentUtcMs(), observer)) {
+      const timestamp = currentUtcMs();
+      const solarObjects = [
+        ...getSolarSystemObjects(timestamp, observer),
+        ...getJupiterMoonObjects(timestamp, observer),
+      ];
+      for (const object of solarObjects) {
         const point = project(object);
         if (!point) continue;
         const { x, y } = point;
@@ -323,7 +331,7 @@ export function createCelestiaAtlasViewer(options) {
           context.stroke();
         }
         hitTargets.push({ x, y, object });
-        if (display.labels) {
+        if (display.labels && (!object.parentBody || isSelected || view.fovDeg < 2)) {
           context.font = "11px system-ui";
           context.fillText(object.name, x + radius + 4, y - 4);
         }
@@ -523,6 +531,7 @@ export function createCelestiaAtlasViewer(options) {
           name: hit.object.name || hit.object.id,
           aliases: hit.object.aliases,
           objectType: hit.object.type,
+          parentBody: hit.object.parentBody,
           magnitude: hit.object.mag,
           catalogueSource: hit.object.catalogSource,
           coordinates: validateEquatorialCoordinates({
@@ -711,7 +720,10 @@ export function createCelestiaAtlasViewer(options) {
       display = { ...display, ...value };
       invalidate();
     },
-    focusTarget(target, fovDeg = Math.min(view.fovDeg, 15)) {
+    focusTarget(
+      target,
+      fovDeg = target.parentBody ? 0.5 : Math.min(view.fovDeg, 15),
+    ) {
       assertAlive();
       const center = validateEquatorialCoordinates(
         target.coordinates ?? target,
@@ -733,7 +745,10 @@ export function createCelestiaAtlasViewer(options) {
       const needle = String(query).trim().toLocaleLowerCase();
       if (!needle) return [];
       const solarSystemObjects = display.solarSystem
-        ? getSolarSystemObjects(currentUtcMs(), observer)
+        ? [
+            ...getSolarSystemObjects(currentUtcMs(), observer),
+            ...getJupiterMoonObjects(currentUtcMs(), observer),
+          ]
         : [];
       const comets = display.comets ? currentComets() : [];
       return [...solarSystemObjects, ...comets, ...searchableObjects]

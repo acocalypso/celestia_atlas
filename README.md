@@ -25,6 +25,8 @@ services.
   search and approximate topocentric positions without runtime requests.
 - Embedded consumers can independently control equatorial and azimuth grids,
   the local meridian, ecliptic, Milky Way and atmospheric horizon glow.
+- Jupiter's four Galilean moons use live, light-time-corrected offline positions
+  and become individually searchable and visible in narrow fields.
 - The NASA image downloader now accepts any catalogue object, supports large
   resumable batches, filtering, offsets, dry runs, reports and relevance scoring.
 

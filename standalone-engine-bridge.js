@@ -1,4 +1,8 @@
-import { getCometObjects, getSolarSystemObjects } from "./src/index.js";
+import {
+  getCometObjects,
+  getJupiterMoonObjects,
+  getSolarSystemObjects,
+} from "./src/index.js";
 
 function toStandaloneObject(object, kind) {
   return {
@@ -14,9 +18,10 @@ function toStandaloneObject(object, kind) {
 
 globalThis.CelestiaAtlasSolarSystem = Object.freeze({
   getObjects(timestampUtcMs, observer) {
-    return getSolarSystemObjects(timestampUtcMs, observer).map((object) =>
-      toStandaloneObject(object, "solar-system"),
-    );
+    return [
+      ...getSolarSystemObjects(timestampUtcMs, observer),
+      ...getJupiterMoonObjects(timestampUtcMs, observer),
+    ].map((object) => toStandaloneObject(object, "solar-system"));
   },
 });
 

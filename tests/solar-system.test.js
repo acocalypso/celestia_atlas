@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getSolarSystemObjects } from "../src/index.js";
+import {
+  getJupiterMoonObjects,
+  getSolarSystemObjects,
+} from "../src/index.js";
 
 const BERLIN = {
   latitudeDeg: 52.52,
@@ -97,4 +100,23 @@ test("rejects invalid time and observer inputs", () => {
       }),
     /latitudeDeg/,
   );
+});
+
+test("returns Jupiter's four Galilean moons and matches JPL Horizons for Io", () => {
+  const timestamp = Date.parse("2024-02-29T00:00:00Z");
+  const moons = getJupiterMoonObjects(timestamp, BERLIN);
+  assert.deepEqual(
+    moons.map((object) => object.name),
+    ["Io", "Europa", "Ganymede", "Callisto"],
+  );
+  assert.ok(moons.every((object) => object.parentBody === "Jupiter"));
+  // JPL Horizons target 501, coord@399 Berlin, ICRF/J2000:
+  // 2024-Feb-29 00:00 UTC: RA 02 34 41.61, Dec +14 11 28.9.
+  const horizonsIo = {
+    raDeg: 15 * (2 + 34 / 60 + 41.61 / 3600),
+    decDeg: 14 + 11 / 60 + 28.9 / 3600,
+  };
+  assert.ok(angularSeparationDeg(moons[0], horizonsIo) < 1 / 60);
+  const later = getJupiterMoonObjects(timestamp + 6 * 3600000, BERLIN);
+  assert.ok(angularSeparationDeg(moons[0], later[0]) > 0.01);
 });

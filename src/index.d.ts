@@ -34,6 +34,7 @@ export interface SelectedTarget {
   aliases?: string[];
   coordinates: EquatorialCoordinates;
   objectType?: string;
+  parentBody?: string;
   magnitude?: number;
   angularSizeArcMin?: { major?: number; minor?: number };
   catalogueSource?: string;
@@ -117,6 +118,10 @@ export function createCelestiaAtlasViewer(options: {
   onViewChange?: (value: ViewState) => void;
 }): CelestiaAtlasViewer;
 export function getSolarSystemObjects(
+  timestampUtcMs: number,
+  observer: Observer,
+): SolarSystemObject[];
+export function getJupiterMoonObjects(
   timestampUtcMs: number,
   observer: Observer,
 ): SolarSystemObject[];

@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getCometObjects, getSolarSystemObjects } from "../src/index.js";
+import {
+  getCometObjects,
+  getJupiterMoonObjects,
+  getSolarSystemObjects,
+} from "../src/index.js";
 import "../standalone-engine-bridge.js";
 
 test("standalone solar-system adapter matches the embeddable engine", () => {
@@ -14,7 +18,10 @@ test("standalone solar-system adapter matches the embeddable engine", () => {
     timestampUtcMs,
     observer,
   );
-  const embedded = getSolarSystemObjects(timestampUtcMs, observer);
+  const embedded = [
+    ...getSolarSystemObjects(timestampUtcMs, observer),
+    ...getJupiterMoonObjects(timestampUtcMs, observer),
+  ];
 
   assert.equal(standalone.length, embedded.length);
   for (let index = 0; index < embedded.length; index += 1) {
