@@ -17,7 +17,9 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(application, /viewer\.setDisplayOptions/);
   assert.match(publicApi, /assets\/milky-way\.webp/);
   assert.match(publicApi, /drawDsoGlyph/);
-  const landscapeDraw = publicApi.indexOf("    drawLandscape(width, height);");
+  const landscapeDraw = publicApi.indexOf(
+    "    drawLandscape(width, height, projectionView, referenceUtcMs);",
+  );
   const horizontalGridDraw = publicApi.indexOf("    if (display.azimuthalGrid)");
   assert.ok(landscapeDraw > 0);
   assert.ok(landscapeDraw < horizontalGridDraw);

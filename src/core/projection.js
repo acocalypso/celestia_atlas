@@ -17,16 +17,29 @@ export function projectEquatorial(coordinates, view, width, height) {
     (Math.cos(centerDec) * Math.sin(dec) -
       Math.sin(centerDec) * Math.cos(dec) * Math.cos(deltaRa)) /
     cosDistance;
+  const rotation = (view.rotationDeg ?? 0) * DEG;
+  const rotatedX =
+    xPlane * Math.cos(rotation) - yPlane * Math.sin(rotation);
+  const rotatedY =
+    xPlane * Math.sin(rotation) + yPlane * Math.cos(rotation);
   const focal = width / (2 * Math.tan((view.fovDeg * DEG) / 2));
-  return { x: width / 2 + focal * xPlane, y: height / 2 - focal * yPlane };
+  return {
+    x: width / 2 + focal * rotatedX,
+    y: height / 2 - focal * rotatedY,
+  };
 }
 
 export function unprojectEquatorial(x, y, view, width, height) {
   const centerRa = view.center.raDeg * DEG;
   const centerDec = view.center.decDeg * DEG;
   const focal = width / (2 * Math.tan((view.fovDeg * DEG) / 2));
-  const xPlane = (x - width / 2) / focal;
-  const yPlane = (height / 2 - y) / focal;
+  const rotatedX = (x - width / 2) / focal;
+  const rotatedY = (height / 2 - y) / focal;
+  const rotation = (view.rotationDeg ?? 0) * DEG;
+  const xPlane =
+    rotatedX * Math.cos(rotation) + rotatedY * Math.sin(rotation);
+  const yPlane =
+    -rotatedX * Math.sin(rotation) + rotatedY * Math.cos(rotation);
   const rho = Math.hypot(xPlane, yPlane);
   if (rho === 0) return { ...view.center };
   const angularDistance = Math.atan(rho);

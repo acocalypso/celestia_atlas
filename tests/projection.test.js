@@ -14,13 +14,21 @@ test("projects the view center to the canvas center across RA wrap", () => {
 });
 
 test("round trips portrait and landscape projection points", () => {
-  for (const [width, height] of [
-    [1000, 600],
-    [600, 1000],
+  for (const [width, height, rotationDeg] of [
+    [1000, 600, 0],
+    [600, 1000, 37],
+    [1000, 600, -112],
   ]) {
     const target = { raDeg: 2, decDeg: 45, frame: "ICRS" };
-    const point = projectEquatorial(target, view, width, height);
-    const result = unprojectEquatorial(point.x, point.y, view, width, height);
+    const rotatedView = { ...view, rotationDeg };
+    const point = projectEquatorial(target, rotatedView, width, height);
+    const result = unprojectEquatorial(
+      point.x,
+      point.y,
+      rotatedView,
+      width,
+      height,
+    );
     assert.ok(Math.abs(result.raDeg - target.raDeg) < 1e-9);
     assert.ok(Math.abs(result.decDeg - target.decDeg) < 1e-9);
   }

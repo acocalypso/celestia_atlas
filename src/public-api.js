@@ -166,7 +166,7 @@ export function createCelestiaAtlasViewer(options) {
       latitudeDeg: Math.asin(Math.max(-1, Math.min(1, gal[2]))) * RAD,
     };
   };
-  const rasterizeMilkyWay = ({ width, height, outputWidth }) => {
+  const rasterizeMilkyWay = ({ width, height, outputWidth, projectionView }) => {
     const rasterWidth = Math.max(1, Math.round(outputWidth));
     const rasterHeight = Math.max(1, Math.round((height / width) * rasterWidth));
     const data = new Uint8ClampedArray(rasterWidth * rasterHeight * 4);
@@ -175,7 +175,7 @@ export function createCelestiaAtlasViewer(options) {
         const equatorial = unprojectEquatorial(
           ((x + 0.5) / rasterWidth) * width,
           ((y + 0.5) / rasterHeight) * height,
-          view,
+          projectionView,
           width,
           height,
         );
@@ -307,9 +307,34 @@ export function createCelestiaAtlasViewer(options) {
     context.fillText(text, x, y);
     context.restore();
   };
-  const drawLandscape = (width, height) => {
+  const horizontalProjectionView = (timestampUtcMs) => {
+    if (!display.azimuthalGrid) return view;
+    const horizontal = equatorialToHorizontal(
+      view.center,
+      observer,
+      timestampUtcMs,
+    );
+    const towardZenith = horizontal.altitudeDeg < 89;
+    const reference = horizontalToEquatorial(
+      {
+        azimuthDeg: horizontal.azimuthDeg,
+        altitudeDeg: horizontal.altitudeDeg + (towardZenith ? 0.1 : -0.1),
+      },
+      observer,
+      timestampUtcMs,
+      view.center.frame,
+    );
+    const point = projectEquatorial(reference, view, 2, 2);
+    let x = point.x - 1;
+    let y = 1 - point.y;
+    if (!towardZenith) {
+      x = -x;
+      y = -y;
+    }
+    return { ...view, rotationDeg: Math.atan2(x, y) * RAD };
+  };
+  const drawLandscape = (width, height, projectionView, landscapeTime) => {
     if (!display.horizon || !landscape?.tiles || !landscapeContext) return;
-    const landscapeTime = currentUtcMs();
     const outputWidth = rasterOutputWidth(width);
     const rasterKey = [
       width,
@@ -318,6 +343,7 @@ export function createCelestiaAtlasViewer(options) {
       view.center.raDeg.toFixed(4),
       view.center.decDeg.toFixed(4),
       view.fovDeg.toFixed(3),
+      (projectionView.rotationDeg ?? 0).toFixed(4),
       observer.latitudeDeg,
       observer.longitudeDeg,
       Math.floor(landscapeTime / 60000),
@@ -329,7 +355,7 @@ export function createCelestiaAtlasViewer(options) {
         key: rasterKey,
         raster: rasterizeHealpixLandscape({
           tiles: landscape.tiles,
-          view,
+          view: projectionView,
           observer,
           timestampUtcMs: landscapeTime,
           canvasWidth: width,
@@ -350,7 +376,7 @@ export function createCelestiaAtlasViewer(options) {
     context.drawImage(landscapeCanvas, 0, 0, width, height);
     context.restore();
   };
-  const drawMilkyWayPanorama = (width, height) => {
+  const drawMilkyWayPanorama = (width, height, projectionView) => {
     if (!display.milkyWay || !milkyWay || !landscapeContext) return false;
     const outputWidth = rasterOutputWidth(width);
     const rasterKey = [
@@ -360,6 +386,7 @@ export function createCelestiaAtlasViewer(options) {
       view.center.raDeg.toFixed(4),
       view.center.decDeg.toFixed(4),
       view.fovDeg.toFixed(3),
+      (projectionView.rotationDeg ?? 0).toFixed(4),
       milkyWay.width,
       milkyWay.height,
     ].join(":");
@@ -370,6 +397,7 @@ export function createCelestiaAtlasViewer(options) {
           width,
           height,
           outputWidth,
+          projectionView,
         }),
       };
     }
@@ -425,8 +453,10 @@ export function createCelestiaAtlasViewer(options) {
     context.fillStyle = display.nightMode ? "#080000" : "#03060d";
     context.fillRect(0, 0, width, height);
     const scale = width / (2 * Math.tan((view.fovDeg * Math.PI) / 360));
+    const referenceUtcMs = currentUtcMs();
+    const projectionView = horizontalProjectionView(referenceUtcMs);
     const project = (coordinates) =>
-      projectEquatorial(coordinates, view, width, height);
+      projectEquatorial(coordinates, projectionView, width, height);
     const strokeCurve = (coordinates) => {
       context.beginPath();
       let drawing = false;
@@ -458,7 +488,6 @@ export function createCelestiaAtlasViewer(options) {
       }
       context.stroke();
     };
-    const referenceUtcMs = currentUtcMs();
     const horizontalCurve = (azimuthDeg, altitudes) =>
       altitudes.map((altitudeDeg) =>
         horizontalToEquatorial(
@@ -477,7 +506,11 @@ export function createCelestiaAtlasViewer(options) {
           view.center.frame,
         ),
       );
-    const drewMilkyWayPanorama = drawMilkyWayPanorama(width, height);
+    const drewMilkyWayPanorama = drawMilkyWayPanorama(
+      width,
+      height,
+      projectionView,
+    );
     if (display.milkyWay && !drewMilkyWayPanorama) {
       context.save();
       context.globalCompositeOperation = "screen";
@@ -495,7 +528,7 @@ export function createCelestiaAtlasViewer(options) {
       }
       context.restore();
     }
-    drawLandscape(width, height);
+    drawLandscape(width, height, projectionView, referenceUtcMs);
     if (display.atmosphere) {
       context.save();
       context.strokeStyle = display.nightMode
