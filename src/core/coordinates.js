@@ -152,3 +152,19 @@ export function panHorizontalView(
     ),
   };
 }
+
+export function pinchZoomFov(startFovDeg, startDistance, currentDistance) {
+  if (
+    !Number.isFinite(startFovDeg) ||
+    !Number.isFinite(startDistance) ||
+    !Number.isFinite(currentDistance) ||
+    startFovDeg <= 0 ||
+    startDistance <= 0 ||
+    currentDistance <= 0
+  )
+    throw new TypeError("Pinch zoom requires positive finite geometry");
+  return Math.max(
+    0.05,
+    Math.min(130, startFovDeg * (startDistance / currentDistance)),
+  );
+}

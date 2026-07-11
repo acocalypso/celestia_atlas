@@ -1,5 +1,5 @@
 try{importScripts('./dso-images.js')}catch(e){}
-const CACHE='celestia-atlas-offline-v19';
+const CACHE='celestia-atlas-offline-v20';
 const CORE=[
   './',
   './index.html',

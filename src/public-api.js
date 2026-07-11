@@ -3,6 +3,7 @@ import {
   validateEquatorialCoordinates,
   horizontalToEquatorial,
   panHorizontalView,
+  pinchZoomFov,
   validateObserver,
 } from "./core/coordinates.js";
 import { projectEquatorial, unprojectEquatorial } from "./core/projection.js";
@@ -91,6 +92,8 @@ export function createCelestiaAtlasViewer(options) {
     nightMode: false,
   };
   let drag = null;
+  const activePointers = new Map();
+  let pinch = null;
   let lowQualityUntil = 0;
   let frameId = null;
   let clockTimer = null;
@@ -890,7 +893,6 @@ export function createCelestiaAtlasViewer(options) {
     if (
       destroyed ||
       paused ||
-      !event.isPrimary ||
       (event.pointerType === "mouse" && event.button !== 0)
     )
       return;
@@ -900,6 +902,20 @@ export function createCelestiaAtlasViewer(options) {
     } catch {
       // Synthetic tests and some embedded webviews can reject pointer capture.
     }
+    activePointers.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+    if (activePointers.size >= 2) {
+      const [first, second] = [...activePointers.values()];
+      pinch = {
+        distance: Math.hypot(second.x - first.x, second.y - first.y),
+        fovDeg: view.fovDeg,
+      };
+      drag = null;
+      return;
+    }
+    if (!event.isPrimary) return;
     const timestampUtcMs = currentUtcMs();
     const center = view.center;
     const horizontalCenter = equatorialToHorizontal(
@@ -918,6 +934,24 @@ export function createCelestiaAtlasViewer(options) {
     };
   };
   const pointerMove = (event) => {
+    if (activePointers.has(event.pointerId))
+      activePointers.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+    if (pinch && activePointers.size >= 2) {
+      event.preventDefault();
+      const [first, second] = [...activePointers.values()];
+      const distance = Math.hypot(second.x - first.x, second.y - first.y);
+      view = {
+        ...view,
+        fovDeg: pinchZoomFov(pinch.fovDeg, pinch.distance, distance),
+      };
+      lowQualityUntil = performance.now() + 180;
+      onViewChange?.(structuredClone(view));
+      invalidate();
+      return;
+    }
     if (!drag || drag.pointerId !== event.pointerId) return;
     event.preventDefault();
     if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 3)
@@ -944,6 +978,22 @@ export function createCelestiaAtlasViewer(options) {
     invalidate();
   };
   const finishPointer = (event) => {
+    event?.preventDefault?.();
+    if (event?.pointerId !== undefined) activePointers.delete(event.pointerId);
+    if (pinch) {
+      const pointerId = event?.pointerId;
+      pinch = null;
+      drag = null;
+      try {
+        if (pointerId !== undefined && canvas.hasPointerCapture?.(pointerId))
+          canvas.releasePointerCapture(pointerId);
+      } catch {
+        // Pointer capture may already be gone after cancellation.
+      }
+      lowQualityUntil = performance.now();
+      invalidate();
+      return;
+    }
     if (
       !drag ||
       (event?.pointerId !== undefined && drag.pointerId !== event.pointerId)
@@ -1292,6 +1342,8 @@ export function createCelestiaAtlasViewer(options) {
       canvas.removeEventListener("pointercancel", finishPointer);
       canvas.removeEventListener("lostpointercapture", finishPointer);
       canvas.removeEventListener("wheel", wheel);
+      activePointers.clear();
+      pinch = null;
       canvas.remove();
       frameId = null;
       clockTimer = null;

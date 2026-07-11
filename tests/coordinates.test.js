@@ -5,6 +5,7 @@ import {
   horizontalToEquatorial,
   normalizeDegrees,
   panHorizontalView,
+  pinchZoomFov,
   validateEquatorialCoordinates,
   validateObserver,
 } from "../src/index.js";
@@ -21,6 +22,13 @@ test("normalizes RA wrap and east-positive longitude", () => {
     -179,
   );
   assert.equal(normalizeDegrees(-1), 359);
+});
+
+test("pinch zoom follows two-finger distance and clamps its field of view", () => {
+  assert.equal(pinchZoomFov(70, 100, 200), 35);
+  assert.equal(pinchZoomFov(70, 100, 50), 130);
+  assert.equal(pinchZoomFov(0.1, 100, 1000), 0.05);
+  assert.throws(() => pinchZoomFov(70, 0, 100), /positive finite/);
 });
 
 test("pans along the local horizon independently of grid visibility", () => {
