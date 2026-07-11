@@ -56,12 +56,14 @@ jobs:
           cp index.html _site/
           cp app.js _site/
           cp app-v8.js _site/
+          cp standalone-app.js _site/
           cp standalone-engine-bridge.js _site/
           cp milky-way-renderer.js _site/
           cp catalog.js _site/
           cp dso-catalog.js _site/
           cp dso-images.js _site/
           cp styles.css _site/
+          cp standalone.css _site/
           cp manifest.webmanifest _site/
           cp service-worker.js _site/
           cp .nojekyll _site/

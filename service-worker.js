@@ -1,5 +1,5 @@
 try{importScripts('./dso-images.js')}catch(e){}
-const CACHE='celestia-atlas-offline-v12';
+const CACHE='celestia-atlas-offline-v13';
 const CORE=[
   './',
   './index.html',
@@ -38,7 +38,7 @@ const IMAGES=Array.isArray(globalThis.DSO_IMAGE_FILES)?globalThis.DSO_IMAGE_FILE
 
 self.addEventListener('install',event=>event.waitUntil((async()=>{
   const cache=await caches.open(CACHE);
-  await cache.addAll(CORE);
+  await Promise.allSettled(CORE.map(file=>cache.add(file)));
   await Promise.allSettled(IMAGES.map(file=>cache.add(file)));
   await self.skipWaiting();
 })()));
