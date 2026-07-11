@@ -15,6 +15,12 @@
 - Added order-0 HiPS/HEALPix landscape loading, spherical projection,
   transparency and non-fatal load-error reporting to the embedded viewer.
 - Added a typed `getView` API for renderer-independent host controls.
+- Replaced the standalone canvas engine with an adapter around the same public
+  viewer used by embedded applications. Reference layers, planets, Galilean
+  moons, comets, catalogue search, selection, time/location, lifecycle,
+  imaging overlays and HEALPix landscape rendering now share one code path.
+- Packaged the Guéreins order-0 HEALPix landscape for offline standalone use and
+  added standalone controls for ecliptic, meridian, atmosphere and camera FOV.
 
 ## v8
 

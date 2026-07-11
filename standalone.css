@@ -1,0 +1,40 @@
+.atlas-viewer-host {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: #02050c;
+}
+
+.atlas-viewer-host canvas {
+  cursor: grab;
+  outline: none;
+}
+
+.atlas-viewer-host canvas:active {
+  cursor: grabbing;
+}
+
+.imaging-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+}
+
+.imaging-grid label {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.imaging-grid input {
+  width: 100%;
+  margin-top: 5px;
+  padding: 8px 5px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.imaging-grid-secondary {
+  margin-top: 7px;
+}

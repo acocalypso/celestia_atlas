@@ -23,11 +23,11 @@ services.
   planets and Pluto at the selected observer location and time.
 - A pinned 1,214-record Minor Planet Center catalogue provides offline comet
   search and approximate topocentric positions without runtime requests.
-- Embedded consumers can independently control equatorial and azimuth grids,
+- Standalone and embedded consumers can independently control equatorial and azimuth grids,
   the local meridian, ecliptic, Milky Way and atmospheric horizon glow.
 - Jupiter's four Galilean moons use live, light-time-corrected offline positions
   and become individually searchable and visible in narrow fields.
-- Embedded consumers can load order-0 HiPS/HEALPix landscape datasets with
+- Standalone and embedded consumers can load order-0 HiPS/HEALPix landscape datasets with
   transparent horizons through the asynchronous `setLandscape` API.
 - Embedded controls can read a defensive copy of the current center and zoom
   through `getView` without accessing renderer internals.
@@ -195,14 +195,14 @@ Do not test service-worker behavior through `file://`; use localhost or HTTPS.
 ```text
 index.html
 styles.css
+standalone.css              standalone shell styling
+standalone-app.js           standalone adapter for the shared viewer API
 catalog.js                 compact bright-star + curated fallback data
 dso-catalog.js             generated complete OpenNGC browser catalogue
-app-v8.js                  main atlas engine
-app.js                     compatibility loader for the main engine
-milky-way-renderer.js      local WebGL sky dome
+src/public-api.js           shared standalone/embedded renderer
 service-worker.js
 manifest.webmanifest
-assets/milky-way.webp
+assets/landscapes/          packaged offline HEALPix landscape
 images/dso/
 data/
 tools/build_openngc_catalog.py

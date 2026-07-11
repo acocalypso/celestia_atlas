@@ -95,8 +95,11 @@ export interface CelestiaAtlasViewer {
       ecliptic: boolean;
       atmosphere: boolean;
       milkyWay: boolean;
+      cardinals: boolean;
       constellations: boolean;
       labels: boolean;
+      starMagnitudeLimit: number;
+      starScale: number;
       deepSkyObjects: boolean;
       solarSystem: boolean;
       comets: boolean;

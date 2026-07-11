@@ -67,8 +67,11 @@ export function createCelestiaAtlasViewer(options) {
     ecliptic: false,
     atmosphere: true,
     milkyWay: true,
+    cardinals: false,
     constellations: true,
     labels: true,
+    starMagnitudeLimit: 6.5,
+    starScale: 1,
     deepSkyObjects: true,
     solarSystem: true,
     comets: true,
@@ -104,19 +107,23 @@ export function createCelestiaAtlasViewer(options) {
     image.crossOrigin = "anonymous";
     await new Promise((resolve, reject) => {
       image.onload = resolve;
-      image.onerror = () => reject(new Error(`Unable to load landscape tile: ${url}`));
+      image.onerror = () =>
+        reject(new Error(`Unable to load landscape tile: ${url}`));
       image.src = url;
     });
     const tileCanvas = document.createElement("canvas");
     tileCanvas.width = image.naturalWidth;
     tileCanvas.height = image.naturalHeight;
-    const tileContext = tileCanvas.getContext("2d", { willReadFrequently: true });
+    const tileContext = tileCanvas.getContext("2d", {
+      willReadFrequently: true,
+    });
     if (!tileContext) throw new Error("Landscape tile decoding is unavailable");
     tileContext.drawImage(image, 0, 0);
     return {
       width: tileCanvas.width,
       height: tileCanvas.height,
-      data: tileContext.getImageData(0, 0, tileCanvas.width, tileCanvas.height).data,
+      data: tileContext.getImageData(0, 0, tileCanvas.width, tileCanvas.height)
+        .data,
     };
   };
   const loadLandscape = async (source, token) => {
@@ -175,7 +182,11 @@ export function createCelestiaAtlasViewer(options) {
           previous = null;
           continue;
         }
-        if (drawing && previous && Math.hypot(point.x - previous.x, point.y - previous.y) <= width)
+        if (
+          drawing &&
+          previous &&
+          Math.hypot(point.x - previous.x, point.y - previous.y) <= width
+        )
           context.lineTo(point.x, point.y);
         else {
           context.moveTo(point.x, point.y);
@@ -315,6 +326,7 @@ export function createCelestiaAtlasViewer(options) {
         }
       }
     for (const star of stars) {
+      if ((star.mag ?? 99) > display.starMagnitudeLimit) continue;
       const point = project(star);
       if (
         !point ||
@@ -324,7 +336,9 @@ export function createCelestiaAtlasViewer(options) {
         point.y > height
       )
         continue;
-      const radius = Math.max(0.7, Math.min(4, 3.5 - (star.mag ?? 4) * 0.45));
+      const radius =
+        Math.max(0.7, Math.min(4, 3.5 - (star.mag ?? 4) * 0.45)) *
+        display.starScale;
       context.fillStyle = display.nightMode ? "#ff584f" : "#edf5ff";
       context.beginPath();
       context.arc(point.x, point.y, radius, 0, Math.PI * 2);
@@ -385,7 +399,10 @@ export function createCelestiaAtlasViewer(options) {
           context.stroke();
         }
         hitTargets.push({ x, y, object });
-        if (display.labels && (!object.parentBody || isSelected || view.fovDeg < 2)) {
+        if (
+          display.labels &&
+          (!object.parentBody || isSelected || view.fovDeg < 2)
+        ) {
           context.font = "11px system-ui";
           context.fillText(object.name, x + radius + 4, y - 4);
         }
@@ -395,7 +412,10 @@ export function createCelestiaAtlasViewer(options) {
       const magnitudeLimit = view.fovDeg > 55 ? 8 : view.fovDeg > 25 ? 12 : 18;
       for (const object of currentComets()) {
         const isSelected = selected?.id === object.id;
-        if (!isSelected && (!Number.isFinite(object.mag) || object.mag > magnitudeLimit))
+        if (
+          !isSelected &&
+          (!Number.isFinite(object.mag) || object.mag > magnitudeLimit)
+        )
           continue;
         const point = project(object);
         if (!point) continue;
@@ -423,7 +443,10 @@ export function createCelestiaAtlasViewer(options) {
         }
         context.restore();
         hitTargets.push({ x, y, object });
-        if (display.labels && (isSelected || object.mag <= 10 || view.fovDeg < 20)) {
+        if (
+          display.labels &&
+          (isSelected || object.mag <= 10 || view.fovDeg < 20)
+        ) {
           context.font = "10px system-ui";
           context.fillStyle = display.nightMode ? "#ff8178" : "#a7f3dc";
           context.fillText(object.name, x + radius + 5, y - 4);
@@ -461,13 +484,41 @@ export function createCelestiaAtlasViewer(options) {
       const raster = landscapeRasterCache.raster;
       landscapeCanvas.width = raster.width;
       landscapeCanvas.height = raster.height;
-      const imageData = landscapeContext.createImageData(raster.width, raster.height);
+      const imageData = landscapeContext.createImageData(
+        raster.width,
+        raster.height,
+      );
       imageData.data.set(raster.data);
       landscapeContext.putImageData(imageData, 0, 0);
       context.save();
       context.globalAlpha = display.nightMode ? 0.32 : 1;
       context.imageSmoothingEnabled = true;
       context.drawImage(landscapeCanvas, 0, 0, width, height);
+      context.restore();
+    }
+    if (display.cardinals && display.labels) {
+      context.save();
+      context.font = "600 11px system-ui";
+      context.textAlign = "center";
+      context.textBaseline = "bottom";
+      for (const [label, azimuthDeg] of [
+        ["N", 0],
+        ["E", 90],
+        ["S", 180],
+        ["W", 270],
+      ]) {
+        const point = project(
+          horizontalToEquatorial(
+            { azimuthDeg, altitudeDeg: 0 },
+            observer,
+            referenceUtcMs,
+            view.center.frame,
+          ),
+        );
+        if (!point) continue;
+        context.fillStyle = display.nightMode ? "#ff6b62" : "#f6c978";
+        context.fillText(label, point.x, point.y - 5);
+      }
       context.restore();
     }
     if (mount?.connected) {
@@ -849,6 +900,20 @@ export function createCelestiaAtlasViewer(options) {
     },
     setDisplayOptions(value) {
       assertAlive();
+      if (
+        value.starMagnitudeLimit !== undefined &&
+        (!Number.isFinite(value.starMagnitudeLimit) ||
+          value.starMagnitudeLimit < -2 ||
+          value.starMagnitudeLimit > 30)
+      )
+        throw new TypeError("Invalid star magnitude limit");
+      if (
+        value.starScale !== undefined &&
+        (!Number.isFinite(value.starScale) ||
+          value.starScale < 0.25 ||
+          value.starScale > 4)
+      )
+        throw new TypeError("Invalid star scale");
       display = { ...display, ...value };
       invalidate();
     },

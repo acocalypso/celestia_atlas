@@ -1,15 +1,15 @@
 try{importScripts('./dso-images.js')}catch(e){}
-const CACHE='celestia-atlas-offline-v11';
+const CACHE='celestia-atlas-offline-v12';
 const CORE=[
   './',
   './index.html',
   './styles.css',
+  './standalone.css',
+  './standalone-app.js',
   './dso-images.js',
   './catalog.js',
   './dso-catalog.js',
-  './milky-way-renderer.js',
   './vendor/astronomy-engine-2.1.19.esm.js',
-  './standalone-engine-bridge.js',
   './src/index.js',
   './src/public-api.js',
   './src/core/coordinates.js',
@@ -19,9 +19,20 @@ const CORE=[
   './src/core/reference-lines.js',
   './src/core/landscape.js',
   './data/comets.js',
-  './app-v8.js',
   './manifest.webmanifest',
-  './assets/milky-way.webp'
+  './assets/landscapes/guereins/properties',
+  './assets/landscapes/guereins/Norder0/Dir0/Npix0.webp',
+  './assets/landscapes/guereins/Norder0/Dir0/Npix1.webp',
+  './assets/landscapes/guereins/Norder0/Dir0/Npix2.webp',
+  './assets/landscapes/guereins/Norder0/Dir0/Npix3.webp',
+  './assets/landscapes/guereins/Norder0/Dir0/Npix4.webp',
+  './assets/landscapes/guereins/Norder0/Dir0/Npix5.webp',
+  './assets/landscapes/guereins/Norder0/Dir0/Npix6.webp',
+  './assets/landscapes/guereins/Norder0/Dir0/Npix7.webp',
+  './assets/landscapes/guereins/Norder0/Dir0/Npix8.webp',
+  './assets/landscapes/guereins/Norder0/Dir0/Npix9.webp',
+  './assets/landscapes/guereins/Norder0/Dir0/Npix10.webp',
+  './assets/landscapes/guereins/Norder0/Dir0/Npix11.webp'
 ];
 const IMAGES=Array.isArray(globalThis.DSO_IMAGE_FILES)?globalThis.DSO_IMAGE_FILES:[];
 
