@@ -6,6 +6,10 @@ import {
 import { projectEquatorial, unprojectEquatorial } from "./core/projection.js";
 import { getSolarSystemObjects } from "./core/solar-system.js";
 import { getCometObjects } from "./core/comets.js";
+import {
+  eclipticToEquatorial,
+  galacticToEquatorial,
+} from "./core/reference-lines.js";
 
 export function createCelestiaAtlasViewer(options) {
   const {
@@ -46,6 +50,11 @@ export function createCelestiaAtlasViewer(options) {
   let selected = null;
   let display = {
     grid: true,
+    azimuthalGrid: false,
+    meridian: false,
+    ecliptic: false,
+    atmosphere: true,
+    milkyWay: true,
     constellations: true,
     labels: true,
     deepSkyObjects: true,
@@ -95,6 +104,7 @@ export function createCelestiaAtlasViewer(options) {
     const strokeCurve = (coordinates) => {
       context.beginPath();
       let drawing = false;
+      let previous = null;
       for (const coordinate of coordinates) {
         const point = project(coordinate);
         if (
@@ -105,16 +115,103 @@ export function createCelestiaAtlasViewer(options) {
           point.y > height * 2
         ) {
           drawing = false;
+          previous = null;
           continue;
         }
-        if (drawing) context.lineTo(point.x, point.y);
+        if (drawing && previous && Math.hypot(point.x - previous.x, point.y - previous.y) <= width)
+          context.lineTo(point.x, point.y);
         else {
           context.moveTo(point.x, point.y);
           drawing = true;
         }
+        previous = point;
       }
       context.stroke();
     };
+    const referenceUtcMs = currentUtcMs();
+    const horizontalCurve = (azimuthDeg, altitudes) =>
+      altitudes.map((altitudeDeg) =>
+        horizontalToEquatorial(
+          { azimuthDeg, altitudeDeg },
+          observer,
+          referenceUtcMs,
+          view.center.frame,
+        ),
+      );
+    const altitudeCircle = (altitudeDeg) =>
+      Array.from({ length: 73 }, (_, index) =>
+        horizontalToEquatorial(
+          { azimuthDeg: index * 5, altitudeDeg },
+          observer,
+          referenceUtcMs,
+          view.center.frame,
+        ),
+      );
+    if (display.milkyWay) {
+      context.save();
+      context.globalCompositeOperation = "screen";
+      for (let latitude = -12; latitude <= 12; latitude += 4) {
+        const strength = 1 - Math.abs(latitude) / 16;
+        context.strokeStyle = display.nightMode
+          ? `rgba(120,15,12,${0.025 * strength})`
+          : `rgba(76,112,155,${0.035 * strength})`;
+        context.lineWidth = Math.max(2, 9 - Math.abs(latitude) * 0.45);
+        strokeCurve(
+          Array.from({ length: 181 }, (_, index) =>
+            galacticToEquatorial(index * 2, latitude),
+          ),
+        );
+      }
+      context.restore();
+    }
+    if (display.atmosphere) {
+      context.save();
+      context.strokeStyle = display.nightMode
+        ? "rgba(100,8,5,.13)"
+        : "rgba(80,120,155,.12)";
+      context.lineWidth = 18;
+      context.shadowColor = display.nightMode ? "#5a0906" : "#456d8d";
+      context.shadowBlur = 22;
+      strokeCurve(altitudeCircle(0));
+      context.restore();
+    }
+    if (display.azimuthalGrid) {
+      context.strokeStyle = display.nightMode
+        ? "rgba(255,80,70,.17)"
+        : "rgba(91,174,174,.17)";
+      context.lineWidth = 0.8;
+      const altitudes = Array.from({ length: 19 }, (_, index) => index * 5);
+      for (let azimuth = 0; azimuth < 360; azimuth += 15)
+        strokeCurve(horizontalCurve(azimuth, altitudes));
+      for (let altitude = 15; altitude <= 75; altitude += 15)
+        strokeCurve(altitudeCircle(altitude));
+    }
+    if (display.meridian) {
+      context.strokeStyle = display.nightMode
+        ? "rgba(255,90,75,.48)"
+        : "rgba(246,201,120,.48)";
+      context.lineWidth = 1.2;
+      const north = horizontalCurve(
+        0,
+        Array.from({ length: 19 }, (_, index) => index * 5),
+      );
+      const south = horizontalCurve(
+        180,
+        Array.from({ length: 19 }, (_, index) => 90 - index * 5),
+      );
+      strokeCurve([...north, ...south]);
+    }
+    if (display.ecliptic) {
+      context.strokeStyle = display.nightMode
+        ? "rgba(255,100,70,.55)"
+        : "rgba(238,178,75,.55)";
+      context.lineWidth = 1.2;
+      strokeCurve(
+        Array.from({ length: 181 }, (_, index) =>
+          eclipticToEquatorial(index * 2),
+        ),
+      );
+    }
     if (display.grid) {
       context.strokeStyle = display.nightMode
         ? "rgba(255,80,70,.2)"

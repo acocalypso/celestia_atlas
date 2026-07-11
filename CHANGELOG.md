@@ -8,6 +8,8 @@
   propagation, light-time correction, rendering, search and selection.
 - Changed the standalone app to load the same framework-neutral engine modules
   as embedded consumers instead of maintaining a duplicate ephemeris adapter.
+- Added tested J2000 ecliptic and Galactic transforms plus embedded Milky Way,
+  ecliptic, azimuth grid, local meridian and atmospheric horizon layers.
 
 ## v8
 

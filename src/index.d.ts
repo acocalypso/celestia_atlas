@@ -83,6 +83,11 @@ export interface CelestiaAtlasViewer {
   setDisplayOptions(
     value: Partial<{
       grid: boolean;
+      azimuthalGrid: boolean;
+      meridian: boolean;
+      ecliptic: boolean;
+      atmosphere: boolean;
+      milkyWay: boolean;
       constellations: boolean;
       labels: boolean;
       deepSkyObjects: boolean;

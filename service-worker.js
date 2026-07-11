@@ -16,6 +16,7 @@ const CORE=[
   './src/core/projection.js',
   './src/core/solar-system.js',
   './src/core/comets.js',
+  './src/core/reference-lines.js',
   './data/comets.js',
   './app-v8.js',
   './manifest.webmanifest',

@@ -23,6 +23,8 @@ services.
   planets and Pluto at the selected observer location and time.
 - A pinned 1,214-record Minor Planet Center catalogue provides offline comet
   search and approximate topocentric positions without runtime requests.
+- Embedded consumers can independently control equatorial and azimuth grids,
+  the local meridian, ecliptic, Milky Way and atmospheric horizon glow.
 - The NASA image downloader now accepts any catalogue object, supports large
   resumable batches, filtering, offsets, dry runs, reports and relevance scoring.
 
