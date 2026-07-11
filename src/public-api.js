@@ -15,6 +15,11 @@ import {
 } from "./core/reference-lines.js";
 import { rasterizeHealpixLandscape } from "./core/landscape.js";
 
+const DEG = Math.PI / 180;
+const RAD = 180 / Math.PI;
+const DEFAULT_MILKY_WAY_URL = new URL("../assets/milky-way.webp", import.meta.url)
+  .href;
+
 export function createCelestiaAtlasViewer(options) {
   const {
     container,
@@ -25,6 +30,7 @@ export function createCelestiaAtlasViewer(options) {
     onViewChange,
     onError,
     devicePixelRatioCap = 2,
+    milkyWayPanoramaUrl = DEFAULT_MILKY_WAY_URL,
   } = options ?? {};
   if (!(container instanceof HTMLElement))
     throw new TypeError("container must be an HTMLElement");
@@ -60,6 +66,8 @@ export function createCelestiaAtlasViewer(options) {
   let landscape = null;
   let landscapeLoadToken = 0;
   let landscapeRasterCache = { key: "", raster: null };
+  let milkyWay = null;
+  let milkyWayRasterCache = { key: "", raster: null };
   let display = {
     grid: true,
     azimuthalGrid: false,
@@ -126,6 +134,213 @@ export function createCelestiaAtlasViewer(options) {
         .data,
     };
   };
+  const loadMilkyWay = async (url) => {
+    if (!url) return;
+    try {
+      const image = await loadImagePixels(url);
+      if (destroyed) return;
+      milkyWay = image;
+      milkyWayRasterCache = { key: "", raster: null };
+      invalidate();
+    } catch (error) {
+      if (!destroyed) onError?.(error);
+    }
+  };
+  const equatorialToGalactic = (coordinates) => {
+    const ra = coordinates.raDeg * DEG;
+    const dec = coordinates.decDeg * DEG;
+    const cosDec = Math.cos(dec);
+    const eq = [cosDec * Math.cos(ra), cosDec * Math.sin(ra), Math.sin(dec)];
+    const gal = [
+      -0.0548755604 * eq[0] - 0.8734370902 * eq[1] - 0.4838350155 * eq[2],
+      0.4941094279 * eq[0] - 0.44482963 * eq[1] + 0.7469822445 * eq[2],
+      -0.867666149 * eq[0] - 0.1980763734 * eq[1] + 0.4559837762 * eq[2],
+    ];
+    return {
+      longitudeDeg: ((Math.atan2(gal[1], gal[0]) * RAD) % 360 + 360) % 360,
+      latitudeDeg: Math.asin(Math.max(-1, Math.min(1, gal[2]))) * RAD,
+    };
+  };
+  const rasterizeMilkyWay = ({ width, height, outputWidth }) => {
+    const rasterWidth = Math.max(1, Math.round(outputWidth));
+    const rasterHeight = Math.max(1, Math.round((height / width) * rasterWidth));
+    const data = new Uint8ClampedArray(rasterWidth * rasterHeight * 4);
+    for (let y = 0; y < rasterHeight; y += 1) {
+      for (let x = 0; x < rasterWidth; x += 1) {
+        const equatorial = unprojectEquatorial(
+          ((x + 0.5) / rasterWidth) * width,
+          ((y + 0.5) / rasterHeight) * height,
+          view,
+          width,
+          height,
+        );
+        const galactic = equatorialToGalactic(equatorial);
+        const u = ((0.5 - galactic.longitudeDeg / 360) % 1 + 1) % 1;
+        const sourceX = Math.min(milkyWay.width - 1, Math.floor(u * milkyWay.width));
+        const sourceY = Math.max(
+          0,
+          Math.min(
+            milkyWay.height - 1,
+            Math.floor((0.5 - galactic.latitudeDeg / 180) * milkyWay.height),
+          ),
+        );
+        const sourceIndex = (sourceY * milkyWay.width + sourceX) * 4;
+        const targetIndex = (y * rasterWidth + x) * 4;
+        data[targetIndex] = milkyWay.data[sourceIndex];
+        data[targetIndex + 1] = milkyWay.data[sourceIndex + 1];
+        data[targetIndex + 2] = milkyWay.data[sourceIndex + 2];
+        data[targetIndex + 3] = Math.round(
+          (milkyWay.data[sourceIndex + 3] / 255) * 145,
+        );
+      }
+    }
+    return { width: rasterWidth, height: rasterHeight, data };
+  };
+  const drawObjectBox = (x, y, size, color) => {
+    context.save();
+    context.strokeStyle = color;
+    context.lineWidth = 1;
+    context.strokeRect(x - size, y - size, size * 2, size * 2);
+    context.restore();
+  };
+  const drawDsoGlyph = (object, x, y, size, selected) => {
+    const type = String(object.type ?? object.objectType ?? "").toLowerCase();
+    const color = type.includes("galaxy")
+      ? "#aa91ff"
+      : type.includes("cluster")
+        ? "#62d8ff"
+        : "#f6c978";
+    context.save();
+    context.translate(x, y);
+    context.strokeStyle = selected ? "#fff1bd" : color;
+    context.fillStyle = context.strokeStyle;
+    context.lineWidth = selected ? 1.4 : 1;
+    if (type.includes("galaxy")) {
+      context.rotate(((object.positionAngle ?? -20) * Math.PI) / 180);
+      context.beginPath();
+      context.ellipse(0, 0, size * 1.45, size * 0.55, 0, 0, Math.PI * 2);
+      context.stroke();
+      context.beginPath();
+      context.arc(0, 0, Math.max(1.1, size * 0.18), 0, Math.PI * 2);
+      context.fill();
+    } else if (type.includes("globular")) {
+      context.beginPath();
+      context.arc(0, 0, size, 0, Math.PI * 2);
+      context.stroke();
+      context.beginPath();
+      context.moveTo(-size, 0);
+      context.lineTo(size, 0);
+      context.moveTo(0, -size);
+      context.lineTo(0, size);
+      context.stroke();
+    } else if (type.includes("open cluster") || type.includes("association")) {
+      for (let index = 0; index < 7; index += 1) {
+        const angle = index * 2.399;
+        const radius = size * (0.25 + 0.65 * ((index * 37) % 10) / 10);
+        context.fillRect(
+          Math.cos(angle) * radius - 1,
+          Math.sin(angle) * radius - 1,
+          2,
+          2,
+        );
+      }
+    } else if (type.includes("nebula") || type.includes("remnant")) {
+      context.beginPath();
+      for (let index = 0; index < 8; index += 1) {
+        const angle = (index * Math.PI * 2) / 8;
+        const radius = size * (index % 2 ? 1 : 0.68);
+        const px = Math.cos(angle) * radius;
+        const py = Math.sin(angle) * radius;
+        if (index) context.lineTo(px, py);
+        else context.moveTo(px, py);
+      }
+      context.closePath();
+      context.stroke();
+    } else {
+      context.beginPath();
+      context.rect(-size * 0.65, -size * 0.65, size * 1.3, size * 1.3);
+      context.stroke();
+    }
+    context.restore();
+    if (selected) drawObjectBox(x, y, size + 5, "#fff1bd");
+  };
+  const drawLandscape = (width, height) => {
+    if (!display.horizon || !landscape?.tiles || !landscapeContext) return;
+    const landscapeTime = currentUtcMs();
+    const rasterKey = [
+      width,
+      height,
+      view.center.raDeg.toFixed(4),
+      view.center.decDeg.toFixed(4),
+      view.fovDeg.toFixed(3),
+      observer.latitudeDeg,
+      observer.longitudeDeg,
+      Math.floor(landscapeTime / 60000),
+      landscape.source.key,
+      landscape.source.url,
+    ].join(":");
+    if (landscapeRasterCache.key !== rasterKey) {
+      landscapeRasterCache = {
+        key: rasterKey,
+        raster: rasterizeHealpixLandscape({
+          tiles: landscape.tiles,
+          view,
+          observer,
+          timestampUtcMs: landscapeTime,
+          canvasWidth: width,
+          canvasHeight: height,
+          outputWidth: Math.min(512, width),
+        }),
+      };
+    }
+    const raster = landscapeRasterCache.raster;
+    landscapeCanvas.width = raster.width;
+    landscapeCanvas.height = raster.height;
+    const imageData = landscapeContext.createImageData(raster.width, raster.height);
+    imageData.data.set(raster.data);
+    landscapeContext.putImageData(imageData, 0, 0);
+    context.save();
+    context.globalAlpha = display.nightMode ? 0.32 : 0.82;
+    context.imageSmoothingEnabled = true;
+    context.drawImage(landscapeCanvas, 0, 0, width, height);
+    context.restore();
+  };
+  const drawMilkyWayPanorama = (width, height) => {
+    if (!display.milkyWay || !milkyWay || !landscapeContext) return false;
+    const rasterKey = [
+      width,
+      height,
+      view.center.raDeg.toFixed(4),
+      view.center.decDeg.toFixed(4),
+      view.fovDeg.toFixed(3),
+      milkyWay.width,
+      milkyWay.height,
+    ].join(":");
+    if (milkyWayRasterCache.key !== rasterKey) {
+      milkyWayRasterCache = {
+        key: rasterKey,
+        raster: rasterizeMilkyWay({
+          width,
+          height,
+          outputWidth: Math.min(512, width),
+        }),
+      };
+    }
+    const raster = milkyWayRasterCache.raster;
+    landscapeCanvas.width = raster.width;
+    landscapeCanvas.height = raster.height;
+    const imageData = landscapeContext.createImageData(raster.width, raster.height);
+    imageData.data.set(raster.data);
+    landscapeContext.putImageData(imageData, 0, 0);
+    context.save();
+    context.globalCompositeOperation = "screen";
+    context.imageSmoothingEnabled = true;
+    context.drawImage(landscapeCanvas, 0, 0, width, height);
+    context.restore();
+    return true;
+  };
+  void loadMilkyWay(milkyWayPanoramaUrl);
+
   const loadLandscape = async (source, token) => {
     const baseUrl = source.url.replace(/\/+$/, "");
     let tileFormat = "webp";
@@ -215,7 +430,8 @@ export function createCelestiaAtlasViewer(options) {
           view.center.frame,
         ),
       );
-    if (display.milkyWay) {
+    const drewMilkyWayPanorama = drawMilkyWayPanorama(width, height);
+    if (display.milkyWay && !drewMilkyWayPanorama) {
       context.save();
       context.globalCompositeOperation = "screen";
       for (let latitude = -12; latitude <= 12; latitude += 4) {
@@ -302,6 +518,7 @@ export function createCelestiaAtlasViewer(options) {
         );
       }
     }
+    drawLandscape(width, height);
     hitTargets = [];
     context.strokeStyle = display.nightMode
       ? "rgba(255,80,70,.32)"
@@ -358,17 +575,12 @@ export function createCelestiaAtlasViewer(options) {
         const { x, y } = point;
         if (x >= 0 && x <= width && y >= 0 && y <= height) {
           const isSelected = selected?.id === object.id;
-          context.fillStyle = isSelected
-            ? "#f6c978"
-            : display.nightMode
-              ? "#ff584f"
-              : "#edf5ff";
-          context.beginPath();
-          context.arc(x, y, isSelected ? 5 : 2, 0, Math.PI * 2);
-          context.fill();
+          const glyphSize = Math.max(3.7, Math.min(10, 3.2 + 70 / view.fovDeg));
+          drawDsoGlyph(object, x, y, glyphSize, isSelected);
           hitTargets.push({ x, y, object });
           if (display.labels && (isSelected || view.fovDeg < 20)) {
             context.font = "11px system-ui";
+            context.fillStyle = display.nightMode ? "#ff8178" : "#dbe8f7";
             context.fillText(object.id || object.name, x + 6, y - 4);
           }
         }
@@ -441,6 +653,7 @@ export function createCelestiaAtlasViewer(options) {
           context.arc(x, y, radius + 3, 0, Math.PI * 2);
           context.stroke();
         }
+        drawObjectBox(x, y, radius + 6, isSelected ? "#fff1bd" : context.fillStyle);
         context.restore();
         hitTargets.push({ x, y, object });
         if (
@@ -452,49 +665,6 @@ export function createCelestiaAtlasViewer(options) {
           context.fillText(object.name, x + radius + 5, y - 4);
         }
       }
-    }
-    if (display.horizon && landscape?.tiles && landscapeContext) {
-      const landscapeTime = currentUtcMs();
-      const rasterKey = [
-        width,
-        height,
-        view.center.raDeg.toFixed(4),
-        view.center.decDeg.toFixed(4),
-        view.fovDeg.toFixed(3),
-        observer.latitudeDeg,
-        observer.longitudeDeg,
-        Math.floor(landscapeTime / 60000),
-        landscape.source.key,
-        landscape.source.url,
-      ].join(":");
-      if (landscapeRasterCache.key !== rasterKey) {
-        landscapeRasterCache = {
-          key: rasterKey,
-          raster: rasterizeHealpixLandscape({
-            tiles: landscape.tiles,
-            view,
-            observer,
-            timestampUtcMs: landscapeTime,
-            canvasWidth: width,
-            canvasHeight: height,
-            outputWidth: Math.min(384, width),
-          }),
-        };
-      }
-      const raster = landscapeRasterCache.raster;
-      landscapeCanvas.width = raster.width;
-      landscapeCanvas.height = raster.height;
-      const imageData = landscapeContext.createImageData(
-        raster.width,
-        raster.height,
-      );
-      imageData.data.set(raster.data);
-      landscapeContext.putImageData(imageData, 0, 0);
-      context.save();
-      context.globalAlpha = display.nightMode ? 0.32 : 1;
-      context.imageSmoothingEnabled = true;
-      context.drawImage(landscapeCanvas, 0, 0, width, height);
-      context.restore();
     }
     if (display.cardinals && display.labels) {
       context.save();

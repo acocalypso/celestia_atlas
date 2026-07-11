@@ -3,9 +3,11 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 
 test("standalone shell boots the shared public viewer", async () => {
-  const [html, application] = await Promise.all([
+  const [html, application, publicApi, types] = await Promise.all([
     readFile(new URL("../index.html", import.meta.url), "utf8"),
     readFile(new URL("../standalone-app.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/public-api.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/index.d.ts", import.meta.url), "utf8"),
   ]);
   assert.match(html, /type="module" src="standalone-app\.js"/);
   assert.doesNotMatch(html, /app-v8\.js|standalone-engine-bridge\.js/);
@@ -13,6 +15,10 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(application, /viewer\.setLandscape/);
   assert.match(application, /viewer\.setFieldOfView/);
   assert.match(application, /viewer\.setDisplayOptions/);
+  assert.match(publicApi, /assets\/milky-way\.webp/);
+  assert.match(publicApi, /drawDsoGlyph/);
+  assert.match(publicApi, /drawLandscape\(width, height\);\s*hitTargets = \[\];/s);
+  assert.match(types, /milkyWayPanoramaUrl\?: string/);
 });
 
 test("standalone package contains all twelve offline landscape faces", async () => {

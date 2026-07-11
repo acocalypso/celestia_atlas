@@ -123,6 +123,7 @@ export function createCelestiaAtlasViewer(options: {
   observer?: Observer;
   utcMs?: number;
   devicePixelRatioCap?: number;
+  milkyWayPanoramaUrl?: string;
   onSelect?: (value: SelectedTarget) => void;
   onViewChange?: (value: ViewState) => void;
   onError?: (error: Error) => void;
