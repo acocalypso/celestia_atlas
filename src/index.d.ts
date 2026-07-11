@@ -79,6 +79,7 @@ export interface CelestiaAtlasViewer {
   setTime(timestampUtcMs: number): void;
   setTimeRate(value: number): void;
   getTime(): number;
+  getView(): ViewState;
   setView(value: ViewState): void;
   setMountPosition(value: MountPosition | null): void;
   setMountFollow(value: boolean): void;

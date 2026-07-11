@@ -703,6 +703,10 @@ export function createCelestiaAtlasViewer(options) {
       assertAlive();
       return currentUtcMs();
     },
+    getView() {
+      assertAlive();
+      return structuredClone(view);
+    },
     setView(value) {
       assertAlive();
       const center = validateEquatorialCoordinates(value?.center);

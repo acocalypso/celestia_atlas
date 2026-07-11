@@ -29,6 +29,8 @@ services.
   and become individually searchable and visible in narrow fields.
 - Embedded consumers can load order-0 HiPS/HEALPix landscape datasets with
   transparent horizons through the asynchronous `setLandscape` API.
+- Embedded controls can read a defensive copy of the current center and zoom
+  through `getView` without accessing renderer internals.
 - The NASA image downloader now accepts any catalogue object, supports large
   resumable batches, filtering, offsets, dry runs, reports and relevance scoring.
 

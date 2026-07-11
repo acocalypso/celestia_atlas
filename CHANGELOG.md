@@ -14,6 +14,7 @@
   search and narrow-field centering to embedded and standalone viewers.
 - Added order-0 HiPS/HEALPix landscape loading, spherical projection,
   transparency and non-fatal load-error reporting to the embedded viewer.
+- Added a typed `getView` API for renderer-independent host controls.
 
 ## v8
 
