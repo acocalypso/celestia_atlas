@@ -28,6 +28,10 @@ export interface HorizonPoint {
   azimuthDeg: number;
   altitudeDeg: number;
 }
+export interface LandscapeSource {
+  url: string;
+  key: string;
+}
 export interface SelectedTarget {
   id?: string;
   name: string;
@@ -81,6 +85,7 @@ export interface CelestiaAtlasViewer {
   focusMount(): boolean;
   setFieldOfView(value: FieldOfViewOverlay | null): void;
   setHorizon(value: HorizonPoint[]): void;
+  setLandscape(value: LandscapeSource | null): Promise<boolean>;
   setDisplayOptions(
     value: Partial<{
       grid: boolean;
@@ -116,6 +121,7 @@ export function createCelestiaAtlasViewer(options: {
   devicePixelRatioCap?: number;
   onSelect?: (value: SelectedTarget) => void;
   onViewChange?: (value: ViewState) => void;
+  onError?: (error: Error) => void;
 }): CelestiaAtlasViewer;
 export function getSolarSystemObjects(
   timestampUtcMs: number,

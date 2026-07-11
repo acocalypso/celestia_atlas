@@ -13,6 +13,7 @@ import {
   eclipticToEquatorial,
   galacticToEquatorial,
 } from "./core/reference-lines.js";
+import { rasterizeHealpixLandscape } from "./core/landscape.js";
 
 export function createCelestiaAtlasViewer(options) {
   const {
@@ -22,6 +23,7 @@ export function createCelestiaAtlasViewer(options) {
     constellations = {},
     onSelect,
     onViewChange,
+    onError,
     devicePixelRatioCap = 2,
   } = options ?? {};
   if (!(container instanceof HTMLElement))
@@ -35,6 +37,10 @@ export function createCelestiaAtlasViewer(options) {
   container.append(canvas);
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Canvas 2D rendering is unavailable");
+  const landscapeCanvas = document.createElement("canvas");
+  const landscapeContext = landscapeCanvas.getContext("2d", {
+    willReadFrequently: true,
+  });
 
   let destroyed = false;
   let paused = true;
@@ -51,6 +57,9 @@ export function createCelestiaAtlasViewer(options) {
   let horizon = [];
   let hitTargets = [];
   let selected = null;
+  let landscape = null;
+  let landscapeLoadToken = 0;
+  let landscapeRasterCache = { key: "", raster: null };
   let display = {
     grid: true,
     azimuthalGrid: false,
@@ -89,6 +98,51 @@ export function createCelestiaAtlasViewer(options) {
     if (cometCache.key !== key)
       cometCache = { key, objects: getCometObjects(timestamp, observer) };
     return cometCache.objects;
+  };
+  const loadImagePixels = async (url) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = () => reject(new Error(`Unable to load landscape tile: ${url}`));
+      image.src = url;
+    });
+    const tileCanvas = document.createElement("canvas");
+    tileCanvas.width = image.naturalWidth;
+    tileCanvas.height = image.naturalHeight;
+    const tileContext = tileCanvas.getContext("2d", { willReadFrequently: true });
+    if (!tileContext) throw new Error("Landscape tile decoding is unavailable");
+    tileContext.drawImage(image, 0, 0);
+    return {
+      width: tileCanvas.width,
+      height: tileCanvas.height,
+      data: tileContext.getImageData(0, 0, tileCanvas.width, tileCanvas.height).data,
+    };
+  };
+  const loadLandscape = async (source, token) => {
+    const baseUrl = source.url.replace(/\/+$/, "");
+    let tileFormat = "webp";
+    try {
+      const response = await fetch(`${baseUrl}/properties`);
+      if (response.ok) {
+        const properties = await response.text();
+        const match = properties.match(/^hips_tile_format\s*=\s*([^\s#]+)/im);
+        if (match) tileFormat = match[1].split(/[ ,]/)[0].toLocaleLowerCase();
+      }
+    } catch {
+      // Legacy local landscape folders may omit or block the properties file.
+    }
+    if (!/^(webp|png|jpe?g)$/.test(tileFormat))
+      throw new Error(`Unsupported landscape tile format: ${tileFormat}`);
+    const tiles = await Promise.all(
+      Array.from({ length: 12 }, (_, face) =>
+        loadImagePixels(`${baseUrl}/Norder0/Dir0/Npix${face}.${tileFormat}`),
+      ),
+    );
+    if (destroyed || token !== landscapeLoadToken) return;
+    landscape = { source: structuredClone(source), tiles };
+    landscapeRasterCache = { key: "", raster: null };
+    invalidate();
   };
   const draw = () => {
     frameId = null;
@@ -375,6 +429,46 @@ export function createCelestiaAtlasViewer(options) {
           context.fillText(object.name, x + radius + 5, y - 4);
         }
       }
+    }
+    if (display.horizon && landscape?.tiles && landscapeContext) {
+      const landscapeTime = currentUtcMs();
+      const rasterKey = [
+        width,
+        height,
+        view.center.raDeg.toFixed(4),
+        view.center.decDeg.toFixed(4),
+        view.fovDeg.toFixed(3),
+        observer.latitudeDeg,
+        observer.longitudeDeg,
+        Math.floor(landscapeTime / 60000),
+        landscape.source.key,
+        landscape.source.url,
+      ].join(":");
+      if (landscapeRasterCache.key !== rasterKey) {
+        landscapeRasterCache = {
+          key: rasterKey,
+          raster: rasterizeHealpixLandscape({
+            tiles: landscape.tiles,
+            view,
+            observer,
+            timestampUtcMs: landscapeTime,
+            canvasWidth: width,
+            canvasHeight: height,
+            outputWidth: Math.min(384, width),
+          }),
+        };
+      }
+      const raster = landscapeRasterCache.raster;
+      landscapeCanvas.width = raster.width;
+      landscapeCanvas.height = raster.height;
+      const imageData = landscapeContext.createImageData(raster.width, raster.height);
+      imageData.data.set(raster.data);
+      landscapeContext.putImageData(imageData, 0, 0);
+      context.save();
+      context.globalAlpha = display.nightMode ? 0.32 : 1;
+      context.imageSmoothingEnabled = true;
+      context.drawImage(landscapeCanvas, 0, 0, width, height);
+      context.restore();
     }
     if (mount?.connected) {
       const point = project(mount.coordinates);
@@ -715,6 +809,40 @@ export function createCelestiaAtlasViewer(options) {
       });
       invalidate();
     },
+    async setLandscape(value) {
+      assertAlive();
+      const token = ++landscapeLoadToken;
+      if (value === null) {
+        landscape = null;
+        landscapeRasterCache = { key: "", raster: null };
+        invalidate();
+        return true;
+      }
+      if (
+        !value ||
+        typeof value.url !== "string" ||
+        !value.url.trim() ||
+        typeof value.key !== "string" ||
+        !value.key.trim()
+      )
+        throw new TypeError("Landscape requires non-empty url and key values");
+      const source = { url: value.url.trim(), key: value.key.trim() };
+      if (
+        landscape?.source.url === source.url &&
+        landscape?.source.key === source.key
+      )
+        return true;
+      landscape = null;
+      landscapeRasterCache = { key: "", raster: null };
+      invalidate();
+      try {
+        await loadLandscape(source, token);
+        return !destroyed && token === landscapeLoadToken;
+      } catch (error) {
+        if (!destroyed && token === landscapeLoadToken) onError?.(error);
+        return false;
+      }
+    },
     setDisplayOptions(value) {
       assertAlive();
       display = { ...display, ...value };
@@ -774,6 +902,9 @@ export function createCelestiaAtlasViewer(options) {
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      landscapeLoadToken += 1;
+      landscape = null;
+      landscapeRasterCache = { key: "", raster: null };
       if (frameId !== null) cancelAnimationFrame(frameId);
       if (clockTimer !== null) clearInterval(clockTimer);
       resizeObserver.disconnect();

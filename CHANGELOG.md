@@ -12,6 +12,8 @@
   ecliptic, azimuth grid, local meridian and atmospheric horizon layers.
 - Added live offline Io, Europa, Ganymede and Callisto positions, rendering,
   search and narrow-field centering to embedded and standalone viewers.
+- Added order-0 HiPS/HEALPix landscape loading, spherical projection,
+  transparency and non-fatal load-error reporting to the embedded viewer.
 
 ## v8
 

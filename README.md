@@ -27,6 +27,8 @@ services.
   the local meridian, ecliptic, Milky Way and atmospheric horizon glow.
 - Jupiter's four Galilean moons use live, light-time-corrected offline positions
   and become individually searchable and visible in narrow fields.
+- Embedded consumers can load order-0 HiPS/HEALPix landscape datasets with
+  transparent horizons through the asynchronous `setLandscape` API.
 - The NASA image downloader now accepts any catalogue object, supports large
   resumable batches, filtering, offsets, dry runs, reports and relevance scoring.
 
