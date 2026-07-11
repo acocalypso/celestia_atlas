@@ -311,7 +311,7 @@ function loadHash() {
   )
     currentView = {
       center: { raDeg, decDeg, frame: "ICRS" },
-      fovDeg: clamp(fovDeg, 0.05, 180),
+      fovDeg: clamp(fovDeg, 0.05, 130),
     };
 }
 

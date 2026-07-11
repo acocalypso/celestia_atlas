@@ -17,7 +17,10 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(application, /viewer\.setDisplayOptions/);
   assert.match(publicApi, /assets\/milky-way\.webp/);
   assert.match(publicApi, /drawDsoGlyph/);
-  assert.match(publicApi, /drawLandscape\(width, height\);\s*hitTargets = \[\];/s);
+  const landscapeDraw = publicApi.indexOf("    drawLandscape(width, height);");
+  const horizontalGridDraw = publicApi.indexOf("    if (display.azimuthalGrid)");
+  assert.ok(landscapeDraw > 0);
+  assert.ok(landscapeDraw < horizontalGridDraw);
   assert.match(types, /milkyWayPanoramaUrl\?: string/);
 });
 

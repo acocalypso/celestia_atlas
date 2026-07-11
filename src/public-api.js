@@ -1,4 +1,5 @@
 import {
+  equatorialToHorizontal,
   validateEquatorialCoordinates,
   horizontalToEquatorial,
   panHorizontalView,
@@ -18,6 +19,7 @@ import { rasterizeHealpixLandscape } from "./core/landscape.js";
 
 const DEG = Math.PI / 180;
 const RAD = 180 / Math.PI;
+const MAX_FOV_DEG = 130;
 const DEFAULT_MILKY_WAY_URL = new URL("../assets/milky-way.webp", import.meta.url)
   .href;
 
@@ -493,6 +495,7 @@ export function createCelestiaAtlasViewer(options) {
       }
       context.restore();
     }
+    drawLandscape(width, height);
     if (display.atmosphere) {
       context.save();
       context.strokeStyle = display.nightMode
@@ -512,10 +515,10 @@ export function createCelestiaAtlasViewer(options) {
       const altitudes = Array.from({ length: 19 }, (_, index) => index * 5);
       for (let azimuth = 0; azimuth < 360; azimuth += 15)
         strokeCurve(horizontalCurve(azimuth, altitudes));
-      for (let altitude = 15; altitude <= 75; altitude += 15)
+      for (let altitude = 10; altitude <= 80; altitude += 10)
         strokeCurve(altitudeCircle(altitude));
       if (display.labels) {
-        for (let altitude = 0; altitude <= 75; altitude += 15) {
+        for (let altitude = 0; altitude <= 80; altitude += 10) {
           const targetX = width * 0.78;
           const point = Array.from({ length: 24 }, (_, index) => {
             const coordinate = horizontalToEquatorial(
@@ -590,7 +593,6 @@ export function createCelestiaAtlasViewer(options) {
         );
       }
     }
-    drawLandscape(width, height);
     hitTargets = [];
     context.strokeStyle = display.nightMode
       ? "rgba(255,80,70,.32)"
@@ -865,19 +867,22 @@ export function createCelestiaAtlasViewer(options) {
     } catch {
       // Synthetic tests and some embedded webviews can reject pointer capture.
     }
+    const timestampUtcMs = currentUtcMs();
+    const center = view.center;
+    const horizontalCenter = equatorialToHorizontal(
+      center,
+      observer,
+      timestampUtcMs,
+    );
     drag = {
       pointerId: event.pointerId,
       x: event.clientX,
       y: event.clientY,
-      center: view.center,
-      timestampUtcMs: currentUtcMs(),
+      center,
+      horizontalCenter,
+      timestampUtcMs,
       moved: false,
     };
-    drag.horizontalCenter = equatorialToHorizontal(
-      drag.center,
-      observer,
-      drag.timestampUtcMs,
-    );
   };
   const pointerMove = (event) => {
     if (!drag || drag.pointerId !== event.pointerId) return;
@@ -963,7 +968,7 @@ export function createCelestiaAtlasViewer(options) {
       ...view,
       fovDeg: Math.max(
         0.05,
-        Math.min(180, view.fovDeg * Math.exp(event.deltaY * 0.001)),
+        Math.min(MAX_FOV_DEG, view.fovDeg * Math.exp(event.deltaY * 0.001)),
       ),
     };
     lowQualityUntil = performance.now() + 180;
@@ -1035,7 +1040,7 @@ export function createCelestiaAtlasViewer(options) {
         value.fovDeg > 180
       )
         throw new RangeError("fovDeg must be in (0, 180]");
-      view = { center, fovDeg: value.fovDeg };
+      view = { center, fovDeg: Math.min(MAX_FOV_DEG, value.fovDeg) };
       onViewChange?.(structuredClone(view));
       invalidate();
     },
@@ -1193,7 +1198,10 @@ export function createCelestiaAtlasViewer(options) {
       const center = validateEquatorialCoordinates(
         target.coordinates ?? target,
       );
-      view = { center, fovDeg: Math.max(0.05, Math.min(180, fovDeg)) };
+      view = {
+        center,
+        fovDeg: Math.max(0.05, Math.min(MAX_FOV_DEG, fovDeg)),
+      };
       selected = target.id ? { ...target, id: target.id } : null;
       onViewChange?.(structuredClone(view));
       invalidate();
