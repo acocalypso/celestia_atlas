@@ -4,6 +4,7 @@ import {
   equatorialToHorizontal,
   horizontalToEquatorial,
   normalizeDegrees,
+  panHorizontalView,
   validateEquatorialCoordinates,
   validateObserver,
 } from "../src/index.js";
@@ -20,6 +21,28 @@ test("normalizes RA wrap and east-positive longitude", () => {
     -179,
   );
   assert.equal(normalizeDegrees(-1), 359);
+});
+
+test("pans along the local horizon independently of grid visibility", () => {
+  const leftRight = panHorizontalView(
+    { azimuthDeg: 2, altitudeDeg: 25 },
+    20,
+    0,
+    70,
+    700,
+  );
+  assert.equal(leftRight.azimuthDeg, 0);
+  assert.equal(leftRight.altitudeDeg, 25);
+
+  const upDown = panHorizontalView(
+    { azimuthDeg: 180, altitudeDeg: 89 },
+    0,
+    20,
+    70,
+    700,
+  );
+  assert.equal(upDown.azimuthDeg, 180);
+  assert.equal(upDown.altitudeDeg, 89.5);
 });
 
 test("rejects untagged command-producing coordinates", () => {

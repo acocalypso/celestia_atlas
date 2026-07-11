@@ -19,11 +19,16 @@ test("maps the local sphere across all twelve order-0 HEALPix faces", () => {
   assert.equal(faces.size, 12);
   assert.deepEqual(horizontalToHealpixPixel(0, 0, 512), {
     face: 4,
-    x: 255,
+    x: 256,
     y: 255,
   });
   assert.equal(horizontalToHealpixPixel(90, 0, 512).face, 7);
   assert.equal(horizontalToHealpixPixel(270, 0, 512).face, 5);
+  assert.deepEqual(horizontalToHealpixPixel(180, 35, 512), {
+    face: 6,
+    x: 476,
+    y: 476,
+  });
 });
 
 test("rasterizes transparent RGBA HiPS tiles into a projected view", () => {

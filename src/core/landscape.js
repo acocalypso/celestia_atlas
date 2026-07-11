@@ -52,8 +52,7 @@ export function horizontalToHealpixPixel(
       iy = descending;
     }
   }
-  // HiPS rotates the nested face array 90 degrees counter-clockwise.
-  return { face, x: iy, y: tileWidth - ix - 1 };
+  return { face, x: ix, y: iy };
 }
 
 export function rasterizeHealpixLandscape({

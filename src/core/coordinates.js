@@ -124,3 +124,31 @@ export function horizontalToEquatorial(
     frame,
   });
 }
+
+export function panHorizontalView(
+  center,
+  deltaX,
+  deltaY,
+  fovDeg,
+  viewportHeight,
+) {
+  if (
+    !center ||
+    !Number.isFinite(center.azimuthDeg) ||
+    !Number.isFinite(center.altitudeDeg) ||
+    !Number.isFinite(deltaX) ||
+    !Number.isFinite(deltaY) ||
+    !Number.isFinite(fovDeg) ||
+    !Number.isFinite(viewportHeight) ||
+    viewportHeight <= 0
+  )
+    throw new TypeError("Horizontal panning requires finite view geometry");
+  const degreesPerPixel = fovDeg / Math.max(280, viewportHeight);
+  return {
+    azimuthDeg: normalizeDegrees(center.azimuthDeg - deltaX * degreesPerPixel),
+    altitudeDeg: Math.max(
+      -89.5,
+      Math.min(89.5, center.altitudeDeg + deltaY * degreesPerPixel),
+    ),
+  };
+}
