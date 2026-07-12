@@ -4,6 +4,7 @@
 The generated files are completely local at runtime:
   dso-catalog.js                 browser catalogue + curated merge
   data/openngc-catalog.json      machine-readable catalogue for tools
+  data/openngc-viewer-catalog.json compact degree-based runtime catalogue
   data/openngc-meta.json         provenance/build metadata
 
 OpenNGC is CC-BY-SA-4.0. Keep the attribution and THIRD_PARTY_NOTICES.md
@@ -294,6 +295,27 @@ def deduplicate(objects: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(by_catalog.values(), key=lambda o: (0 if str(o["id"]).startswith("M") else 1, str(o["catalogId"])))
 
 
+def viewer_object(obj: dict[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "id": obj["id"],
+        "raDeg": obj["ra"] * 15,
+        "decDeg": obj["dec"],
+        "frame": "ICRS",
+        "catalogSource": "OpenNGC",
+    }
+    for field in (
+        "name",
+        "type",
+        "mag",
+        "positionAngle",
+        "aliases",
+    ):
+        value = obj.get(field)
+        if value is not None and value != "":
+            result[field] = value
+    return result
+
+
 def write_outputs(objects: list[dict[str, Any]], version: str, sources: list[str]) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     meta = {
@@ -313,6 +335,17 @@ def write_outputs(objects: list[dict[str, Any]], version: str, sources: list[str
     payload = {"meta": meta, "objects": objects}
     (DATA_DIR / "openngc-catalog.json").write_text(
         json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
+    )
+    viewer_payload = {
+        "meta": {
+            **meta,
+            "coordinateFrame": "ICRS",
+            "rightAscensionUnit": "degrees",
+        },
+        "objects": [viewer_object(obj) for obj in objects],
+    }
+    (DATA_DIR / "openngc-viewer-catalog.json").write_text(
+        json.dumps(viewer_payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
     )
     (DATA_DIR / "openngc-meta.json").write_text(
         json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -357,6 +390,7 @@ def main() -> int:
     print(f"Generated {len(objects):,} offline DSO records from OpenNGC {args.version}")
     print(f"  {ROOT / 'dso-catalog.js'}")
     print(f"  {DATA_DIR / 'openngc-catalog.json'}")
+    print(f"  {DATA_DIR / 'openngc-viewer-catalog.json'}")
     return 0
 
 

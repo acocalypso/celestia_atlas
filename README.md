@@ -110,8 +110,15 @@ Generated files:
 ```text
 dso-catalog.js
 data/openngc-catalog.json
+data/openngc-viewer-catalog.json
 data/openngc-meta.json
 ```
+
+`openngc-catalog.json` preserves the full source metadata for tools and the
+standalone build. `openngc-viewer-catalog.json` is the smaller package payload:
+it contains only renderer/search fields and publishes coordinates directly as
+tagged ICRS decimal degrees, avoiding a second 12,578-object conversion in
+embedded mobile clients.
 
 ## NASA image downloader v2
 

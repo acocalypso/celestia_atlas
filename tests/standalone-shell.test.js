@@ -62,3 +62,29 @@ test("standalone package contains all twelve offline landscape faces", async () 
     ),
   );
 });
+
+test("mobile renderer keeps expensive work inside bounded frame contracts", async () => {
+  const publicApi = await readFile(
+    new URL("../src/public-api.js", import.meta.url),
+    "utf8",
+  );
+  assert.match(publicApi, /landscapeRasterWidth\([\s\S]*coarsePointer/);
+  assert.match(publicApi, /if \(canvas\.width !== backingWidth\)/);
+  assert.match(publicApi, /if \(canvas\.height !== backingHeight\)/);
+  assert.match(publicApi, /landscapeUploadKey !== landscapeRasterCache\.key/);
+  assert.match(publicApi, /milkyWayUploadKey !== milkyWayRasterCache\.key/);
+  assert.match(publicApi, /currentSolarSystemObjects/);
+  assert.match(publicApi, /interactionViewChangePending = true/);
+  assert.match(publicApi, /addEventListener\("contextlost"/);
+  assert.match(publicApi, /removeEventListener\("contextrestored"/);
+
+  const dsoLoop = publicApi.slice(
+    publicApi.indexOf("for (const object of catalog)"),
+    publicApi.indexOf("if (display.solarSystem)"),
+  );
+  assert.ok(dsoLoop.indexOf("const point = project(object)") > 0);
+  assert.ok(
+    dsoLoop.indexOf("const point = project(object)") <
+      dsoLoop.indexOf("if (!isAboveHorizon(object))"),
+  );
+});

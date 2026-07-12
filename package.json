@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.js",
     "./catalog-data": "./data/openngc-catalog.json",
+    "./viewer-catalog-data": "./data/openngc-viewer-catalog.json",
     "./bright-sky-data": "./data/bright-sky.json",
     "./comet-data": "./data/comets.json"
   },

@@ -39,14 +39,18 @@ jobs:
         run: |
           test -s dso-catalog.js
           test -s data/openngc-catalog.json
+          test -s data/openngc-viewer-catalog.json
           python - <<'PY'
           import json
           from pathlib import Path
           payload=json.loads(Path('data/openngc-catalog.json').read_text(encoding='utf-8'))
+          viewer=json.loads(Path('data/openngc-viewer-catalog.json').read_text(encoding='utf-8'))
           count=len(payload.get('objects', []))
           print(f'OpenNGC objects: {count:,}')
           if count < 1000:
-              raise SystemExit('Generated catalogue is unexpectedly small')
+            raise SystemExit('Generated catalogue is unexpectedly small')
+          if len(viewer.get('objects', [])) != count:
+            raise SystemExit('Viewer catalogue count does not match source catalogue')
           PY
 
       - name: Assemble static website
