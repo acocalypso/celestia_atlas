@@ -6,3 +6,4 @@ export * from "./core/solar-system.js";
 export * from "./core/comets.js";
 export * from "./core/reference-lines.js";
 export * from "./core/landscape.js";
+export * from "./core/catalog-filters.js";

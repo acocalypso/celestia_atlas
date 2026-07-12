@@ -31,7 +31,19 @@ test("standalone shell boots the shared public viewer", async () => {
   );
   assert.match(html, /id="hideBelowHorizonSwitch" type="checkbox" checked/);
   assert.match(application, /hideBelowHorizon: state\.hideBelowHorizon/);
+  assert.match(html, /id="galaxyMagLimit"/);
+  assert.match(html, /id="dsoMagLimit"/);
+  assert.match(
+    application,
+    /galaxyMagnitudeLimit: state\.galaxyMagnitudeLimit/,
+  );
+  assert.match(
+    application,
+    /deepSkyMagnitudeLimit: state\.deepSkyMagnitudeLimit/,
+  );
   assert.match(types, /hideBelowHorizon: boolean/);
+  assert.match(types, /galaxyMagnitudeLimit: number/);
+  assert.match(types, /deepSkyMagnitudeLimit: number/);
   assert.match(publicApi, /assets\/milky-way\.webp/);
   assert.match(publicApi, /drawDsoGlyph/);
   const landscapeDraw = publicApi.indexOf(
@@ -45,6 +57,7 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(types, /milkyWayPanoramaUrl\?: string/);
   assert.match(types, /calculateCameraFieldOfView/);
   assert.match(serviceWorker, /\.\/src\/core\/optics\.js/);
+  assert.match(serviceWorker, /\.\/src\/core\/catalog-filters\.js/);
 });
 
 test("standalone package contains all twelve offline landscape faces", async () => {
@@ -78,10 +91,10 @@ test("mobile renderer keeps expensive work inside bounded frame contracts", asyn
   assert.match(publicApi, /addEventListener\("contextlost"/);
   assert.match(publicApi, /removeEventListener\("contextrestored"/);
 
-  const dsoLoop = publicApi.slice(
-    publicApi.indexOf("for (const object of catalog)"),
-    publicApi.indexOf("if (display.solarSystem)"),
-  );
+  const dsoLoopStart = publicApi.indexOf("let catalogIndex = 0;");
+  const dsoLoopEnd = publicApi.indexOf("if (display.solarSystem)");
+  assert.ok(dsoLoopStart > 0 && dsoLoopEnd > dsoLoopStart);
+  const dsoLoop = publicApi.slice(dsoLoopStart, dsoLoopEnd);
   assert.ok(dsoLoop.indexOf("const point = project(object)") > 0);
   assert.ok(
     dsoLoop.indexOf("const point = project(object)") <

@@ -115,6 +115,8 @@ export interface CelestiaAtlasViewer {
       constellations: boolean;
       labels: boolean;
       starMagnitudeLimit: number;
+      galaxyMagnitudeLimit: number;
+      deepSkyMagnitudeLimit: number;
       starScale: number;
       deepSkyObjects: boolean;
       solarSystem: boolean;
@@ -152,6 +154,12 @@ export function projectAngularExtent(
   angularExtentDeg: number,
   focalLengthPixels: number,
 ): number;
+export function isGalaxyObject(object: unknown): boolean;
+export function passesDeepSkyMagnitudeFilter(
+  object: unknown,
+  galaxyMagnitudeLimit: number,
+  deepSkyMagnitudeLimit: number,
+): boolean;
 export function getSolarSystemObjects(
   timestampUtcMs: number,
   observer: Observer,

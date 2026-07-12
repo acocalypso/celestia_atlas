@@ -22,6 +22,7 @@ import {
   rasterizeHealpixLandscape,
   rasterizeMilkyWayPanorama,
 } from "./core/landscape.js";
+import { isGalaxyObject } from "./core/catalog-filters.js";
 
 const DEG = Math.PI / 180;
 const RAD = 180 / Math.PI;
@@ -96,6 +97,8 @@ export function createCelestiaAtlasViewer(options) {
     constellations: true,
     labels: true,
     starMagnitudeLimit: 6.5,
+    galaxyMagnitudeLimit: 30,
+    deepSkyMagnitudeLimit: 30,
     starScale: 1,
     deepSkyObjects: true,
     solarSystem: true,
@@ -115,6 +118,9 @@ export function createCelestiaAtlasViewer(options) {
   let cometCache = { key: "", objects: [] };
   let solarSystemCache = { key: "", objects: [] };
   const searchableObjects = [...stars, ...catalog];
+  const galaxyCatalogFlags = Uint8Array.from(catalog, (object) =>
+    isGalaxyObject(object) ? 1 : 0,
+  );
   const starsByName = new Map();
   for (const star of stars) {
     starsByName.set(String(star.name).toLocaleLowerCase(), star);
@@ -294,11 +300,16 @@ export function createCelestiaAtlasViewer(options) {
     if (view.fovDeg > 15) return 14.5;
     return 99;
   };
-  const shouldDrawDso = (object) => {
+  const shouldDrawDso = (object, catalogIndex) => {
     if (selected?.id && selected.id === object.id) return true;
-    if (Number.isFinite(object.mag ?? object.magnitude))
-      return (object.mag ?? object.magnitude) <= dsoMagnitudeLimit();
-    return view.fovDeg < 18;
+    const magnitude = object.mag ?? object.magnitude;
+    const categoryLimit = galaxyCatalogFlags[catalogIndex]
+      ? display.galaxyMagnitudeLimit
+      : display.deepSkyMagnitudeLimit;
+    if (Number.isFinite(magnitude)) {
+      return magnitude <= Math.min(categoryLimit, dsoMagnitudeLimit());
+    }
+    return categoryLimit === 30 && view.fovDeg < 18;
   };
   const drawGridLabel = (text, x, y) => {
     context.save();
@@ -701,7 +712,13 @@ export function createCelestiaAtlasViewer(options) {
         }
       }
     for (const star of stars) {
-      if ((star.mag ?? 99) > display.starMagnitudeLimit) continue;
+      const starMagnitude = star.mag ?? star.magnitude;
+      if (
+        selected?.id !== star.id &&
+        (!Number.isFinite(starMagnitude) ||
+          starMagnitude > display.starMagnitudeLimit)
+      )
+        continue;
       const point = project(star);
       if (
         !point ||
@@ -720,14 +737,19 @@ export function createCelestiaAtlasViewer(options) {
       context.arc(point.x, point.y, radius, 0, Math.PI * 2);
       context.fill();
       hitTargets.push({ x: point.x, y: point.y, object: star });
-      if (display.labels && (star.mag < 1.5 || view.fovDeg < 25)) {
+      if (display.labels && (starMagnitude < 1.5 || view.fovDeg < 25)) {
         context.font = "10px system-ui";
         context.fillText(star.name, point.x + radius + 3, point.y - 3);
       }
     }
     if (display.deepSkyObjects)
-      for (const object of catalog) {
-        if (!shouldDrawDso(object)) continue;
+      for (
+        let catalogIndex = 0;
+        catalogIndex < catalog.length;
+        catalogIndex += 1
+      ) {
+        const object = catalog[catalogIndex];
+        if (!shouldDrawDso(object, catalogIndex)) continue;
         if (!Number.isFinite(object.raDeg) || !Number.isFinite(object.decDeg))
           continue;
         const point = project(object);
@@ -1349,6 +1371,15 @@ export function createCelestiaAtlasViewer(options) {
           value.starMagnitudeLimit > 30)
       )
         throw new TypeError("Invalid star magnitude limit");
+      for (const [key, label] of [
+        ["galaxyMagnitudeLimit", "galaxy"],
+        ["deepSkyMagnitudeLimit", "deep-sky"],
+      ])
+        if (
+          value[key] !== undefined &&
+          (!Number.isFinite(value[key]) || value[key] < -2 || value[key] > 30)
+        )
+          throw new TypeError(`Invalid ${label} magnitude limit`);
       if (
         value.starScale !== undefined &&
         (!Number.isFinite(value.starScale) ||

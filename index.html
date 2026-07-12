@@ -252,10 +252,34 @@
         <input
           id="magLimit"
           type="range"
-          min="1"
+          min="-2"
           max="6.5"
           step="0.1"
           value="5.5"
+        />
+        <label class="range-label" for="galaxyMagLimit"
+          ><span>Galaxy magnitude limit</span
+          ><strong id="galaxyMagValue">30.0</strong></label
+        >
+        <input
+          id="galaxyMagLimit"
+          type="range"
+          min="-2"
+          max="30"
+          step="0.5"
+          value="30"
+        />
+        <label class="range-label" for="dsoMagLimit"
+          ><span>Other DSO magnitude limit</span
+          ><strong id="dsoMagValue">30.0</strong></label
+        >
+        <input
+          id="dsoMagLimit"
+          type="range"
+          min="-2"
+          max="30"
+          step="0.5"
+          value="30"
         />
         <label class="range-label" for="starScale"
           ><span>Star size</span><strong id="scaleValue">100%</strong></label

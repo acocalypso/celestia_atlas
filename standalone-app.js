@@ -56,6 +56,8 @@ const state = {
     localStorage.getItem("celestia-atlas.hide-below-horizon") !== "false",
   nightMode: false,
   starMagnitudeLimit: 5.5,
+  galaxyMagnitudeLimit: 30,
+  deepSkyMagnitudeLimit: 30,
   starScale: 1,
   dsoImages: true,
   timeRate: 0,
@@ -233,6 +235,8 @@ function applyDisplayOptions() {
     hideBelowHorizon: state.hideBelowHorizon,
     nightMode: state.nightMode,
     starMagnitudeLimit: state.starMagnitudeLimit,
+    galaxyMagnitudeLimit: state.galaxyMagnitudeLimit,
+    deepSkyMagnitudeLimit: state.deepSkyMagnitudeLimit,
     starScale: state.starScale,
   });
   document.body.classList.toggle("night", state.nightMode);
@@ -457,6 +461,16 @@ function installControls() {
   $("#magLimit").oninput = (event) => {
     state.starMagnitudeLimit = Number(event.target.value);
     $("#magValue").textContent = state.starMagnitudeLimit.toFixed(1);
+    applyDisplayOptions();
+  };
+  $("#galaxyMagLimit").oninput = (event) => {
+    state.galaxyMagnitudeLimit = Number(event.target.value);
+    $("#galaxyMagValue").textContent = state.galaxyMagnitudeLimit.toFixed(1);
+    applyDisplayOptions();
+  };
+  $("#dsoMagLimit").oninput = (event) => {
+    state.deepSkyMagnitudeLimit = Number(event.target.value);
+    $("#dsoMagValue").textContent = state.deepSkyMagnitudeLimit.toFixed(1);
     applyDisplayOptions();
   };
   $("#starScale").oninput = (event) => {

@@ -1,5 +1,5 @@
 try{importScripts('./dso-images.js')}catch(e){}
-const CACHE='celestia-atlas-offline-v21';
+const CACHE='celestia-atlas-offline-v22';
 const CORE=[
   './',
   './index.html',
@@ -19,6 +19,7 @@ const CORE=[
   './src/core/comets.js',
   './src/core/reference-lines.js',
   './src/core/landscape.js',
+  './src/core/catalog-filters.js',
   './data/comets.js',
   './manifest.webmanifest',
   './assets/landscapes/guereins/properties',

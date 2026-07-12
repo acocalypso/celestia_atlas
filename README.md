@@ -41,6 +41,13 @@ services.
   premultiplied bilinear sampling and render at a bounded DPR-aware resolution.
   A reduced interaction raster is replaced with a sharp full-quality raster
   after wheel input becomes idle.
+- Mobile coarse-pointer rendering caps the canvas DPR at 1.25 and uses a
+  64-pixel panorama budget while moving, then redraws at up to 768 pixels when
+  settled. Fine-pointer budgets remain 384/1024 with a default DPR cap of 2.
+  Panorama uploads, canvas backing sizes and one-second moving-object results
+  are reused until their inputs actually change.
+- Stars, galaxy-family objects and other deep-sky objects have independent
+  limiting-magnitude filters in both the public API and standalone controls.
 - Embedded controls can read a defensive copy of the current center and zoom
   through `getView` without accessing renderer internals.
 - The NASA image downloader now accepts any catalogue object, supports large
@@ -119,6 +126,10 @@ standalone build. `openngc-viewer-catalog.json` is the smaller package payload:
 it contains only renderer/search fields and publishes coordinates directly as
 tagged ICRS decimal degrees, avoiding a second 12,578-object conversion in
 embedded mobile clients.
+
+The compact payload is 2,971,964 bytes raw (536,268 bytes with gzip level 9),
+versus 6,019,427 bytes for the source-preserving catalogue. Package consumers
+can lazy-load it through `@acocalypso/celestia-atlas/viewer-catalog-data`.
 
 ## NASA image downloader v2
 
@@ -253,6 +264,29 @@ viewer.setFieldOfView({
 The helper also returns physical sensor dimensions, diagonal FOV, pixel scale
 in arcseconds per pixel and, when aperture is supplied, focal ratio. Aperture
 does not change angular FOV; that is determined by sensor size and focal length.
+
+## Brightness filters
+
+The viewer accepts separate apparent limiting magnitudes for stars, galaxies
+and all other deep-sky objects:
+
+```js
+viewer.setDisplayOptions({
+  starMagnitudeLimit: 5.5,
+  galaxyMagnitudeLimit: 12,
+  deepSkyMagnitudeLimit: 10,
+});
+```
+
+Objects with a known magnitude render when their magnitude is less than or
+equal to the corresponding limit. Lower numbers therefore keep only brighter
+objects. Galaxy pairs, triplets, groups and clusters use the galaxy limit;
+`deepSkyMagnitudeLimit` covers nebulae, star clusters and other DSOs. The
+default value of `30` for both DSO categories means no user cap, while the
+existing field-of-view ceiling still prevents a wide view from becoming
+overloaded. Setting a stricter DSO limit also hides objects whose magnitude is
+unknown. A selected target bypasses the drawing filters, and search continues
+to query the complete offline catalogue.
 
 ## Project structure
 

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Added independent limiting-magnitude filters for stars, galaxy-family
+  objects and other deep-sky objects to the public viewer and standalone UI.
+  A lower magnitude limit shows only brighter objects; selected targets remain
+  visible and offline search continues to cover the full catalogue.
+- Added a compact, degree-based 12,578-object OpenNGC package export for
+  embedded viewers, reducing the raw catalogue payload from 6,019,427 to
+  2,971,964 bytes and removing the host-side object conversion.
+- Optimized coarse-pointer rendering with allocation-free landscape and Milky
+  Way projections, bounded interaction rasters, cached raster uploads,
+  conditional canvas resizing, off-screen culling, ephemeris caching and
+  coalesced view-change events. Added pointer cancellation and 2D context-loss
+  recovery for mobile lifecycle interruptions.
 - Added live offline Sun, Moon, planet and Pluto rendering, search, selection
   and observer/time-dependent topocentric J2000 positions to the standalone app.
 - Added a reproducible 1,214-record MPC comet catalogue with universal-variable
