@@ -1,6 +1,11 @@
-import { normalizeDegrees } from "./coordinates.js";
+import {
+  equatorialToHorizontal,
+  horizontalToEquatorial,
+  normalizeDegrees,
+} from "./coordinates.js";
 
 const DEG = Math.PI / 180;
+const RAD = 180 / Math.PI;
 
 export function projectAngularExtent(angularExtentDeg, focalLengthPixels) {
   if (
@@ -37,6 +42,33 @@ export function projectEquatorial(coordinates, view, width, height) {
     x: width / 2 + focal * rotatedX,
     y: height / 2 - focal * rotatedY,
   };
+}
+
+/** Rotates an equatorial projection so local altitude is vertical on screen. */
+export function alignViewToHorizon(view, observer, timestampUtcMs) {
+  const horizontal = equatorialToHorizontal(
+    view.center,
+    observer,
+    timestampUtcMs,
+  );
+  const towardZenith = horizontal.altitudeDeg < 89;
+  const reference = horizontalToEquatorial(
+    {
+      azimuthDeg: horizontal.azimuthDeg,
+      altitudeDeg: horizontal.altitudeDeg + (towardZenith ? 0.1 : -0.1),
+    },
+    observer,
+    timestampUtcMs,
+    view.center.frame,
+  );
+  const point = projectEquatorial(reference, view, 2, 2);
+  let x = point.x - 1;
+  let y = 1 - point.y;
+  if (!towardZenith) {
+    x = -x;
+    y = -y;
+  }
+  return { ...view, rotationDeg: Math.atan2(x, y) * RAD };
 }
 
 export function unprojectEquatorial(x, y, view, width, height) {

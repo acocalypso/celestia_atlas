@@ -48,6 +48,10 @@ services.
   are reused until their inputs actually change.
 - Stars, galaxy-family objects and other deep-sky objects have independent
   limiting-magnitude filters in both the public API and standalone controls.
+- Camera orientation is independent of grid visibility. New viewers default to
+  horizon-aligned `horizontal` mode; use
+  `viewer.setCoordinateMode("equatorial")` only for an equator-up atlas view.
+  Hiding the azimuth grid does not change landscape roll or drag orientation.
 - Embedded controls can read a defensive copy of the current center and zoom
   through `getView` without accessing renderer internals.
 - The NASA image downloader now accepts any catalogue object, supports large

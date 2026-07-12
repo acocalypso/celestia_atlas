@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Decoupled camera orientation from grid visibility. The viewer now defaults to
+  a horizon-aligned observer mode, `setCoordinateMode` explicitly selects
+  horizontal or equatorial orientation, and hiding azimuth lines no longer
+  rotates landscapes or makes horizontal dragging appear diagonal.
 - Added independent limiting-magnitude filters for stars, galaxy-family
   objects and other deep-sky objects to the public viewer and standalone UI.
   A lower magnitude limit shows only brighter objects; selected targets remain

@@ -1,4 +1,5 @@
 export type EquatorialFrame = "ICRS" | "J2000";
+export type CoordinateMode = "horizontal" | "equatorial";
 export interface EquatorialCoordinates {
   raDeg: number;
   decDeg: number;
@@ -91,6 +92,7 @@ export interface CelestiaAtlasViewer {
   resume(): void;
   resize(): void;
   destroy(): void;
+  setCoordinateMode(value: CoordinateMode): void;
   setObserver(value: Observer): void;
   setTime(timestampUtcMs: number): void;
   setTimeRate(value: number): void;
@@ -154,6 +156,11 @@ export function projectAngularExtent(
   angularExtentDeg: number,
   focalLengthPixels: number,
 ): number;
+export function alignViewToHorizon(
+  view: ViewState,
+  observer: Observer,
+  timestampUtcMs: number,
+): ViewState & { rotationDeg: number };
 export function isGalaxyObject(object: unknown): boolean;
 export function passesDeepSkyMagnitudeFilter(
   object: unknown,

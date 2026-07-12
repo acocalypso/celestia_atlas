@@ -7,7 +7,11 @@ import {
   pinchZoomFov,
   validateObserver,
 } from "./core/coordinates.js";
-import { projectAngularExtent, projectEquatorial } from "./core/projection.js";
+import {
+  alignViewToHorizon,
+  projectAngularExtent,
+  projectEquatorial,
+} from "./core/projection.js";
 import {
   getJupiterMoonObjects,
   getSolarSystemObjects,
@@ -25,7 +29,6 @@ import {
 import { isGalaxyObject } from "./core/catalog-filters.js";
 
 const DEG = Math.PI / 180;
-const RAD = 180 / Math.PI;
 const MAX_FOV_DEG = 130;
 const DEFAULT_MILKY_WAY_URL = new URL(
   "../assets/milky-way.webp",
@@ -73,6 +76,7 @@ export function createCelestiaAtlasViewer(options) {
   let clockSetAt = performance.now();
   let timeRate = 1;
   let view = { center: { raDeg: 0, decDeg: 0, frame: "ICRS" }, fovDeg: 70 };
+  let coordinateMode = "horizontal";
   let mount = null;
   let mountFollow = false;
   let fieldOfView = null;
@@ -332,30 +336,9 @@ export function createCelestiaAtlasViewer(options) {
     context.restore();
   };
   const horizontalProjectionView = (timestampUtcMs) => {
-    if (!display.azimuthalGrid) return view;
-    const horizontal = equatorialToHorizontal(
-      view.center,
-      observer,
-      timestampUtcMs,
-    );
-    const towardZenith = horizontal.altitudeDeg < 89;
-    const reference = horizontalToEquatorial(
-      {
-        azimuthDeg: horizontal.azimuthDeg,
-        altitudeDeg: horizontal.altitudeDeg + (towardZenith ? 0.1 : -0.1),
-      },
-      observer,
-      timestampUtcMs,
-      view.center.frame,
-    );
-    const point = projectEquatorial(reference, view, 2, 2);
-    let x = point.x - 1;
-    let y = 1 - point.y;
-    if (!towardZenith) {
-      x = -x;
-      y = -y;
-    }
-    return { ...view, rotationDeg: Math.atan2(x, y) * RAD };
+    return coordinateMode === "horizontal"
+      ? alignViewToHorizon(view, observer, timestampUtcMs)
+      : view;
   };
   const drawLandscape = (width, height, projectionView, landscapeTime, dpr) => {
     if (!display.horizon || !landscape?.tiles || !landscapeContext) return;
@@ -1185,6 +1168,15 @@ export function createCelestiaAtlasViewer(options) {
       assertAlive();
       invalidate();
     },
+    setCoordinateMode(value) {
+      assertAlive();
+      if (value !== "horizontal" && value !== "equatorial")
+        throw new TypeError(
+          'Coordinate mode must be "horizontal" or "equatorial"',
+        );
+      coordinateMode = value;
+      invalidate();
+    },
     setObserver(value) {
       assertAlive();
       observer = validateObserver(value);
@@ -1441,6 +1433,7 @@ export function createCelestiaAtlasViewer(options) {
         utcMs: currentUtcMs(),
         timeRate,
         view,
+        coordinateMode,
         paused,
       });
     },

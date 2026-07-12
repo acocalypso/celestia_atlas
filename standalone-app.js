@@ -218,6 +218,7 @@ function setControlPanelOpen(open) {
 }
 
 function applyDisplayOptions() {
+  viewer.setCoordinateMode(state.mode);
   viewer.setDisplayOptions({
     grid: state.grid && state.mode === "equatorial",
     azimuthalGrid: state.grid && state.mode === "horizontal",

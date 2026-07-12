@@ -25,6 +25,7 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(html, /id="fovOpticsReadout"/);
   assert.doesNotMatch(html, /id="fov(?:Width|Height)Input"/);
   assert.match(application, /viewer\.setDisplayOptions/);
+  assert.match(application, /viewer\.setCoordinateMode\(state\.mode\)/);
   assert.match(
     html,
     /id="controlPanel"[\s\S]*class="floating-panel control-panel glass closed"[\s\S]*aria-hidden="true"/,
@@ -42,10 +43,12 @@ test("standalone shell boots the shared public viewer", async () => {
     /deepSkyMagnitudeLimit: state\.deepSkyMagnitudeLimit/,
   );
   assert.match(types, /hideBelowHorizon: boolean/);
+  assert.match(types, /setCoordinateMode\(value: CoordinateMode\)/);
   assert.match(types, /galaxyMagnitudeLimit: number/);
   assert.match(types, /deepSkyMagnitudeLimit: number/);
   assert.match(publicApi, /assets\/milky-way\.webp/);
   assert.match(publicApi, /drawDsoGlyph/);
+  assert.doesNotMatch(publicApi, /if \(!display\.azimuthalGrid\) return view/);
   const landscapeDraw = publicApi.indexOf(
     "    drawLandscape(width, height, projectionView, referenceUtcMs, dpr);",
   );
