@@ -38,3 +38,15 @@
 .imaging-grid-secondary {
   margin-top: 7px;
 }
+
+.imaging-readout {
+  min-height: 2.8em;
+  margin: 9px 0 0;
+  color: #b6c5d8;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.imaging-readout.invalid {
+  color: var(--red);
+}

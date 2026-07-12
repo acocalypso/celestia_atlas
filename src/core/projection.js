@@ -2,6 +2,18 @@ import { normalizeDegrees } from "./coordinates.js";
 
 const DEG = Math.PI / 180;
 
+export function projectAngularExtent(angularExtentDeg, focalLengthPixels) {
+  if (
+    !Number.isFinite(angularExtentDeg) ||
+    angularExtentDeg <= 0 ||
+    angularExtentDeg >= 180
+  )
+    throw new RangeError("Angular extent must be in (0, 180) degrees");
+  if (!Number.isFinite(focalLengthPixels) || focalLengthPixels <= 0)
+    throw new RangeError("Projection focal length must be positive and finite");
+  return 2 * focalLengthPixels * Math.tan((angularExtentDeg * DEG) / 2);
+}
+
 export function projectEquatorial(coordinates, view, width, height) {
   const ra = coordinates.raDeg * DEG;
   const dec = coordinates.decDeg * DEG;
@@ -18,10 +30,8 @@ export function projectEquatorial(coordinates, view, width, height) {
       Math.sin(centerDec) * Math.cos(dec) * Math.cos(deltaRa)) /
     cosDistance;
   const rotation = (view.rotationDeg ?? 0) * DEG;
-  const rotatedX =
-    xPlane * Math.cos(rotation) - yPlane * Math.sin(rotation);
-  const rotatedY =
-    xPlane * Math.sin(rotation) + yPlane * Math.cos(rotation);
+  const rotatedX = xPlane * Math.cos(rotation) - yPlane * Math.sin(rotation);
+  const rotatedY = xPlane * Math.sin(rotation) + yPlane * Math.cos(rotation);
   const focal = width / (2 * Math.tan((view.fovDeg * DEG) / 2));
   return {
     x: width / 2 + focal * rotatedX,
@@ -36,10 +46,8 @@ export function unprojectEquatorial(x, y, view, width, height) {
   const rotatedX = (x - width / 2) / focal;
   const rotatedY = (height / 2 - y) / focal;
   const rotation = (view.rotationDeg ?? 0) * DEG;
-  const xPlane =
-    rotatedX * Math.cos(rotation) + rotatedY * Math.sin(rotation);
-  const yPlane =
-    -rotatedX * Math.sin(rotation) + rotatedY * Math.cos(rotation);
+  const xPlane = rotatedX * Math.cos(rotation) + rotatedY * Math.sin(rotation);
+  const yPlane = -rotatedX * Math.sin(rotation) + rotatedY * Math.cos(rotation);
   const rho = Math.hypot(xPlane, yPlane);
   if (rho === 0) return { ...view.center };
   const angularDistance = Math.atan(rho);

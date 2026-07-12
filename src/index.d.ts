@@ -18,6 +18,22 @@ export interface FieldOfViewOverlay {
     "clockwise-from-celestial-north" | "counterclockwise-from-celestial-north";
   mosaic?: { columns: number; rows: number; overlapPercent: number };
 }
+export interface ImagingTrain {
+  sensorWidthPx: number;
+  sensorHeightPx: number;
+  pixelSizeMicrons: number;
+  focalLengthMm: number;
+  apertureMm?: number;
+}
+export interface CameraFieldOfView {
+  sensorWidthMm: number;
+  sensorHeightMm: number;
+  widthDeg: number;
+  heightDeg: number;
+  diagonalDeg: number;
+  pixelScaleArcsecPerPixel: number;
+  focalRatio: number | null;
+}
 export interface MountPosition {
   coordinates: EquatorialCoordinates;
   connected: boolean;
@@ -104,6 +120,7 @@ export interface CelestiaAtlasViewer {
       solarSystem: boolean;
       comets: boolean;
       horizon: boolean;
+      hideBelowHorizon: boolean;
       nightMode: boolean;
     }>,
   ): void;
@@ -128,6 +145,13 @@ export function createCelestiaAtlasViewer(options: {
   onViewChange?: (value: ViewState) => void;
   onError?: (error: Error) => void;
 }): CelestiaAtlasViewer;
+export function calculateCameraFieldOfView(
+  value: ImagingTrain,
+): CameraFieldOfView;
+export function projectAngularExtent(
+  angularExtentDeg: number,
+  focalLengthPixels: number,
+): number;
 export function getSolarSystemObjects(
   timestampUtcMs: number,
   observer: Observer,

@@ -1,11 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  projectAngularExtent,
   projectEquatorial,
   unprojectEquatorial,
 } from "../src/core/projection.js";
 
 const view = { center: { raDeg: 359, decDeg: 30, frame: "ICRS" }, fovDeg: 60 };
+
+test("projects an angular frame through the gnomonic focal length", () => {
+  const focalLengthPixels = 1000 / (2 * Math.tan(Math.PI / 6));
+  const pixels = projectAngularExtent(2, focalLengthPixels);
+  assert.ok(
+    Math.abs(pixels - 2 * focalLengthPixels * Math.tan(Math.PI / 180)) < 1e-12,
+  );
+  assert.ok(pixels > 30 && pixels < 31);
+  assert.throws(() => projectAngularExtent(0, focalLengthPixels), RangeError);
+  assert.throws(() => projectAngularExtent(180, focalLengthPixels), RangeError);
+  assert.throws(() => projectAngularExtent(2, 0), RangeError);
+});
 
 test("projects the view center to the canvas center across RA wrap", () => {
   const point = projectEquatorial(view.center, view, 1000, 600);

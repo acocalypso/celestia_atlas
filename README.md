@@ -29,6 +29,18 @@ services.
   and become individually searchable and visible in narrow fields.
 - Standalone and embedded consumers can load order-0 HiPS/HEALPix landscape datasets with
   transparent horizons through the asynchronous `setLandscape` API.
+- The standalone controls panel now starts closed, leaving the sky unobstructed
+  until the controls or time button is used to open it.
+- Celestial objects and sky layers below the geometric or custom horizon are
+  hidden by default. Embedded consumers can supply an azimuth/altitude profile
+  with `setHorizon` and can opt out through the `hideBelowHorizon` display option.
+- Camera overlays can be derived from physical imaging-train data with
+  `calculateCameraFieldOfView`: sensor width and height in pixels, pixel size,
+  telescope focal length and optional aperture.
+- HEALPix landscapes now follow the Stellarium tile-axis convention, use
+  premultiplied bilinear sampling and render at a bounded DPR-aware resolution.
+  A reduced interaction raster is replaced with a sharp full-quality raster
+  after wheel input becomes idle.
 - Embedded controls can read a defensive copy of the current center and zoom
   through `getView` without accessing renderer internals.
 - The NASA image downloader now accepts any catalogue object, supports large
@@ -190,6 +202,51 @@ http://localhost:8000
 
 Do not test service-worker behavior through `file://`; use localhost or HTTPS.
 
+## Horizon clipping and physical camera FOV
+
+The viewer hides celestial content below the horizon by default. With no custom
+profile, the cutoff is 0 degrees altitude. Supply a local obstruction profile
+as azimuth/altitude points; the viewer sorts and interpolates it continuously
+through north:
+
+```js
+viewer.setHorizon([
+  { azimuthDeg: 0, altitudeDeg: 12 },
+  { azimuthDeg: 90, altitudeDeg: 18 },
+  { azimuthDeg: 180, altitudeDeg: 7 },
+  { azimuthDeg: 270, altitudeDeg: 10 },
+]);
+
+viewer.setDisplayOptions({ hideBelowHorizon: true });
+```
+
+The standalone imaging overlay accepts physical camera and telescope values
+instead of manually entered angular dimensions. Embedded consumers can use the
+same exported helper and pass its angular result to the viewer:
+
+```js
+import { calculateCameraFieldOfView } from "./src/index.js";
+
+const camera = calculateCameraFieldOfView({
+  sensorWidthPx: 6248,
+  sensorHeightPx: 4176,
+  pixelSizeMicrons: 3.76,
+  focalLengthMm: 500,
+  apertureMm: 100,
+});
+
+viewer.setFieldOfView({
+  widthDeg: camera.widthDeg,
+  heightDeg: camera.heightDeg,
+  rotationDeg: 0,
+  rotationConvention: "clockwise-from-celestial-north",
+});
+```
+
+The helper also returns physical sensor dimensions, diagonal FOV, pixel scale
+in arcseconds per pixel and, when aperture is supplied, focal ratio. Aperture
+does not change angular FOV; that is determined by sensor size and focal length.
+
 ## Project structure
 
 ```text
@@ -200,6 +257,7 @@ standalone-app.js           standalone adapter for the shared viewer API
 catalog.js                 compact bright-star + curated fallback data
 dso-catalog.js             generated complete OpenNGC browser catalogue
 src/public-api.js           shared standalone/embedded renderer
+src/core/optics.js          physical imaging-train FOV calculations
 service-worker.js
 manifest.webmanifest
 assets/landscapes/          packaged offline HEALPix landscape

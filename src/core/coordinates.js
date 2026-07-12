@@ -168,3 +168,27 @@ export function pinchZoomFov(startFovDeg, startDistance, currentDistance) {
     Math.min(130, startFovDeg * (startDistance / currentDistance)),
   );
 }
+
+export function horizonAltitudeAtAzimuth(points, azimuthDeg, fallback = 0) {
+  if (!Array.isArray(points) || points.length < 2) return fallback;
+  const azimuth = normalizeDegrees(azimuthDeg);
+  let low = 0;
+  let high = points.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (points[middle].azimuthDeg <= azimuth) low = middle + 1;
+    else high = middle;
+  }
+  const rightIndex = low % points.length;
+  const leftIndex = (low - 1 + points.length) % points.length;
+  const left = points[leftIndex];
+  const right = points[rightIndex];
+  const leftAzimuth = left.azimuthDeg;
+  const rightAzimuth = right.azimuthDeg + (rightIndex === 0 ? 360 : 0);
+  const sampleAzimuth =
+    azimuth + (rightIndex === 0 && azimuth < leftAzimuth ? 360 : 0);
+  const span = rightAzimuth - leftAzimuth;
+  if (span <= 0) return left.altitudeDeg;
+  const ratio = (sampleAzimuth - leftAzimuth) / span;
+  return left.altitudeDeg + (right.altitudeDeg - left.altitudeDeg) * ratio;
+}

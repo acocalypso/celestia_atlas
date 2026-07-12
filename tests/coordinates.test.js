@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   equatorialToHorizontal,
   horizontalToEquatorial,
+  horizonAltitudeAtAzimuth,
   normalizeDegrees,
   panHorizontalView,
   pinchZoomFov,
@@ -22,6 +23,17 @@ test("normalizes RA wrap and east-positive longitude", () => {
     -179,
   );
   assert.equal(normalizeDegrees(-1), 359);
+});
+
+test("interpolates a custom horizon continuously across north", () => {
+  const points = [
+    { azimuthDeg: 10, altitudeDeg: 20 },
+    { azimuthDeg: 180, altitudeDeg: 5 },
+    { azimuthDeg: 350, altitudeDeg: 10 },
+  ];
+  assert.equal(horizonAltitudeAtAzimuth(points, 350), 10);
+  assert.equal(horizonAltitudeAtAzimuth(points, 0), 15);
+  assert.equal(horizonAltitudeAtAzimuth([], 0), 0);
 });
 
 test("pinch zoom follows two-finger distance and clamps its field of view", () => {

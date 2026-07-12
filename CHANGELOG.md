@@ -21,6 +21,20 @@
   imaging overlays and HEALPix landscape rendering now share one code path.
 - Packaged the Guéreins order-0 HEALPix landscape for offline standalone use and
   added standalone controls for ecliptic, meridian, atmosphere and camera FOV.
+- Changed the standalone controls panel to start closed with synchronized
+  visual and accessibility state on both panel buttons.
+- Added default-on below-horizon clipping for stars, catalogues, moving
+  objects, mount markers and projected sky layers. The cutoff follows the
+  interpolated custom `setHorizon` profile when one is supplied and can be
+  disabled with the `hideBelowHorizon` display option.
+- Added `calculateCameraFieldOfView` and physical standalone inputs for sensor
+  pixel width/height, pixel size, telescope focal length and optional aperture.
+  The helper returns angular dimensions, diagonal FOV, pixel scale, sensor
+  dimensions and focal ratio for the shared imaging overlay.
+- Fixed HEALPix landscape orientation and face closure by applying the
+  Stellarium tile-axis convention. Added premultiplied-alpha bilinear sampling,
+  bounded DPR-aware raster resolution and an idle full-quality redraw after
+  reduced-resolution wheel interaction.
 
 ## v8
 

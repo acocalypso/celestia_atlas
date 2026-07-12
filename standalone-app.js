@@ -1,4 +1,5 @@
 import {
+  calculateCameraFieldOfView,
   createCelestiaAtlasViewer,
   equatorialToHorizontal,
   horizontalToEquatorial,
@@ -51,6 +52,8 @@ const state = {
   meridian: false,
   atmosphere: true,
   landscape: true,
+  hideBelowHorizon:
+    localStorage.getItem("celestia-atlas.hide-below-horizon") !== "false",
   nightMode: false,
   starMagnitudeLimit: 5.5,
   starScale: 1,
@@ -193,10 +196,23 @@ function showDetails(value) {
 }
 
 function closePanel(id) {
+  if (id === "controlPanel") {
+    setControlPanelOpen(false);
+    return;
+  }
   const panel = $(`#${id}`);
   panel.classList.remove("open");
   panel.classList.add("closed");
   panel.setAttribute("aria-hidden", "true");
+}
+
+function setControlPanelOpen(open) {
+  const panel = $("#controlPanel");
+  panel.classList.toggle("closed", !open);
+  panel.setAttribute("aria-hidden", String(!open));
+  for (const button of [$("#controlsButton"), $("#timeButton")])
+    button?.setAttribute("aria-expanded", String(open));
+  $("#controlsButton")?.classList.toggle("active", open);
 }
 
 function applyDisplayOptions() {
@@ -214,6 +230,7 @@ function applyDisplayOptions() {
     solarSystem: true,
     comets: true,
     horizon: state.landscape,
+    hideBelowHorizon: state.hideBelowHorizon,
     nightMode: state.nightMode,
     starMagnitudeLimit: state.starMagnitudeLimit,
     starScale: state.starScale,
@@ -233,20 +250,43 @@ async function applyLandscape() {
 }
 
 function applyFieldOfView() {
+  const readout = $("#fovOpticsReadout");
+  const apertureValue = $("#apertureInput").value.trim();
+  let optics;
+  try {
+    optics = calculateCameraFieldOfView({
+      sensorWidthPx: Number($("#sensorWidthInput").value),
+      sensorHeightPx: Number($("#sensorHeightInput").value),
+      pixelSizeMicrons: Number($("#pixelSizeInput").value),
+      focalLengthMm: Number($("#focalLengthInput").value),
+      apertureMm: apertureValue ? Number(apertureValue) : undefined,
+    });
+    const focalRatio = Number.isFinite(optics.focalRatio)
+      ? ` \u00b7 f/${optics.focalRatio.toFixed(1)}`
+      : "";
+    readout.textContent =
+      `${optics.sensorWidthMm.toFixed(2)} \u00d7 ${optics.sensorHeightMm.toFixed(2)} mm sensor` +
+      ` \u00b7 FoV ${optics.widthDeg.toFixed(3)}\u00b0 \u00d7 ${optics.heightDeg.toFixed(3)}\u00b0` +
+      ` \u00b7 ${optics.pixelScaleArcsecPerPixel.toFixed(2)}\u2033/px${focalRatio}`;
+    readout.classList.remove("invalid");
+  } catch (error) {
+    readout.textContent = error.message;
+    readout.classList.add("invalid");
+    viewer.setFieldOfView(null);
+    return;
+  }
   if (!state.fieldOfView) {
     viewer.setFieldOfView(null);
     return;
   }
-  const widthDeg = Number($("#fovWidthInput").value);
-  const heightDeg = Number($("#fovHeightInput").value);
   const rotationDeg = Number($("#fovRotationInput").value);
   const columns = Number($("#mosaicColumnsInput").value);
   const rows = Number($("#mosaicRowsInput").value);
   const overlapPercent = Number($("#mosaicOverlapInput").value);
   try {
     viewer.setFieldOfView({
-      widthDeg,
-      heightDeg,
+      widthDeg: optics.widthDeg,
+      heightDeg: optics.heightDeg,
       rotationDeg,
       rotationConvention: "clockwise-from-celestial-north",
       mosaic:
@@ -371,10 +411,10 @@ function resetView() {
 }
 
 function installControls() {
-  $("#controlsButton").onclick = () =>
-    $("#controlPanel").classList.toggle("closed");
-  $("#timeButton").onclick = () =>
-    $("#controlPanel").classList.toggle("closed");
+  const toggleControlPanel = () =>
+    setControlPanelOpen($("#controlPanel").classList.contains("closed"));
+  $("#controlsButton").onclick = toggleControlPanel;
+  $("#timeButton").onclick = toggleControlPanel;
   $("#modeButton").onclick = () =>
     setMode(state.mode === "horizontal" ? "equatorial" : "horizontal");
   $$("#modeSelect button").forEach(
@@ -476,13 +516,25 @@ function installControls() {
     applyDisplayOptions();
     void applyLandscape();
   };
+  $("#hideBelowHorizonSwitch").checked = state.hideBelowHorizon;
+  $("#hideBelowHorizonSwitch").onchange = (event) => {
+    state.hideBelowHorizon = event.target.checked;
+    localStorage.setItem(
+      "celestia-atlas.hide-below-horizon",
+      String(state.hideBelowHorizon),
+    );
+    applyDisplayOptions();
+  };
   $("#fovOverlaySwitch").onchange = (event) => {
     state.fieldOfView = event.target.checked;
     applyFieldOfView();
   };
   for (const id of [
-    "fovWidthInput",
-    "fovHeightInput",
+    "sensorWidthInput",
+    "sensorHeightInput",
+    "pixelSizeInput",
+    "focalLengthInput",
+    "apertureInput",
     "fovRotationInput",
     "mosaicColumnsInput",
     "mosaicRowsInput",
@@ -563,6 +615,7 @@ function initialize() {
   void applyLandscape();
   viewer.resume();
   installControls();
+  applyFieldOfView();
   initializeTour();
   $("#latitudeInput").value = state.observer.latitudeDeg.toFixed(4);
   $("#longitudeInput").value = state.observer.longitudeDeg.toFixed(4);

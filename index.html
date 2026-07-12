@@ -12,6 +12,10 @@
       content="Celestia Atlas Offline v8 — a self-contained interactive sky atlas with no external services or libraries."
     />
     <title>Celestia Atlas Offline</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='25' fill='%23050812' stroke='%2362d8ff' stroke-width='3'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%23edf5ff'/%3E%3Cellipse cx='32' cy='32' rx='29' ry='12' fill='none' stroke='%23aa91ff' stroke-width='2' transform='rotate(28 32 32)'/%3E%3C/svg%3E"
+    />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="standalone.css" />
@@ -55,6 +59,7 @@
             class="icon-button labeled"
             type="button"
             aria-controls="controlPanel"
+            aria-expanded="false"
             title="Time and observer controls"
           >
             <svg viewBox="0 0 24 24">
@@ -92,9 +97,11 @@
       <aside class="left-rail glass" aria-label="Sky display controls">
         <button
           id="controlsButton"
-          class="rail-button active"
+          class="rail-button"
           type="button"
           aria-label="Open controls"
+          aria-controls="controlPanel"
+          aria-expanded="false"
           title="Controls"
         >
           <svg viewBox="0 0 24 24">
@@ -208,8 +215,9 @@
 
       <section
         id="controlPanel"
-        class="floating-panel control-panel glass"
+        class="floating-panel control-panel glass closed"
         aria-labelledby="controlsTitle"
+        aria-hidden="true"
       >
         <div class="panel-heading">
           <div>
@@ -348,31 +356,66 @@
             ><input id="atmosphereSwitch" type="checkbox" checked /><i></i
           ></label>
         </div>
+        <div class="toggle-row">
+          <span>Hide objects below horizon</span
+          ><label class="switch"
+            ><input id="hideBelowHorizonSwitch" type="checkbox" checked /><i></i
+          ></label>
+        </div>
 
         <div class="section-title">
-          <span>Imaging overlay</span><small>degrees</small>
+          <span>Imaging train</span><small>camera + telescope</small>
         </div>
         <div class="imaging-grid">
           <label
-            >Width<input
-              id="fovWidthInput"
+            >Sensor width (px)<input
+              id="sensorWidthInput"
               type="number"
-              min="0.01"
-              max="30"
-              step="0.01"
-              value="2"
+              min="1"
+              max="100000"
+              step="1"
+              value="6248"
           /></label>
           <label
-            >Height<input
-              id="fovHeightInput"
+            >Sensor height (px)<input
+              id="sensorHeightInput"
               type="number"
-              min="0.01"
-              max="30"
-              step="0.01"
-              value="1.3"
+              min="1"
+              max="100000"
+              step="1"
+              value="4176"
           /></label>
           <label
-            >Rotation<input
+            >Pixel size (&micro;m)<input
+              id="pixelSizeInput"
+              type="number"
+              min="0.01"
+              max="100"
+              step="0.01"
+              value="3.76"
+          /></label>
+        </div>
+        <div class="imaging-grid imaging-grid-secondary">
+          <label
+            >Focal length (mm)<input
+              id="focalLengthInput"
+              type="number"
+              min="1"
+              max="100000"
+              step="1"
+              value="500"
+          /></label>
+          <label
+            >Aperture (mm)<input
+              id="apertureInput"
+              type="number"
+              min="1"
+              max="10000"
+              step="0.1"
+              value="100"
+          /></label>
+          <label
+            >Rotation (&deg;)<input
               id="fovRotationInput"
               type="number"
               min="0"
@@ -381,7 +424,11 @@
               value="0"
           /></label>
         </div>
-        <div class="imaging-grid imaging-grid-secondary">
+        <p id="fovOpticsReadout" class="imaging-readout" role="status"></p>
+        <div class="section-title">
+          <span>Mosaic</span><small>panels</small>
+        </div>
+        <div class="imaging-grid">
           <label
             >Columns<input
               id="mosaicColumnsInput"

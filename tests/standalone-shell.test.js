@@ -3,27 +3,48 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 
 test("standalone shell boots the shared public viewer", async () => {
-  const [html, application, publicApi, types] = await Promise.all([
-    readFile(new URL("../index.html", import.meta.url), "utf8"),
-    readFile(new URL("../standalone-app.js", import.meta.url), "utf8"),
-    readFile(new URL("../src/public-api.js", import.meta.url), "utf8"),
-    readFile(new URL("../src/index.d.ts", import.meta.url), "utf8"),
-  ]);
+  const [html, application, publicApi, types, serviceWorker] =
+    await Promise.all([
+      readFile(new URL("../index.html", import.meta.url), "utf8"),
+      readFile(new URL("../standalone-app.js", import.meta.url), "utf8"),
+      readFile(new URL("../src/public-api.js", import.meta.url), "utf8"),
+      readFile(new URL("../src/index.d.ts", import.meta.url), "utf8"),
+      readFile(new URL("../service-worker.js", import.meta.url), "utf8"),
+    ]);
   assert.match(html, /type="module" src="standalone-app\.js"/);
   assert.doesNotMatch(html, /app-v8\.js|standalone-engine-bridge\.js/);
   assert.match(application, /createCelestiaAtlasViewer/);
   assert.match(application, /viewer\.setLandscape/);
   assert.match(application, /viewer\.setFieldOfView/);
+  assert.match(application, /calculateCameraFieldOfView/);
+  assert.match(html, /id="sensorWidthInput"/);
+  assert.match(html, /id="sensorHeightInput"/);
+  assert.match(html, /id="pixelSizeInput"/);
+  assert.match(html, /id="focalLengthInput"/);
+  assert.match(html, /id="apertureInput"/);
+  assert.match(html, /id="fovOpticsReadout"/);
+  assert.doesNotMatch(html, /id="fov(?:Width|Height)Input"/);
   assert.match(application, /viewer\.setDisplayOptions/);
+  assert.match(
+    html,
+    /id="controlPanel"[\s\S]*class="floating-panel control-panel glass closed"[\s\S]*aria-hidden="true"/,
+  );
+  assert.match(html, /id="hideBelowHorizonSwitch" type="checkbox" checked/);
+  assert.match(application, /hideBelowHorizon: state\.hideBelowHorizon/);
+  assert.match(types, /hideBelowHorizon: boolean/);
   assert.match(publicApi, /assets\/milky-way\.webp/);
   assert.match(publicApi, /drawDsoGlyph/);
   const landscapeDraw = publicApi.indexOf(
-    "    drawLandscape(width, height, projectionView, referenceUtcMs);",
+    "    drawLandscape(width, height, projectionView, referenceUtcMs, dpr);",
   );
-  const horizontalGridDraw = publicApi.indexOf("    if (display.azimuthalGrid)");
+  const horizontalGridDraw = publicApi.indexOf(
+    "    if (display.azimuthalGrid)",
+  );
   assert.ok(landscapeDraw > 0);
   assert.ok(landscapeDraw < horizontalGridDraw);
   assert.match(types, /milkyWayPanoramaUrl\?: string/);
+  assert.match(types, /calculateCameraFieldOfView/);
+  assert.match(serviceWorker, /\.\/src\/core\/optics\.js/);
 });
 
 test("standalone package contains all twelve offline landscape faces", async () => {

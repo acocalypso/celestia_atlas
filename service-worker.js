@@ -1,5 +1,5 @@
 try{importScripts('./dso-images.js')}catch(e){}
-const CACHE='celestia-atlas-offline-v20';
+const CACHE='celestia-atlas-offline-v21';
 const CORE=[
   './',
   './index.html',
@@ -14,6 +14,7 @@ const CORE=[
   './src/public-api.js',
   './src/core/coordinates.js',
   './src/core/projection.js',
+  './src/core/optics.js',
   './src/core/solar-system.js',
   './src/core/comets.js',
   './src/core/reference-lines.js',
