@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   equatorialToHorizontal,
+  galacticToEquatorial,
   horizonAltitudeAtAzimuth,
   horizontalToEquatorial,
   horizontalToHealpixPixel,
@@ -71,7 +72,7 @@ function referenceMilkyWayRaster({
       const longitudeDeg =
         (((Math.atan2(galacticY, galacticX) * RAD) % 360) + 360) % 360;
       const latitudeDeg = Math.asin(Math.max(-1, Math.min(1, galacticZ))) * RAD;
-      const u = (((0.5 - longitudeDeg / 360) % 1) + 1) % 1;
+      const u = (((0.5 + longitudeDeg / 360) % 1) + 1) % 1;
       const sourceX = Math.min(
         panorama.width - 1,
         Math.floor(u * panorama.width),
@@ -254,6 +255,40 @@ test("matches the Milky Way reference raster in portrait and landscape views", (
     assert.equal(actual.height, expected.height);
     assert.deepEqual(actual.data, expected.data);
   }
+});
+
+test("maps Galactic longitude rightward and Galactic north upward", () => {
+  const width = 8;
+  const height = 4;
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width + x) * 4;
+      data[index] = x;
+      data[index + 1] = y;
+      data[index + 3] = 255;
+    }
+  }
+  const sample = (longitudeDeg, latitudeDeg) => {
+    const raster = rasterizeMilkyWayPanorama({
+      panorama: { width, height, data },
+      view: {
+        center: galacticToEquatorial(longitudeDeg, latitudeDeg),
+        fovDeg: 30,
+      },
+      observer: { latitudeDeg: 0, longitudeDeg: 0, elevationM: 0 },
+      timestampUtcMs: Date.UTC(2026, 6, 12),
+      canvasWidth: 100,
+      canvasHeight: 100,
+      outputWidth: 1,
+      hideBelowHorizon: false,
+      horizon: [],
+    });
+    return { sourceX: raster.data[0], sourceY: raster.data[1] };
+  };
+
+  assert.deepEqual(sample(72, 36), { sourceX: 5, sourceY: 1 });
+  assert.deepEqual(sample(288, -36), { sourceX: 2, sourceY: 2 });
 });
 
 test("matches geometric and custom-horizon Milky Way clipping", () => {

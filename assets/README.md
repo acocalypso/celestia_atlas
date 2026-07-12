@@ -3,7 +3,7 @@
 `milky-way.webp` is a local, procedurally generated 2:1 equirectangular panorama in Galactic coordinates.
 
 - Galactic longitude `l = 0°` is at the centre of the texture.
-- Longitude increases toward the left.
+- Longitude increases toward the right.
 - Galactic latitude `b = +90°` is at the top.
 - The texture is a visual sky background, not calibrated scientific survey data.
 

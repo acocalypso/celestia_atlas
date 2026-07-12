@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Corrected the Milky Way panorama's Galactic-longitude orientation so its
+  north-to-south horizon crossing is no longer mirrored. Galactic north remains
+  at the top of the source panorama.
 - Decoupled camera orientation from grid visibility. The viewer now defaults to
   a horizon-aligned observer mode, `setCoordinateMode` explicitly selects
   horizontal or equatorial orientation, and hiding azimuth lines no longer

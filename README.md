@@ -25,6 +25,8 @@ services.
   search and approximate topocentric positions without runtime requests.
 - Standalone and embedded consumers can independently control equatorial and azimuth grids,
   the local meridian, ecliptic, Milky Way and atmospheric horizon glow.
+- The bundled Galactic panorama uses `l = 0°` at its centre, longitude
+  increasing rightward and Galactic north (`b = +90°`) at the top.
 - Jupiter's four Galilean moons use live, light-time-corrected offline positions
   and become individually searchable and visible in narrow fields.
 - Standalone and embedded consumers can load order-0 HiPS/HEALPix landscape datasets with

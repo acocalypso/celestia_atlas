@@ -513,7 +513,7 @@ export function rasterizeMilkyWayPanorama({
         }
       }
       if (visible) {
-        let u = 0.5 - Math.atan2(galacticY, galacticX) / twoPi;
+        let u = 0.5 + Math.atan2(galacticY, galacticX) / twoPi;
         u -= Math.floor(u);
         const sourceX = Math.min(sourceWidth - 1, Math.floor(u * sourceWidth));
         const sourceY = Math.max(

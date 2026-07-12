@@ -54,7 +54,7 @@
 
       float longitude = atan(gal.y, gal.x);
       float latitude = asin(clamp(gal.z, -1.0, 1.0));
-      vec2 uv = vec2(fract(0.5 - longitude / TAU), clamp(0.5 - latitude / PI, 0.0, 1.0));
+      vec2 uv = vec2(fract(0.5 + longitude / TAU), clamp(0.5 - latitude / PI, 0.0, 1.0));
       vec4 milky = texture2D(uTexture, uv);
 
       float vignette = smoothstep(1.35, 0.12, length(plane));
