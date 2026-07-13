@@ -81,6 +81,16 @@ const FULL_FRAME_FIXTURES = [
       altitudeDeg: 60.08441308989654,
     },
   },
+  {
+    name: "Greenwich equator at the RA wrap",
+    timestampUtcMs: Date.parse("2040-03-20T12:00:00.000Z"),
+    observer: { latitudeDeg: 0, longitudeDeg: 0, elevationM: 0 },
+    coordinates: { raDeg: 0, decDeg: 20, frame: "J2000" },
+    horizontal: {
+      azimuthDeg: 5.090393572323137,
+      altitudeDeg: 69.6942424217848,
+    },
+  },
 ];
 
 test("normalizes RA wrap and east-positive longitude", () => {
