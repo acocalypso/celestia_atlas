@@ -59,6 +59,11 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.ok(landscapeDraw < horizontalGridDraw);
   assert.match(types, /milkyWayPanoramaUrl\?: string/);
   assert.match(types, /calculateCameraFieldOfView/);
+  assert.match(types, /cameraFrameScreenRotationDeg/);
+  assert.match(
+    publicApi,
+    /cameraFrameScreenRotationDeg\(\s*projectionView\.rotationDeg \?\? 0,/,
+  );
   assert.match(serviceWorker, /\.\/src\/core\/optics\.js/);
   assert.match(serviceWorker, /\.\/src\/core\/catalog-filters\.js/);
 });

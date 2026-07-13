@@ -19,6 +19,27 @@ export function projectAngularExtent(angularExtentDeg, focalLengthPixels) {
   return 2 * focalLengthPixels * Math.tan((angularExtentDeg * DEG) / 2);
 }
 
+/**
+ * Converts a camera position angle measured from celestial north into the
+ * clockwise canvas rotation required by the current sky projection.
+ */
+export function cameraFrameScreenRotationDeg(
+  projectionRotationDeg,
+  cameraRotationDeg,
+  rotationConvention,
+) {
+  if (
+    !Number.isFinite(projectionRotationDeg) ||
+    !Number.isFinite(cameraRotationDeg)
+  )
+    throw new TypeError("Projection and camera rotations must be finite");
+  if (rotationConvention === "clockwise-from-celestial-north")
+    return -projectionRotationDeg + cameraRotationDeg;
+  if (rotationConvention === "counterclockwise-from-celestial-north")
+    return -projectionRotationDeg - cameraRotationDeg;
+  throw new TypeError("Camera rotation convention is required");
+}
+
 export function projectEquatorial(coordinates, view, width, height) {
   const ra = coordinates.raDeg * DEG;
   const dec = coordinates.decDeg * DEG;

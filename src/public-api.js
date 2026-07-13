@@ -9,6 +9,7 @@ import {
 } from "./core/coordinates.js";
 import {
   alignViewToHorizon,
+  cameraFrameScreenRotationDeg,
   projectAngularExtent,
   projectEquatorial,
 } from "./core/projection.js";
@@ -881,11 +882,12 @@ export function createCelestiaAtlasViewer(options) {
       const panelHeight = projectAngularExtent(fieldOfView.heightDeg, scale);
       context.save();
       context.translate(width / 2, height / 2);
-      const direction =
-        fieldOfView.rotationConvention === "clockwise-from-celestial-north"
-          ? 1
-          : -1;
-      context.rotate((direction * fieldOfView.rotationDeg * Math.PI) / 180);
+      const screenRotationDeg = cameraFrameScreenRotationDeg(
+        projectionView.rotationDeg ?? 0,
+        fieldOfView.rotationDeg,
+        fieldOfView.rotationConvention,
+      );
+      context.rotate((screenRotationDeg * Math.PI) / 180);
       context.strokeStyle = "#64e39c";
       const mosaic = fieldOfView.mosaic;
       if (mosaic) {

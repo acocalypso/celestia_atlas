@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Anchored camera and mosaic position angles to projected celestial north, so
+  horizon-aligned panning no longer makes framing overlays rotate with screen
+  up.
 - Corrected the Milky Way panorama's Galactic-longitude orientation so its
   north-to-south horizon crossing is no longer mirrored. Galactic north remains
   at the top of the source panorama.

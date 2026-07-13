@@ -267,6 +267,11 @@ viewer.setFieldOfView({
 });
 ```
 
+Camera rotation is measured from projected celestial north, independent of the
+current horizon or equatorial screen orientation. A clockwise position angle
+therefore remains tied to the sky as the view pans instead of rotating with the
+canvas.
+
 The helper also returns physical sensor dimensions, diagonal FOV, pixel scale
 in arcseconds per pixel and, when aperture is supplied, focal ratio. Aperture
 does not change angular FOV; that is determined by sensor size and focal length.

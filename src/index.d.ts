@@ -156,6 +156,11 @@ export function projectAngularExtent(
   angularExtentDeg: number,
   focalLengthPixels: number,
 ): number;
+export function cameraFrameScreenRotationDeg(
+  projectionRotationDeg: number,
+  cameraRotationDeg: number,
+  rotationConvention: FieldOfViewOverlay["rotationConvention"],
+): number;
 export function alignViewToHorizon(
   view: ViewState,
   observer: Observer,

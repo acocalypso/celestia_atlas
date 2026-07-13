@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   alignViewToHorizon,
+  cameraFrameScreenRotationDeg,
   projectAngularExtent,
   projectEquatorial,
   unprojectEquatorial,
@@ -9,6 +10,42 @@ import {
 import { horizontalToEquatorial } from "../src/core/coordinates.js";
 
 const view = { center: { raDeg: 359, decDeg: 30, frame: "ICRS" }, fovDeg: 60 };
+
+const RAD = 180 / Math.PI;
+
+function equatorialOffset(coordinates, distanceDeg, bearingDeg) {
+  const distance = distanceDeg / RAD;
+  const bearing = bearingDeg / RAD;
+  const ra = coordinates.raDeg / RAD;
+  const dec = coordinates.decDeg / RAD;
+  const nextDec = Math.asin(
+    Math.sin(dec) * Math.cos(distance) +
+      Math.cos(dec) * Math.sin(distance) * Math.cos(bearing),
+  );
+  const nextRa =
+    ra +
+    Math.atan2(
+      Math.sin(bearing) * Math.sin(distance) * Math.cos(dec),
+      Math.cos(distance) - Math.sin(dec) * Math.sin(nextDec),
+    );
+  return {
+    raDeg: (((nextRa * RAD) % 360) + 360) % 360,
+    decDeg: nextDec * RAD,
+    frame: coordinates.frame,
+  };
+}
+
+function screenBearingDeg(point, width, height) {
+  return Math.atan2(point.x - width / 2, height / 2 - point.y) * RAD;
+}
+
+function assertAngleClose(actual, expected, tolerance = 1e-9) {
+  const difference = ((actual - expected + 540) % 360) - 180;
+  assert.ok(
+    Math.abs(difference) < tolerance,
+    `expected ${actual} degrees to match ${expected} degrees`,
+  );
+}
 
 test("projects an angular frame through the gnomonic focal length", () => {
   const focalLengthPixels = 1000 / (2 * Math.tan(Math.PI / 6));
@@ -20,6 +57,136 @@ test("projects an angular frame through the gnomonic focal length", () => {
   assert.throws(() => projectAngularExtent(0, focalLengthPixels), RangeError);
   assert.throws(() => projectAngularExtent(180, focalLengthPixels), RangeError);
   assert.throws(() => projectAngularExtent(2, 0), RangeError);
+});
+
+test("converts both camera position-angle conventions from celestial north", () => {
+  for (const cameraRotationDeg of [0, 30, 90, 330]) {
+    assert.equal(
+      cameraFrameScreenRotationDeg(
+        37,
+        cameraRotationDeg,
+        "clockwise-from-celestial-north",
+      ),
+      -37 + cameraRotationDeg,
+    );
+    assert.equal(
+      cameraFrameScreenRotationDeg(
+        37,
+        cameraRotationDeg,
+        "counterclockwise-from-celestial-north",
+      ),
+      -37 - cameraRotationDeg,
+    );
+  }
+  assert.throws(
+    () =>
+      cameraFrameScreenRotationDeg(
+        Number.NaN,
+        0,
+        "clockwise-from-celestial-north",
+      ),
+    TypeError,
+  );
+  assert.throws(
+    () => cameraFrameScreenRotationDeg(0, 0, "screen-relative"),
+    TypeError,
+  );
+});
+
+test("anchors camera axes to projected celestial north and east", () => {
+  const width = 1000;
+  const height = 600;
+  const center = { raDeg: 120, decDeg: 30, frame: "ICRS" };
+  for (const rotationDeg of [0, 37, -112]) {
+    const rotatedView = { center, fovDeg: 60, rotationDeg };
+    const north = projectEquatorial(
+      equatorialOffset(center, 1, 0),
+      rotatedView,
+      width,
+      height,
+    );
+    const east = projectEquatorial(
+      equatorialOffset(center, 1, 90),
+      rotatedView,
+      width,
+      height,
+    );
+    const west = projectEquatorial(
+      equatorialOffset(center, 1, -90),
+      rotatedView,
+      width,
+      height,
+    );
+    assertAngleClose(
+      cameraFrameScreenRotationDeg(
+        rotationDeg,
+        0,
+        "clockwise-from-celestial-north",
+      ),
+      screenBearingDeg(north, width, height),
+    );
+    assertAngleClose(
+      cameraFrameScreenRotationDeg(
+        rotationDeg,
+        90,
+        "clockwise-from-celestial-north",
+      ),
+      screenBearingDeg(east, width, height),
+    );
+    assertAngleClose(
+      cameraFrameScreenRotationDeg(
+        rotationDeg,
+        90,
+        "counterclockwise-from-celestial-north",
+      ),
+      screenBearingDeg(west, width, height),
+    );
+  }
+});
+
+test("keeps the Berlin horizontal camera frame on celestial north", () => {
+  const observer = {
+    latitudeDeg: 52.52,
+    longitudeDeg: 13.405,
+    elevationM: 34,
+  };
+  const timestampUtcMs = Date.UTC(2026, 6, 12, 20);
+  const center = horizontalToEquatorial(
+    { azimuthDeg: 90, altitudeDeg: 30 },
+    observer,
+    timestampUtcMs,
+    "ICRS",
+  );
+  const aligned = alignViewToHorizon(
+    { center, fovDeg: 60 },
+    observer,
+    timestampUtcMs,
+  );
+  assert.ok(Math.abs(aligned.rotationDeg - -41.52144274222292) < 1e-9);
+
+  const north = projectEquatorial(
+    equatorialOffset(center, 1, 0),
+    aligned,
+    1000,
+    600,
+  );
+  const northBearingDeg = screenBearingDeg(north, 1000, 600);
+  assertAngleClose(
+    cameraFrameScreenRotationDeg(
+      aligned.rotationDeg,
+      0,
+      "clockwise-from-celestial-north",
+    ),
+    northBearingDeg,
+  );
+  assertAngleClose(
+    cameraFrameScreenRotationDeg(
+      aligned.rotationDeg,
+      30,
+      "clockwise-from-celestial-north",
+    ),
+    northBearingDeg + 30,
+  );
 });
 
 test("projects the view center to the canvas center across RA wrap", () => {
