@@ -1,9 +1,8 @@
 import {
+  createEquatorialToHorizontalVectorTransform,
   horizonAltitudeAtAzimuth,
-  localSiderealDegrees,
   normalizeDegrees,
   validateEquatorialCoordinates,
-  validateObserver,
 } from "./coordinates.js";
 
 const DEG = Math.PI / 180;
@@ -26,7 +25,10 @@ export function landscapeRasterWidth(
     );
   if (coarsePointer)
     return Math.min(interactive ? 64 : 768, Math.ceil(cssWidth));
-  return Math.min(interactive ? 384 : 1024, Math.ceil(cssWidth * devicePixelRatio));
+  return Math.min(
+    interactive ? 384 : 1024,
+    Math.ceil(cssWidth * devicePixelRatio),
+  );
 }
 
 /** Maps a local spherical direction to an order-0 HiPS tile and source pixel. */
@@ -147,25 +149,6 @@ function horizontalVectorToHealpixPosition(
   output.y = Math.max(0, Math.min(tileWidth - 1, y));
 }
 
-function createHorizontalVectorTransform(observer, timestampUtcMs) {
-  const site = validateObserver(observer);
-  const siderealRadians =
-    localSiderealDegrees(timestampUtcMs, site.longitudeDeg) * DEG;
-  const latitudeRadians = site.latitudeDeg * DEG;
-  const sinSidereal = Math.sin(siderealRadians);
-  const cosSidereal = Math.cos(siderealRadians);
-  const sinLatitude = Math.sin(latitudeRadians);
-  const cosLatitude = Math.cos(latitudeRadians);
-  return (vector) => {
-    const meridian = cosSidereal * vector.x + sinSidereal * vector.y;
-    return {
-      east: -sinSidereal * vector.x + cosSidereal * vector.y,
-      north: vector.z * cosLatitude - meridian * sinLatitude,
-      up: vector.z * sinLatitude + meridian * cosLatitude,
-    };
-  };
-}
-
 function createEquatorialRayGeometry({
   view,
   canvasWidth,
@@ -238,8 +221,13 @@ function equatorialRayGeometryToHorizontal(
   equatorial,
   observer,
   timestampUtcMs,
+  frame,
 ) {
-  const transform = createHorizontalVectorTransform(observer, timestampUtcMs);
+  const transform = createEquatorialToHorizontalVectorTransform(
+    observer,
+    timestampUtcMs,
+    frame,
+  );
   return {
     first: transform(equatorial.first),
     across: transform(equatorial.across),
@@ -252,6 +240,7 @@ function createHorizontalRayGeometry(options) {
     createEquatorialRayGeometry(options),
     options.observer,
     options.timestampUtcMs,
+    options.view.center.frame,
   );
 }
 
@@ -469,7 +458,12 @@ export function rasterizeMilkyWayPanorama({
   });
   const galacticRay = equatorialRayGeometryToGalactic(equatorialRay);
   const horizontalRay = hideBelowHorizon
-    ? equatorialRayGeometryToHorizontal(equatorialRay, observer, timestampUtcMs)
+    ? equatorialRayGeometryToHorizontal(
+        equatorialRay,
+        observer,
+        timestampUtcMs,
+        view.center.frame,
+      )
     : null;
   const customHorizon = hideBelowHorizon && horizon.length >= 2;
   const twoPi = Math.PI * 2;

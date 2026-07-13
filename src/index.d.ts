@@ -11,6 +11,17 @@ export interface Observer {
   longitudeDeg: number;
   elevationM: number;
 }
+export interface HorizontalCoordinates {
+  /** Azimuth in degrees, with north=0 and east=90. */
+  azimuthDeg: number;
+  /** Geometric altitude in degrees; atmospheric refraction is not applied. */
+  altitudeDeg: number;
+}
+export interface HourAngleCoordinates {
+  /** West-positive local hour angle in the range [-180, 180]. */
+  hourAngleDeg: number;
+  declinationDeg: number;
+}
 export interface FieldOfViewOverlay {
   widthDeg: number;
   heightDeg: number;
@@ -149,6 +160,36 @@ export function createCelestiaAtlasViewer(options: {
   onViewChange?: (value: ViewState) => void;
   onError?: (error: Error) => void;
 }): CelestiaAtlasViewer;
+export function normalizeDegrees(value: number): number;
+export function validateEquatorialCoordinates(
+  value: EquatorialCoordinates,
+): EquatorialCoordinates;
+export function validateObserver(value: Observer): Observer;
+export function julianDate(timestampUtcMs: number): number;
+export function localSiderealDegrees(
+  timestampUtcMs: number,
+  longitudeDeg: number,
+): number;
+export function hourAngleToHorizontal(
+  hourAngleDeg: number,
+  declinationDeg: number,
+  latitudeDeg: number,
+): HorizontalCoordinates;
+export function horizontalToHourAngle(
+  horizontal: HorizontalCoordinates,
+  latitudeDeg: number,
+): HourAngleCoordinates;
+export function equatorialToHorizontal(
+  coordinates: EquatorialCoordinates,
+  observer: Observer,
+  timestampUtcMs: number,
+): HorizontalCoordinates;
+export function horizontalToEquatorial(
+  horizontal: HorizontalCoordinates,
+  observer: Observer,
+  timestampUtcMs: number,
+  frame?: EquatorialFrame,
+): EquatorialCoordinates;
 export function calculateCameraFieldOfView(
   value: ImagingTrain,
 ): CameraFieldOfView;

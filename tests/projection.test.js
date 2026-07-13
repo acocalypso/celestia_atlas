@@ -60,7 +60,7 @@ test("projects an angular frame through the gnomonic focal length", () => {
 });
 
 test("converts both camera position-angle conventions from celestial north", () => {
-  for (const cameraRotationDeg of [0, 30, 90, 330]) {
+  for (const cameraRotationDeg of [0, 30, 90, 180, 270, 330]) {
     assert.equal(
       cameraFrameScreenRotationDeg(
         37,
@@ -91,6 +91,36 @@ test("converts both camera position-angle conventions from celestial north", () 
     () => cameraFrameScreenRotationDeg(0, 0, "screen-relative"),
     TypeError,
   );
+});
+
+test("keeps equivalent camera angles continuous across the rotation wrap", () => {
+  for (const projectionRotationDeg of [0, 37, -112]) {
+    for (const convention of [
+      "clockwise-from-celestial-north",
+      "counterclockwise-from-celestial-north",
+    ]) {
+      assertAngleClose(
+        cameraFrameScreenRotationDeg(projectionRotationDeg, 360, convention),
+        cameraFrameScreenRotationDeg(projectionRotationDeg, 0, convention),
+      );
+      assertAngleClose(
+        cameraFrameScreenRotationDeg(
+          projectionRotationDeg,
+          359.999,
+          convention,
+        ),
+        cameraFrameScreenRotationDeg(projectionRotationDeg, -0.001, convention),
+      );
+      assertAngleClose(
+        cameraFrameScreenRotationDeg(
+          projectionRotationDeg,
+          360.001,
+          convention,
+        ),
+        cameraFrameScreenRotationDeg(projectionRotationDeg, 0.001, convention),
+      );
+    }
+  }
 });
 
 test("anchors camera axes to projected celestial north and east", () => {
@@ -162,7 +192,7 @@ test("keeps the Berlin horizontal camera frame on celestial north", () => {
     observer,
     timestampUtcMs,
   );
-  assert.ok(Math.abs(aligned.rotationDeg - -41.52144274222292) < 1e-9);
+  assert.ok(Math.abs(aligned.rotationDeg - -41.40463638042479) < 1e-9);
 
   const north = projectEquatorial(
     equatorialOffset(center, 1, 0),
@@ -195,6 +225,40 @@ test("projects the view center to the canvas center across RA wrap", () => {
   assert.ok(Math.abs(point.y - 300) < 1e-9);
 });
 
+test("places independent gnomonic edge fixtures in portrait and landscape views", () => {
+  const equatorialView = {
+    center: { raDeg: 0, decDeg: 0, frame: "ICRS" },
+    fovDeg: 90,
+  };
+  for (const [width, height] of [
+    [390, 844],
+    [844, 390],
+  ]) {
+    const verticalEdgeDeg = Math.atan(height / width) * RAD;
+    const fixtures = [
+      [{ raDeg: 315, decDeg: 0, frame: "ICRS" }, 0, height / 2],
+      [{ raDeg: 45, decDeg: 0, frame: "ICRS" }, width, height / 2],
+      [{ raDeg: 0, decDeg: verticalEdgeDeg, frame: "ICRS" }, width / 2, 0],
+      [
+        { raDeg: 0, decDeg: -verticalEdgeDeg, frame: "ICRS" },
+        width / 2,
+        height,
+      ],
+    ];
+    for (const [coordinates, expectedX, expectedY] of fixtures) {
+      const point = projectEquatorial(
+        coordinates,
+        equatorialView,
+        width,
+        height,
+      );
+      assert.ok(point);
+      assert.ok(Math.abs(point.x - expectedX) < 1e-9);
+      assert.ok(Math.abs(point.y - expectedY) < 1e-9);
+    }
+  }
+});
+
 test("round trips portrait and landscape projection points", () => {
   for (const [width, height, rotationDeg] of [
     [1000, 600, 0],
@@ -213,6 +277,51 @@ test("round trips portrait and landscape projection points", () => {
     );
     assert.ok(Math.abs(result.raDeg - target.raDeg) < 1e-9);
     assert.ok(Math.abs(result.decDeg - target.decDeg) < 1e-9);
+  }
+});
+
+test("keeps projection round trips finite near both celestial poles", () => {
+  const cases = [
+    {
+      view: {
+        center: { raDeg: 359.9, decDeg: 89.8, frame: "ICRS" },
+        fovDeg: 20,
+        rotationDeg: 37,
+      },
+      target: { raDeg: 0.2, decDeg: 89.6, frame: "ICRS" },
+    },
+    {
+      view: {
+        center: { raDeg: 0.1, decDeg: -89.8, frame: "ICRS" },
+        fovDeg: 20,
+        rotationDeg: -112,
+      },
+      target: { raDeg: 359.8, decDeg: -89.6, frame: "ICRS" },
+    },
+  ];
+  for (const { view: polarView, target } of cases) {
+    for (const [width, height] of [
+      [390, 844],
+      [844, 390],
+    ]) {
+      const point = projectEquatorial(target, polarView, width, height);
+      assert.ok(point);
+      assert.ok(Number.isFinite(point.x));
+      assert.ok(Number.isFinite(point.y));
+
+      const result = unprojectEquatorial(
+        point.x,
+        point.y,
+        polarView,
+        width,
+        height,
+      );
+      assert.ok(Number.isFinite(result.raDeg));
+      assert.ok(Number.isFinite(result.decDeg));
+      assertAngleClose(result.raDeg, target.raDeg, 1e-8);
+      assert.ok(Math.abs(result.decDeg - target.decDeg) < 1e-8);
+      assert.equal(result.frame, target.frame);
+    }
   }
 });
 

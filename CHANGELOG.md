@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Reworked equatorial-to-horizontal conversion around explicitly tagged ICRS
+  and FK5/J2000 (Astronomy Engine EQJ) frames. ICRS inputs receive the explicit
+  IAU SOFA `iauFk5hip` orientation rotation; the pinned Astronomy Engine 2.1.19
+  EQJ/HOR transform now supplies precession, nutation and sidereal orientation
+  at the observer's UTC time. Azimuth remains north-zero/east-positive,
+  longitude east-positive, and altitude geometric without atmospheric
+  refraction.
+- Added official IAU SOFA 2023-10-11 `Hd2ae`/`Ae2hd` handedness fixtures with
+  radian tolerances of `1e-13` for `Hd2ae` azimuth and `1e-14` for the remaining
+  outputs (degree ceilings no looser than `1e-11`). Fixed Astronomy Engine
+  full-frame literals use `1e-10` degree and general inverse round trips use
+  `1e-9` degree, relaxed only at exact-pole singularities. Documented the
+  engine's UT1-as-UTC and Earth-orientation limitations.
 - Anchored camera and mosaic position angles to projected celestial north, so
   horizon-aligned panning no longer makes framing overlays rotate with screen
   up.

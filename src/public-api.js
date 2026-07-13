@@ -920,14 +920,13 @@ export function createCelestiaAtlasViewer(options) {
       context.strokeStyle = "#f6c978";
       context.beginPath();
       let drawing = false;
-      const horizonUtcMs = currentUtcMs();
       for (let index = 0; index < horizon.length; index += 1) {
         const point = horizon[index];
         const projected = project(
           horizontalToEquatorial(
             point,
             observer,
-            horizonUtcMs,
+            referenceUtcMs,
             view.center.frame,
           ),
         );

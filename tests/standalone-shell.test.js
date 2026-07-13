@@ -85,10 +85,11 @@ test("standalone package contains all twelve offline landscape faces", async () 
 });
 
 test("mobile renderer keeps expensive work inside bounded frame contracts", async () => {
-  const publicApi = await readFile(
-    new URL("../src/public-api.js", import.meta.url),
-    "utf8",
-  );
+  const [publicApi, coordinates, landscape] = await Promise.all([
+    readFile(new URL("../src/public-api.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/core/coordinates.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/core/landscape.js", import.meta.url), "utf8"),
+  ]);
   assert.match(publicApi, /landscapeRasterWidth\([\s\S]*coarsePointer/);
   assert.match(publicApi, /if \(canvas\.width !== backingWidth\)/);
   assert.match(publicApi, /if \(canvas\.height !== backingHeight\)/);
@@ -98,6 +99,9 @@ test("mobile renderer keeps expensive work inside bounded frame contracts", asyn
   assert.match(publicApi, /interactionViewChangePending = true/);
   assert.match(publicApi, /addEventListener\("contextlost"/);
   assert.match(publicApi, /removeEventListener\("contextrestored"/);
+  assert.match(coordinates, /let observedFrameCache = null/);
+  assert.match(landscape, /createEquatorialToHorizontalVectorTransform/);
+  assert.doesNotMatch(landscape, /localSiderealDegrees/);
 
   const dsoLoopStart = publicApi.indexOf("let catalogIndex = 0;");
   const dsoLoopEnd = publicApi.indexOf("if (display.solarSystem)");
