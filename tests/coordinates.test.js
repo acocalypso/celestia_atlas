@@ -411,3 +411,50 @@ test("invalidates the observed-frame cache when time or site changes", () => {
     );
   }
 });
+
+test("crosses the local meridian continuously from east to west", () => {
+  const observer = {
+    latitudeDeg: 34.05,
+    longitudeDeg: -118.25,
+    elevationM: 89,
+  };
+  const coordinates = {
+    raDeg: 145.97744874075636,
+    decDeg: -5.808449070215144,
+    frame: "J2000",
+  };
+  const meridianUtcMs = Date.parse("2030-04-01T05:00:00.000Z");
+  const fixtures = [
+    {
+      offsetMs: -60_000,
+      azimuthDeg: 179.61210918078132,
+      altitudeDeg: 49.999296921999544,
+    },
+    { offsetMs: 0, azimuthDeg: 180, altitudeDeg: 50.000000000000014 },
+    {
+      offsetMs: 60_000,
+      azimuthDeg: 180.3878908182131,
+      altitudeDeg: 49.999296923123005,
+    },
+  ];
+
+  for (const fixture of fixtures) {
+    const horizontal = equatorialToHorizontal(
+      coordinates,
+      observer,
+      meridianUtcMs + fixture.offsetMs,
+    );
+    assertAngleClose(
+      horizontal.azimuthDeg,
+      fixture.azimuthDeg,
+      FULL_FRAME_TOLERANCE_DEG,
+      `meridian ${fixture.offsetMs} azimuth`,
+    );
+    assertNumberClose(
+      horizontal.altitudeDeg,
+      fixture.altitudeDeg,
+      FULL_FRAME_TOLERANCE_DEG,
+      `meridian ${fixture.offsetMs} altitude`,
+    );
+  }
+});
