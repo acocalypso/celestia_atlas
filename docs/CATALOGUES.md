@@ -183,6 +183,9 @@ schemas. They exercise parsing and failure behaviour without redistributing the
 historical tables. Coverage includes FK4 and Galactic transforms, aliases,
 area-derived shapes, missing optional fields, malformed rows, explicit and
 ambiguous cross-identifications, manual overrides, and byte-stable output.
+CI also builds an ignored OpenNGC-plus-fixtures browser bundle and verifies in
+Chrome that `Sh 2-1` can be searched, drawn, and selected directly from its
+canvas marker. The fixture bundle is test-only and is never deployed.
 
 ## Source and licence notes
 

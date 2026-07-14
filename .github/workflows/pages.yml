@@ -79,6 +79,16 @@ jobs:
       - name: Exercise generated atlas in Chrome and inspect browser errors
         run: npm run test:browser
 
+      - name: Exercise optional catalogue objects in Chrome
+        env:
+          SMOKE_CATALOG_BUNDLE: .cache/catalog-browser-fixture/dso-catalog.js
+          SMOKE_QUERY: Sh 2-1
+          SMOKE_EXPECTED_SOURCE_FILTERS: "9"
+          SMOKE_EXPECT_DETAIL_TEXT: VII/20
+        run: |
+          python tools/build_catalog_browser_fixture.py
+          npm run test:browser
+
       - name: Assemble static website
         run: |
           mkdir -p _site

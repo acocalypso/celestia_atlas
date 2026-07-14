@@ -34,6 +34,20 @@ const MIME = new Map([
 const delay = (milliseconds) =>
   new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
 
+async function waitForChildExit(child, timeoutMilliseconds) {
+  if (child.exitCode !== null || child.signalCode !== null) return true;
+  return new Promise((resolveExit) => {
+    const finish = (exited) => {
+      clearTimeout(timer);
+      child.removeListener("exit", onExit);
+      resolveExit(exited);
+    };
+    const onExit = () => finish(true);
+    const timer = setTimeout(() => finish(false), timeoutMilliseconds);
+    child.once("exit", onExit);
+  });
+}
+
 async function unusedPort() {
   const server = createNetServer();
   await new Promise((resolveListen, reject) => {
@@ -204,6 +218,7 @@ async function run() {
   );
   const expectPropertyConflicts =
     process.env.SMOKE_EXPECT_PROPERTY_CONFLICT === "1";
+  const expectedDetailText = process.env.SMOKE_EXPECT_DETAIL_TEXT || "";
   const server = await staticServer();
   const sitePort = server.address().port;
   const debugPort = await unusedPort();
@@ -272,6 +287,8 @@ async function run() {
         const controls = document.querySelector('#controlsButton');
         const controlsInitiallyClosed = document.querySelector('#controlPanel')?.classList.contains('closed');
         controls?.click();
+        const hideBelow = document.querySelector('#hideBelowHorizonSwitch');
+        if (hideBelow?.checked) hideBelow.click();
         const labelledSwitch = document.querySelector('#milkyWaySwitch');
         labelledSwitch?.focus();
         document.querySelector('[data-catalog-filter-kind="sources"][data-catalog-filter-action="none"]')?.click();
@@ -287,6 +304,7 @@ async function run() {
         return {
           controlsInitiallyClosed,
           controlsOpen: !document.querySelector('#controlPanel')?.classList.contains('closed'),
+          belowHorizonObjectsEnabled: hideBelow?.checked === false,
           labelledSwitchFocusable: document.activeElement === labelledSwitch,
           detailsOpen: document.querySelector('#detailsPanel')?.classList.contains('open'),
           detailTitle: document.querySelector('.object-title')?.textContent?.trim(),
@@ -306,6 +324,7 @@ async function run() {
     if (
       !interactionState?.controlsInitiallyClosed ||
       !interactionState?.controlsOpen ||
+      !interactionState?.belowHorizonObjectsEnabled ||
       !interactionState?.labelledSwitchFocusable ||
       !interactionState?.detailsOpen ||
       !interactionState?.detailTitle ||
@@ -313,6 +332,10 @@ async function run() {
       interactionState?.detailSources?.length < 1 ||
       new Set(interactionState?.detailSources).size !==
         interactionState?.detailSources.length ||
+      (expectedDetailText &&
+        !interactionState?.detailSources?.some((value) =>
+          value.includes(expectedDetailText),
+        )) ||
       (expectPropertyConflicts && !interactionState?.propertyConflictSection) ||
       interactionState?.typeFilters < 1 ||
       interactionState?.sourceFilters < 1 ||
@@ -334,6 +357,40 @@ async function run() {
     const rectangle = box.result.value;
     const x = rectangle.x + rectangle.width / 2;
     const y = rectangle.y + rectangle.height / 2;
+    await delay(250);
+    await client.send("Runtime.evaluate", {
+      expression:
+        "document.querySelector('[data-close=\"detailsPanel\"]')?.click()",
+    });
+    await client.send("Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      x,
+      y,
+      button: "left",
+      clickCount: 1,
+    });
+    await client.send("Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      x,
+      y,
+      button: "left",
+      clickCount: 1,
+    });
+    await delay(200);
+    const markerSelection = await client.send("Runtime.evaluate", {
+      expression: `({
+        open: document.querySelector('#detailsPanel')?.classList.contains('open'),
+        title: document.querySelector('.object-title')?.textContent?.trim()
+      })`,
+      returnByValue: true,
+    });
+    if (
+      !markerSelection.result.value?.open ||
+      markerSelection.result.value?.title !== interactionState.detailTitle
+    )
+      throw new Error(
+        `Selected catalogue object was not rendered and hit-testable at the view centre: ${JSON.stringify(markerSelection.result.value)}`,
+      );
     const beforeDragHash = await currentHash(client);
     await client.send("Input.dispatchMouseEvent", {
       type: "mousePressed",
@@ -443,13 +500,19 @@ async function run() {
     );
   } finally {
     client?.close();
-    chrome.kill();
-    await Promise.race([
-      new Promise((resolveExit) => chrome.once("exit", resolveExit)),
-      delay(2000),
-    ]);
+    if (chrome.exitCode === null && chrome.signalCode === null)
+      chrome.kill("SIGTERM");
+    if (!(await waitForChildExit(chrome, 5000))) {
+      chrome.kill("SIGKILL");
+      await waitForChildExit(chrome, 5000);
+    }
     await new Promise((resolveClose) => server.close(resolveClose));
-    await rm(profile, { recursive: true, force: true });
+    await rm(profile, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 100,
+    });
     if (chrome.exitCode && chromeStderr)
       process.stderr.write(chromeStderr.slice(-4000));
   }

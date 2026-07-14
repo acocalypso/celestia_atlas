@@ -138,7 +138,10 @@ Push the project to `main`. The included workflow will:
 1. Install the pinned Python and Node.js build dependencies.
 2. Download the pinned OpenNGC release and generate neutral plus legacy
    compatibility outputs from the same normalized records.
-3. Run the JavaScript/Python suites and a Chrome interaction/error smoke test.
+3. Run the JavaScript/Python suites and Chrome interaction/error smoke tests.
+   The second browser run combines OpenNGC with the hand-authored importer
+   fixtures and verifies that a Sharpless object is drawn and hit-testable,
+   covering all catalogue groups without publishing the complete source tables.
 4. Rebuild the local DSO image index.
 5. Assemble and deploy the static Pages artifact.
 
