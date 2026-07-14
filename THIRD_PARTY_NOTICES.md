@@ -50,13 +50,53 @@ small curated description layer for prominent objects.
 Generated OpenNGC-derived catalogue files must remain available under
 CC BY-SA 4.0 with attribution and share-alike terms.
 
+## Stellarium DSO cross-index supplement
+
+The separate public historical-nebula supplement is derived from the standard
+DSO catalogue distributed with **Stellarium**.
+
+- Project: https://github.com/Stellarium/stellarium
+- Pinned Stellarium version: `v26.2`
+- DSO catalogue version: `3.23`
+- Pinned source:
+  https://raw.githubusercontent.com/Stellarium/stellarium/v26.2/nebulae/default/catalog.txt
+- Validated upstream rows: 94,899
+- Upstream licence: GPL-2.0-or-later (declared by Stellarium's `CITATION.cff`)
+- Full licence copy: `licenses/Stellarium-GPL-2.0.txt`
+
+Celestia Atlas selects only rows carrying at least one non-zero Barnard, Sh2,
+vdB, RCW, LDN, or LBN cross-index. Modifications include strict schema and row
+count validation; source-aware aliases; FK5/J2000-to-ICRS transformation with
+build-time coordinate provenance; conservative type mapping; dark-nebula
+opacity handling that does not mislabel the ordinal class as magnitude; exact
+axis/position-angle preservation when present; provenance metadata; and
+deterministic compact JSON/JavaScript serialization. Original Stellarium type,
+morphology when supplied, row identifier, selected cross-indices, catalogue
+version, and source URL are retained in the derived records or supplement
+metadata.
+
+The following derived assets remain under GPL-2.0-or-later and are kept
+separate from the OpenNGC-derived CC BY-SA 4.0 files:
+
+```text
+stellarium-supplement.js
+data/stellarium-dso-supplement.json
+data/stellarium-supplement-meta.json
+```
+
+Redistribution of the supplement must comply with GPL-2.0-or-later, including
+the applicable notice, licence-copy, and corresponding-source requirements.
+Its inclusion does not relicense Celestia Atlas's MIT source code or OpenNGC's
+CC BY-SA 4.0 catalogue data.
+
 ## Optional historical nebula and dark-cloud catalogues
 
 Celestia Atlas contains build-time import support for the following CDS/VizieR
-catalogues. Their complete source tables and transformed records are **not**
-committed or included in the public deployment because neither the current CDS
-catalogue metadata nor the catalogue ReadMes state an open redistribution
-licence.
+catalogues. These provide richer source-specific properties than the public
+Stellarium cross-index supplement, but are not its data source. Their complete
+source tables and transformed records are **not** committed or included in the
+public deployment because neither the current CDS catalogue metadata nor the
+catalogue ReadMes state an open redistribution licence.
 
 | Catalogue | Original publication | CDS/VizieR ID |
 | --- | --- | --- |
@@ -104,6 +144,11 @@ conservative cross-identification merging, and compact browser serialization.
 The `VII/68A` raster sky map and globule table are not part of the initial
 import. Do not redistribute a locally generated combined catalogue until the
 rights for every included source are cleared for the intended use.
+
+The public Stellarium supplement covers only LDN, Barnard, LBN, Sharpless 2,
+vdB, and RCW cross-indices. Southern Dark Clouds (`VII/191`) and
+Feitzinger-Stuewe (`VII/68A`) remain local-only and are not present in the
+public deployment.
 
 ## NASA Image and Video Library
 

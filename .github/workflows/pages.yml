@@ -17,6 +17,7 @@ concurrency:
 
 env:
   OPENNGC_VERSION: v20260501
+  STELLARIUM_VERSION: v26.2
 
 jobs:
   build:
@@ -49,6 +50,9 @@ jobs:
       - name: Build distributable OpenNGC catalogue
         run: python tools/build_dso_catalog.py --catalogues openngc --openngc-version "$OPENNGC_VERSION"
 
+      - name: Build redistributable Stellarium nebula supplement
+        run: python tools/build_stellarium_supplement.py --version "$STELLARIUM_VERSION"
+
       - name: Run catalogue and browser-core tests
         run: npm test
 
@@ -58,11 +62,13 @@ jobs:
       - name: Validate generated files
         run: |
           test -s dso-catalog.js
+          test -s stellarium-supplement.js
           test -s data/dso-catalog.json
           test -s data/dso-viewer-catalog.json
           test -s data/catalog-sources.json
           test -s data/openngc-catalog.json
           test -s data/openngc-viewer-catalog.json
+          test -s data/stellarium-dso-supplement.json
           python - <<'PY'
           import json
           from pathlib import Path
@@ -74,9 +80,20 @@ jobs:
             raise SystemExit('Generated catalogue is unexpectedly small')
           if len(viewer.get('objects', [])) != count:
             raise SystemExit('Viewer catalogue count does not match source catalogue')
+          supplement=json.loads(Path('data/stellarium-dso-supplement.json').read_text(encoding='utf-8'))
+          supplement_objects=supplement.get('objects', [])
+          print(f'Stellarium supplement objects: {len(supplement_objects):,}')
+          if len(supplement_objects) < 3000:
+            raise SystemExit('Stellarium supplement is unexpectedly small')
+          if not any('ldn' in item.get('catalogueGroups', []) for item in supplement_objects):
+            raise SystemExit('Stellarium supplement contains no LDN records')
           PY
 
       - name: Exercise generated atlas in Chrome and inspect browser errors
+        env:
+          SMOKE_QUERY: LDN 1
+          SMOKE_EXPECTED_SOURCE_FILTERS: "7"
+          SMOKE_EXPECT_DETAIL_TEXT: LDN via Stellarium
         run: npm run test:browser
 
       - name: Exercise optional catalogue objects in Chrome
@@ -101,6 +118,7 @@ jobs:
           cp milky-way-renderer.js _site/
           cp catalog.js _site/
           cp dso-catalog.js _site/
+          cp stellarium-supplement.js _site/
           cp dso-images.js _site/
           cp styles.css _site/
           cp standalone.css _site/
@@ -127,6 +145,10 @@ jobs:
 
           if [ -d docs ]; then
             cp -R docs _site/docs
+          fi
+
+          if [ -d licenses ]; then
+            cp -R licenses _site/licenses
           fi
 
           if [ -d src ]; then

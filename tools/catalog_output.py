@@ -129,6 +129,7 @@ def compact_object(obj: CatalogObject) -> dict[str, Any]:
         "galacticInclinationDeg",
         "remarkFlag",
         "sourcePropertyConflicts",
+        "stellariumType",
     }
     runtime_properties = {
         key: value for key, value in properties.items() if key in runtime_property_names

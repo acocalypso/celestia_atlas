@@ -86,6 +86,15 @@ export interface CatalogueShape {
   derivation?: string;
   [key: string]: unknown;
 }
+export interface CatalogueLayerMetadata {
+  name?: string;
+  version?: string;
+  objectCount?: number;
+  catalogueGroups?: string[];
+  supplements?: CatalogueLayerMetadata[];
+  supplementAttachmentPositionConflicts?: number;
+  [key: string]: unknown;
+}
 export interface SelectedTarget {
   uid?: string;
   id?: string;
@@ -238,6 +247,18 @@ export function validateEquatorialCoordinates(
   value: EquatorialCoordinates,
 ): EquatorialCoordinates;
 export function validateObserver(value: Observer): Observer;
+export function combineCatalogLayers<
+  TBase extends object,
+  TSupplement extends object,
+>(
+  baseObjects: readonly TBase[],
+  supplementObjects: readonly TSupplement[],
+  baseMeta?: CatalogueLayerMetadata,
+  supplementMeta?: CatalogueLayerMetadata,
+): {
+  objects: Array<TBase | Omit<TSupplement, "mergeKeys">>;
+  meta: CatalogueLayerMetadata;
+};
 export function julianDate(timestampUtcMs: number): number;
 export function localSiderealDegrees(
   timestampUtcMs: number,

@@ -45,7 +45,7 @@
             id="searchInput"
             type="search"
             spellcheck="false"
-            placeholder="Search Sirius, M31, Jupiter, 12P, or coordinates"
+            placeholder="Search Sirius, M31, LDN 1, Jupiter, or coordinates"
             aria-label="Search local sky catalog"
           />
           <kbd>/</kbd>
@@ -638,20 +638,24 @@
         <h3>Data scope</h3>
         <p>
           The public deployed build contains the OpenNGC NGC/IC catalogue and
-          its addendum, merged with curated descriptions for prominent targets.
-          Catalogue coordinates are normalized to ICRS. To keep the all-sky
-          view readable and fast, faint objects appear progressively as you
-          zoom in, while every bundled entry remains searchable offline. The
-          Milky Way panorama is a locally generated visual representation
-          aligned to Galactic coordinates. Local DSO photographs are projected
-          at their catalogued sky positions when available.
+          a separately licensed Stellarium DSO supplement for LDN, Barnard,
+          LBN, Sharpless, vdB, and RCW identifiers. Catalogue coordinates are
+          normalized to ICRS. To keep the all-sky view readable and fast, faint
+          objects appear progressively as you zoom in, while every bundled
+          entry remains searchable offline. The Milky Way panorama is a locally
+          generated visual representation aligned to Galactic coordinates.
+          Local DSO photographs are projected at their catalogued sky positions
+          when available.
         </p>
         <h3>Catalogue attribution</h3>
         <p>
-          Public catalogue data is generated from <strong>OpenNGC</strong> by
-          Mattia Verga and contributors under CC BY-SA 4.0. Optional catalogues
-          imported locally from VizieR are not included in the public bundle;
-          their source rights and redistribution terms require review. See
+          OpenNGC by Mattia Verga and contributors is distributed under CC
+          BY-SA 4.0. The separate Stellarium DSO supplement is distributed
+          under GPL-2.0-or-later and retains Stellarium and
+          original-catalogue credits.
+          Richer tables imported locally from VizieR are not included in the
+          public bundle; their source rights and redistribution terms require
+          review. See
           <a href="./docs/CATALOGUES.md"><code>docs/CATALOGUES.md</code></a>
           and
           <a href="./THIRD_PARTY_NOTICES.md"
@@ -697,6 +701,7 @@
     <script src="dso-images.js"></script>
     <script src="catalog.js"></script>
     <script src="dso-catalog.js"></script>
+    <script src="stellarium-supplement.js"></script>
     <script type="importmap">
       {
         "imports": {

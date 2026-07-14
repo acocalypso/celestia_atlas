@@ -3,19 +3,44 @@
 Celestia Atlas builds its browser catalogue ahead of time. The browser never
 queries VizieR, SIMBAD, OpenNGC, or another astronomy service at runtime.
 
-The committed public bundle contains OpenNGC, whose catalogue data is
-distributed under CC BY-SA 4.0. Import support is also provided for the eight
-historical nebula and dark-cloud tables below. Their current CDS records do not
-state an open redistribution licence, so their complete downloaded or derived
-tables are deliberately not committed or included in the public Pages build.
-They can be fetched and built locally after the user reviews and accepts the
-source terms. Acceptance is not a grant of additional rights.
+The public atlas loads two separately generated catalogue assets. OpenNGC data
+is distributed under CC BY-SA 4.0. A second asset selects historical-nebula
+cross-index records from Stellarium v26.2 DSO catalogue v3.23 and is distributed
+under GPL-2.0-or-later. The assets retain separate metadata, notices, package
+exports, and licence files; neither asset changes the terms of the other or the
+MIT licence of the Celestia Atlas code.
 
-## Supported sources
+Richer import support is also provided for eight historical nebula and
+dark-cloud tables from CDS/VizieR. Their current CDS records do not state an
+open redistribution licence, so their complete downloaded or derived tables
+are deliberately not committed or included in the public Pages build. They can
+be fetched and built locally after the user reviews and accepts the source
+terms. Acceptance is not a grant of additional rights.
+
+## Public sources
+
+| Asset | Pinned source | Included records | Runtime groups | Licence |
+| --- | --- | --- | --- | --- |
+| OpenNGC browser catalogue | OpenNGC `v20260501` | 12,578 in the pinned build | `openngc` | CC BY-SA 4.0 |
+| Stellarium DSO supplement | Stellarium `v26.2`, DSO catalogue `3.23` | Records from the validated 94,899-row input having at least one selected cross-index | `ldn`, `barnard`, `lbn`, `sharpless`, `vdb`, `rcw` | GPL-2.0-or-later |
+
+The supplement reads Stellarium's standard
+[`nebulae/default/catalog.txt`](https://raw.githubusercontent.com/Stellarium/stellarium/v26.2/nebulae/default/catalog.txt)
+and selects rows with a non-zero Barnard, Sh2, vdB, RCW, LDN, or LBN column.
+One Stellarium row can contribute more than one searchable alias and runtime
+group. The emitted record retains the Stellarium row identifier, original
+cross-indices, catalogue version, source URL, and transformation provenance.
+All seven runtime groups are searchable and filterable in the deployed atlas.
+
+The Stellarium-derived JavaScript/JSON and metadata stay separate from the
+OpenNGC-derived files. See `licenses/Stellarium-GPL-2.0.txt` for the complete
+licence text and `THIRD_PARTY_NOTICES.md` for attribution and modification
+details.
+
+## Optional local VizieR sources
 
 | Group | CDS/VizieR table | Imported records | Input coordinates | Atlas type |
 | --- | --- | ---: | --- | --- |
-| OpenNGC | OpenNGC `v20260501` | 12,578 in the pinned build | ICRS | existing OpenNGC type |
 | LDN | [`VII/7A/ldn`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/7A?format=html&tex=true) | 1,791 | FK4/B1950 | `DrkN` |
 | Barnard | [`VII/220A/barnard`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/220A?format=html&tex=true) | 349 | FK4/B1875 | `DrkN` |
 | LBN | [`VII/9/catalog`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/9?format=html&tex=true) | 1,125 | FK4/B1950 | `Neb`, refined only by evidence |
@@ -28,6 +53,11 @@ source terms. Acceptance is not a grant of additional rights.
 `VII/68A/globules` and its raster sky map are intentionally outside the first
 import scope. The globule table has a second, colliding `FEST` number sequence,
 and the raster has separate scientific and redistribution questions.
+
+The public Stellarium supplement does not make these VizieR tables public and
+does not replace the richer local importers. It covers only six cross-index
+families and does not include Southern Dark Clouds (`dcld`) or
+Feitzinger-Stuewe (`feitzinger`). Those two groups remain local-only.
 
 The row counts above are validation gates, not invented catalogue content. A
 source whose schema or count changes is rejected until the importer and source
@@ -48,15 +78,20 @@ Every source importer emits the same build-time model:
 - contributing catalogue groups, including every group retained after a
   cross-identification merge.
 
-The complete JSON output keeps the nested model. The browser output is a
-deterministic, flattened projection containing only rendering, search,
-filtering, shape, and provenance fields. Legacy fields such as `name`, `type`,
+The main combined build's complete JSON output keeps the nested model. Browser
+outputs, including the public Stellarium supplement JSON, are deterministic,
+flattened projections containing only rendering, search, filtering, shape, and
+compact provenance fields. Legacy fields such as `name`, `type`,
 `catalogSource`, `raDeg`, and `decDeg` remain available to embedded consumers.
 
 ## Coordinates and dimensions
 
 Coordinate conversion is performed by Astropy at build time:
 
+- Stellarium's decimal RA/Dec values are interpreted as FK5/J2000 and
+  transformed to normalized ICRS. The importer keeps the original decimal
+  values and `FK5/J2000` frame tag in its build-time provenance; the compact
+  public record keeps the normalized ICRS position and stable Stellarium UID;
 - LDN, LBN, RCW, Southern Dark Clouds, and Feitzinger-Stuewe use
   `FK4(equinox="B1950")` to ICRS;
 - Barnard uses `FK4(equinox="B1875")` to ICRS;
@@ -83,6 +118,16 @@ preserved as band-specific properties; a derived display diameter is marked
 approximate. Feitzinger-Stuewe's inclination relative to the Galactic plane is
 not reused as an equatorial position angle.
 
+For the public supplement, positive Stellarium major/minor axes and position
+angles are retained as exact catalogue values. A positive major axis with a
+zero minor axis remains a major-only shape and does not acquire an invented
+minor axis or position angle. Original Stellarium type and non-empty morphology
+fields remain in compact source properties. The V field used by dark nebulae
+as an ordinal opacity class is retained as `opacityClass` and never enters the
+visual-magnitude filter. Only confident type mappings are normalized; an
+unrecognized or uncertain input class remains `Other` rather than being
+silently reclassified.
+
 ## Names and search
 
 Importers create source-aware identifiers and common aliases such as `B 72`,
@@ -90,6 +135,20 @@ Importers create source-aware identifiers and common aliases such as `B 72`,
 `vdB 142`, and `RCW104`. Browser search normalizes Unicode, case, spaces, and
 hyphens once when the viewer starts. Results rank exact normalized identifiers
 before prefixes and substrings.
+
+The public supplement exposes the same identifier variants from Stellarium's
+cross-index columns. Because it is loaded before the viewer builds its search
+index, an LDN, Barnard, LBN, Sharpless, vdB, or RCW query searches the deployed
+supplement rather than a test fixture or runtime network service.
+
+At runtime, a supplement row can enrich an OpenNGC row only through a
+reciprocal one-to-one NGC/IC identifier. Position is never used to invent an
+identity. After that exact match, a great-circle check can only veto attachment
+when the published centres are separated by more than both 30 arcminutes and a
+10%-padded sum of the two catalogue radii. The veto preserves both markers at
+their source positions. Four such conflicts are retained as independent rows
+in the pinned public build; repeated historical identifiers are always kept as
+separate source rows.
 
 Search normalization is deliberately separate from identity. In particular,
 coordinate-coded Southern Dark Cloud names retain the distinction between `+`
@@ -142,6 +201,25 @@ Build the public, redistribution-cleared OpenNGC bundle:
 python tools/build_dso_catalog.py --catalogues openngc
 ```
 
+Build the separate public Stellarium supplement:
+
+```bash
+python tools/build_stellarium_supplement.py --version v26.2
+```
+
+The supplement command pins and validates DSO catalogue v3.23, then writes:
+
+```text
+stellarium-supplement.js
+data/stellarium-dso-supplement.json
+data/stellarium-supplement-meta.json
+```
+
+Package consumers can access the two supplement files through the
+`stellarium-supplement-data` and `stellarium-supplement-meta` exports. Keeping
+them distinct from the OpenNGC package exports preserves source provenance and
+licence boundaries.
+
 For a local scientific evaluation of every optional source:
 
 ```bash
@@ -162,8 +240,9 @@ python tools/fetch_catalog_sources.py --help
 python tools/build_dso_catalog.py --help
 ```
 
-The default Pages build remains OpenNGC-only. A local combined build can opt in
-to one or more cached VizieR groups. Do not publish its output unless the
+The default Pages build deploys OpenNGC plus the separate six-group Stellarium
+supplement. A local combined build can additionally opt in to one or more
+cached VizieR groups. Do not publish that VizieR-derived output unless the
 relevant catalogue rights have been cleared for the intended distribution.
 
 All generated browser assets are local files. Once built, the atlas has no
@@ -180,14 +259,25 @@ python -m unittest discover -s tests -p "test_catalog_*.py"
 
 Catalogue fixtures are small synthetic rows matching the documented table
 schemas. They exercise parsing and failure behaviour without redistributing the
-historical tables. Coverage includes FK4 and Galactic transforms, aliases,
+historical VizieR tables. Coverage includes the Stellarium row gate and
+cross-index selection, FK5/J2000, FK4 and Galactic transforms, aliases,
 area-derived shapes, missing optional fields, malformed rows, explicit and
 ambiguous cross-identifications, manual overrides, and byte-stable output.
-CI also builds an ignored OpenNGC-plus-fixtures browser bundle and verifies in
-Chrome that `Sh 2-1` can be searched, drawn, and selected directly from its
-canvas marker. The fixture bundle is test-only and is never deployed.
+Chrome smoke coverage loads the deployable OpenNGC and Stellarium assets,
+asserts the seven expected source filters, and verifies that a supplement
+object can be searched, drawn, and selected directly from its canvas marker.
 
 ## Source and licence notes
+
+Stellarium v26.2 distributes DSO catalogue v3.23 with the GPL-licensed
+Stellarium project. Celestia Atlas modifications are limited to schema and row
+count validation, selection of rows carrying one of six cross-index families,
+identifier normalization, FK5/J2000-to-ICRS transformation, type/shape mapping,
+dark-nebula opacity handling, compact provenance retention, and deterministic
+JSON/JavaScript serialization. The
+derived supplement remains under GPL-2.0-or-later; its GPL version 2 text is in
+`licenses/Stellarium-GPL-2.0.txt`. The separately generated OpenNGC asset
+continues under CC BY-SA 4.0, and the atlas code continues under MIT.
 
 The eight optional tables are served by CDS/VizieR. Their current catalogue
 metadata has no populated licence field, and their ReadMes do not grant an open
@@ -205,7 +295,10 @@ status. Cite the original publication and CDS/VizieR service DOI
 
 ## Known limitations and next steps
 
-- The optional historical tables are not in the public bundle until their
+- Public historical identifiers are limited to the six cross-index families
+  present in the pinned Stellarium catalogue. Southern Dark Clouds and
+  Feitzinger-Stuewe are not in the public supplement.
+- The richer optional VizieR tables are not in the public bundle until their
   redistribution terms are cleared catalogue by catalogue.
 - Markers show catalogue centres and approximate extents, not nebula or cloud
   outlines.

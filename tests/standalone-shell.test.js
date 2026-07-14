@@ -13,8 +13,14 @@ test("standalone shell boots the shared public viewer", async () => {
       readFile(new URL("../service-worker.js", import.meta.url), "utf8"),
     ]);
   assert.match(html, /type="module" src="standalone-app\.js"/);
+  assert.match(
+    html,
+    /dso-catalog\.js[\s\S]*stellarium-supplement\.js[\s\S]*standalone-app\.js/,
+  );
   assert.doesNotMatch(html, /app-v8\.js|standalone-engine-bridge\.js/);
   assert.match(application, /createCelestiaAtlasViewer/);
+  assert.match(application, /combineCatalogLayers/);
+  assert.match(application, /STELLARIUM_DSO_SUPPLEMENT_DATA/);
   assert.match(application, /viewer\.setLandscape/);
   assert.match(application, /viewer\.setFieldOfView/);
   assert.match(application, /calculateCameraFieldOfView/);
@@ -95,6 +101,8 @@ test("standalone shell boots the shared public viewer", async () => {
   );
   assert.match(serviceWorker, /\.\/src\/core\/optics\.js/);
   assert.match(serviceWorker, /\.\/src\/core\/catalog-filters\.js/);
+  assert.match(serviceWorker, /\.\/src\/core\/catalog-layers\.js/);
+  assert.match(serviceWorker, /\.\/stellarium-supplement\.js/);
 });
 
 test("standalone package contains all twelve offline landscape faces", async () => {

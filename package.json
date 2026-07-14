@@ -11,6 +11,8 @@
     "./normalized-catalog-data": "./data/dso-catalog.json",
     "./normalized-viewer-catalog-data": "./data/dso-viewer-catalog.json",
     "./catalog-sources": "./data/catalog-sources.json",
+    "./stellarium-supplement-data": "./data/stellarium-dso-supplement.json",
+    "./stellarium-supplement-meta": "./data/stellarium-supplement-meta.json",
     "./openngc-catalog-data": "./data/openngc-catalog.json",
     "./openngc-viewer-catalog-data": "./data/openngc-viewer-catalog.json",
     "./bright-sky-data": "./data/bright-sky.json",
@@ -23,6 +25,7 @@
     "test:catalog": "python -m unittest discover -s tests -p \"test_catalog_*.py\"",
     "test:browser": "node tools/browser_smoke_test.mjs",
     "build:dso": "python tools/build_dso_catalog.py",
+    "build:stellarium-supplement": "python tools/build_stellarium_supplement.py",
     "fetch:catalog-sources": "python tools/fetch_catalog_sources.py --acknowledge-rights-review",
     "build:bright-sky": "node tools/build_bright_sky_catalog.mjs",
     "build:comets": "node tools/build_comet_catalog.mjs"

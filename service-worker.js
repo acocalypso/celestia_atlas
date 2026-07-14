@@ -1,5 +1,5 @@
 try{importScripts('./dso-images.js')}catch(e){}
-const CACHE='celestia-atlas-offline-v26';
+const CACHE='celestia-atlas-offline-v27';
 const CORE=[
   './',
   './index.html',
@@ -9,8 +9,10 @@ const CORE=[
   './dso-images.js',
   './catalog.js',
   './dso-catalog.js',
+  './stellarium-supplement.js',
   './THIRD_PARTY_NOTICES.md',
   './docs/CATALOGUES.md',
+  './licenses/Stellarium-GPL-2.0.txt',
   './vendor/astronomy-engine-2.1.19.esm.js',
   './src/index.js',
   './src/public-api.js',
@@ -23,6 +25,7 @@ const CORE=[
   './src/core/landscape.js',
   './src/core/catalog-filters.js',
   './src/core/catalog-identifiers.js',
+  './src/core/catalog-layers.js',
   './data/comets.js',
   './manifest.webmanifest',
   './assets/landscapes/guereins/properties',

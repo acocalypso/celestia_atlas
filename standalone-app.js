@@ -1,5 +1,6 @@
 import {
   calculateCameraFieldOfView,
+  combineCatalogLayers,
   createCelestiaAtlasViewer,
   equatorialToHorizontal,
   horizontalToEquatorial,
@@ -58,6 +59,15 @@ function catalogueGroupsFor(object) {
   ]);
 }
 
+const layeredCatalog = combineCatalogLayers(
+  globalThis.DSO_DATA ?? [],
+  globalThis.STELLARIUM_DSO_SUPPLEMENT_DATA ?? [],
+  globalThis.DSO_CATALOG_META ?? globalThis.OPENNGC_CATALOG_META ?? {},
+  globalThis.STELLARIUM_DSO_SUPPLEMENT_META ?? {},
+);
+globalThis.DSO_DATA = layeredCatalog.objects;
+globalThis.DSO_CATALOG_META = layeredCatalog.meta;
+
 const stars = (globalThis.STAR_DATA ?? []).map((star) => ({
   ...star,
   id: star.name,
@@ -67,7 +77,7 @@ const stars = (globalThis.STAR_DATA ?? []).map((star) => ({
   frame: "ICRS",
   type: "Star",
 }));
-const catalog = (globalThis.DSO_DATA ?? []).map((object) => {
+const catalog = layeredCatalog.objects.map((object) => {
   const raDeg = Number.isFinite(object.raDeg)
     ? object.raDeg
     : Number.isFinite(object.coordinates?.raDeg)
@@ -93,11 +103,7 @@ const catalog = (globalThis.DSO_DATA ?? []).map((object) => {
   };
 });
 const constellations = globalThis.CONSTELLATION_LINES ?? {};
-const catalogMeta =
-  globalThis.DSO_CATALOG_META ?? globalThis.OPENNGC_CATALOG_META ?? {
-    version: "local",
-    objectCount: catalog.length,
-  };
+const catalogMeta = layeredCatalog.meta;
 const catalogVersion =
   catalogMeta.version ||
   catalogMeta.generatedAt ||
@@ -310,9 +316,11 @@ function sourceDescriptions(target) {
   });
   const legacyCatalogue = target.catalogueSource;
   const legacyIdentifier = target.catalogueId;
-  if (legacyCatalogue && legacyIdentifier)
-    descriptions.push(`${legacyCatalogue} — ${legacyIdentifier}`);
-  else descriptions.push(legacyCatalogue, legacyIdentifier);
+  if (!descriptions.some(Boolean)) {
+    if (legacyCatalogue && legacyIdentifier)
+      descriptions.push(`${legacyCatalogue} — ${legacyIdentifier}`);
+    else descriptions.push(legacyCatalogue, legacyIdentifier);
+  }
   if (!descriptions.some(Boolean)) descriptions.push(target.catalogueGroups ?? []);
   return uniqueStrings(descriptions);
 }

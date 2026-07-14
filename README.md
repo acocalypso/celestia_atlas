@@ -1,8 +1,10 @@
 # Celestia Atlas Offline v8
 
-Celestia Atlas source code is licensed under the MIT License. See
-`LICENSE`. Bundled and generated third-party data retains the separate terms
-listed in `THIRD_PARTY_NOTICES.md`.
+Celestia Atlas source code is licensed under the MIT License. See `LICENSE`.
+The generated OpenNGC catalogue remains under CC BY-SA 4.0, and the separate
+Stellarium DSO supplement remains under GPL-2.0-or-later. These data assets do
+not inherit the MIT code licence or each other's licence. See
+`THIRD_PARTY_NOTICES.md` and `licenses/Stellarium-GPL-2.0.txt`.
 
 A self-contained browser planetarium with a local Milky Way dome, offline star
 catalogue, a comprehensive OpenNGC deep-sky catalogue, local DSO photographs,
@@ -13,10 +15,16 @@ services.
 
 - The GitHub Pages build feeds the pinned OpenNGC release through a shared,
   source-independent catalogue model and creates a local browser catalogue.
-- Source-specific local importers support LDN, Barnard, LBN, Sharpless 2, vdB,
-  RCW, Southern Dark Clouds, and Feitzinger-Stuewe dark nebulae. These optional
-  historical tables are not publicly bundled because their current VizieR
-  records do not state an open redistribution licence.
+- A separately generated public supplement selects the LDN, Barnard, LBN,
+  Sharpless 2, vdB, and RCW cross-index records from Stellarium v26.2 DSO
+  catalogue v3.23. The atlas loads and searches this supplement alongside
+  OpenNGC while retaining its GPL-2.0-or-later terms and provenance.
+- Source-specific local importers provide richer records for those six groups
+  and support Southern Dark Clouds and Feitzinger-Stuewe dark nebulae from
+  VizieR. Those complete historical tables and their derived outputs are not
+  publicly bundled because their current VizieR records do not state an open
+  redistribution licence. Southern Dark Clouds and Feitzinger-Stuewe objects
+  are therefore local-only and are not supplied by the public supplement.
 - Astropy performs true FK4/B1875, B1900, B1950, Galactic, FK5/J2000, and ICRS
   build-time transformations. Original frames and source provenance are kept.
 - Catalogue/type controls, punctuation-tolerant ranked search, distinct dark,
@@ -71,13 +79,16 @@ services.
 ## Runtime privacy and offline behavior
 
 The deployed atlas makes no catalogue, tile, API, analytics or font requests.
-`dso-catalog.js`, the Astronomy Engine browser build, the Milky Way panorama
-and all DSO images are ordinary local files cached by the service worker.
+`dso-catalog.js`, `stellarium-supplement.js`, the Astronomy Engine browser
+build, the Milky Way panorama and all DSO images are ordinary local files
+cached by the service worker.
 
 Online access is used only by **build tools**:
 
 - `build_dso_catalog.py` downloads the pinned OpenNGC CSV for the distributable
   default build. `build_openngc_catalog.py` remains a compatibility command.
+- `build_stellarium_supplement.py` downloads the pinned Stellarium v26.2 DSO
+  catalogue v3.23 and emits a separate public cross-index supplement.
 - `fetch_catalog_sources.py` can explicitly download the optional VizieR tables
   into the ignored local cache after the user acknowledges the rights review.
 - `fetch_nasa_dso_images.py` downloads selected publication images into the
@@ -138,12 +149,13 @@ Push the project to `main`. The included workflow will:
 1. Install the pinned Python and Node.js build dependencies.
 2. Download the pinned OpenNGC release and generate neutral plus legacy
    compatibility outputs from the same normalized records.
-3. Run the JavaScript/Python suites and Chrome interaction/error smoke tests.
-   The second browser run combines OpenNGC with the hand-authored importer
-   fixtures and verifies that a Sharpless object is drawn and hit-testable,
-   covering all catalogue groups without publishing the complete source tables.
-4. Rebuild the local DSO image index.
-5. Assemble and deploy the static Pages artifact.
+3. Build the separate GPL-2.0-or-later Stellarium cross-index supplement for LDN,
+   Barnard, LBN, Sharpless 2, vdB, and RCW.
+4. Run the JavaScript/Python suites and Chrome interaction/error smoke tests.
+   The deployed-bundle smoke test verifies all seven source filters and checks
+   that a public supplement object can be searched, drawn, and selected.
+5. Rebuild the local DSO image index.
+6. Assemble and deploy the static Pages artifact.
 
 The workflow deliberately does not fetch or publish the optional VizieR
 catalogues while their redistribution status remains unresolved.
@@ -154,10 +166,13 @@ The site address is normally:
 https://acocalypso.github.io/celestia_atlas/
 ```
 
-The committed `dso-catalog.js` is the distributable OpenNGC browser bundle. The
-workflow rebuilds it reproducibly. Optional local VizieR builds may replace it
-for evaluation, but those derived records must not be committed or published
-without catalogue-by-catalogue rights clearance.
+The committed `dso-catalog.js` is the distributable OpenNGC browser bundle.
+`stellarium-supplement.js` is a distinct GPL-2.0-or-later browser asset whose
+records are merged into the runtime search/render index when the page loads.
+The workflow rebuilds both reproducibly and exposes seven source filters:
+OpenNGC plus the six supplement groups. Optional local VizieR builds may replace
+or extend them for evaluation, but those richer derived records must not be
+committed or published without catalogue-by-catalogue rights clearance.
 
 ## Build the catalogue locally
 
@@ -169,6 +184,17 @@ catalogue:
 python -m pip install -r tools\requirements-catalog.txt
 python tools\build_dso_catalog.py --catalogues openngc
 ```
+
+Build the separately licensed public supplement from the pinned Stellarium
+release:
+
+```bat
+python tools\build_stellarium_supplement.py --version v26.2
+```
+
+This reads Stellarium DSO catalogue v3.23, validates the 94,899-row upstream
+input, and emits only records carrying at least one LDN, Barnard, LBN,
+Sharpless 2, vdB, or RCW cross-identifier.
 
 The default source is pinned to OpenNGC `v20260501`. The compatibility command
 remains available for existing automation:
@@ -188,6 +214,9 @@ data/dedup-candidates.json
 data/openngc-catalog.json
 data/openngc-viewer-catalog.json
 data/openngc-meta.json
+stellarium-supplement.js
+data/stellarium-dso-supplement.json
+data/stellarium-supplement-meta.json
 ```
 
 `dso-catalog.json` preserves the normalized nested model and provenance.
@@ -196,6 +225,8 @@ runtime projection. Package consumers can load the neutral payload through
 `@acocalypso/celestia-atlas/normalized-viewer-catalog-data`; the existing
 `catalog-data` and `viewer-catalog-data` exports retain their legacy OpenNGC
 schemas for compatibility.
+The separate `stellarium-supplement-data` and `stellarium-supplement-meta`
+package exports preserve the Stellarium asset and licence boundary.
 `dedup-candidates.json` records report-only spatial candidates and ambiguous
 cross-identifications for manual review; neither category is auto-merged.
 
@@ -401,6 +432,7 @@ standalone.css              standalone shell styling
 standalone-app.js           standalone adapter for the shared viewer API
 catalog.js                 compact bright-star + curated fallback data
 dso-catalog.js             generated degree-based browser catalogue
+stellarium-supplement.js   separate GPL-2.0-or-later public supplement
 src/public-api.js           shared standalone/embedded renderer
 src/core/catalog-identifiers.js ranked tolerant identifier search
 src/core/optics.js          physical imaging-train FOV calculations
@@ -411,6 +443,7 @@ images/dso/
 data/
 tools/build_dso_catalog.py  shared normalized catalogue builder
 tools/build_openngc_catalog.py compatibility command
+tools/build_stellarium_supplement.py separate public supplement builder
 tools/fetch_catalog_sources.py explicit local source acquisition
 tools/catalog_sources/     source-specific importers and source manifest
 tools/build_dso_image_index.py
@@ -425,12 +458,20 @@ OpenNGC catalogue data is by Mattia Verga and contributors and is licensed under
 CC BY-SA 4.0. Keep `THIRD_PARTY_NOTICES.md` and the in-app attribution when
 redistributing a generated catalogue.
 
+The separately packaged LDN, Barnard, LBN, Sharpless 2, vdB, and RCW
+cross-index supplement is derived from Stellarium v26.2 DSO catalogue v3.23 and
+remains under GPL-2.0-or-later. Its source, generated supplement, metadata,
+attribution, and full licence copy must remain available when it is
+redistributed. This does not change the MIT licence for Celestia Atlas code or
+the CC BY-SA 4.0 terms for the OpenNGC asset.
+
 The supported VizieR-hosted historical catalogues have no populated open
-licence in their current CDS metadata. They are optional user-run imports and
-are not included in the public bundle. Review each source and publication terms
-before redistributing locally generated records. Full citations and the exact
-transformation notes are in `THIRD_PARTY_NOTICES.md` and
-[`docs/CATALOGUES.md`](docs/CATALOGUES.md).
+licence in their current CDS metadata. They remain optional user-run imports
+and are not the source of the public supplement. Review each source and
+publication terms before redistributing locally generated records. In
+particular, Southern Dark Clouds and Feitzinger-Stuewe remain local-only. Full
+citations and the exact transformation notes are in `THIRD_PARTY_NOTICES.md`
+and [`docs/CATALOGUES.md`](docs/CATALOGUES.md).
 
 NASA image sidecars retain the source URL and credit returned by the NASA Image
 and Video Library. Review each source page before publication because a NASA

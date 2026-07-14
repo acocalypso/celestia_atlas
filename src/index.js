@@ -8,3 +8,4 @@ export * from "./core/reference-lines.js";
 export * from "./core/landscape.js";
 export * from "./core/catalog-filters.js";
 export * from "./core/catalog-identifiers.js";
+export * from "./core/catalog-layers.js";
