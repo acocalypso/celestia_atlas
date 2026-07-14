@@ -1,0 +1,2 @@
+# Build-time only; never bundled into the browser package.
+astropy==8.0.1

@@ -60,17 +60,84 @@ export interface LandscapeSource {
   url: string;
   key: string;
 }
+export interface CatalogueSourceMetadata {
+  catalogue?: string;
+  identifier?: string;
+  vizierId?: string;
+  table?: string;
+  originalIdentifier?: string;
+  originalFrame?: string;
+  coordinateOrigin?: string;
+  catalogueGroup?: string;
+  catalogueId?: string;
+  sourceId?: string;
+  title?: string;
+  citation?: string;
+  [key: string]: unknown;
+}
+export interface CatalogueShape {
+  kind?: "circle" | "ellipse" | "point" | string;
+  majorArcmin?: number;
+  minorArcmin?: number;
+  diameterArcmin?: number;
+  positionAngleDeg?: number;
+  approximate?: boolean;
+  isApproximate?: boolean;
+  derivation?: string;
+  [key: string]: unknown;
+}
 export interface SelectedTarget {
+  uid?: string;
   id?: string;
   name: string;
+  primaryName?: string;
   aliases?: string[];
   coordinates: EquatorialCoordinates;
+  raDeg?: number;
+  decDeg?: number;
+  frame?: EquatorialFrame;
+  type?: string;
+  typeCode?: string;
   objectType?: string;
   parentBody?: string;
+  mag?: number;
   magnitude?: number;
   angularSizeArcMin?: { major?: number; minor?: number };
+  shape?: CatalogueShape;
+  properties?: Record<string, unknown>;
+  sources?: CatalogueSourceMetadata[];
+  catalogueGroups?: string[];
+  catalogSource?: string;
   catalogueSource?: string;
 }
+export type DeepSkyCatalogueObject = Omit<
+  SelectedTarget,
+  "name" | "coordinates" | "raDeg" | "decDeg" | "frame"
+> & {
+  id: string;
+  name?: string;
+  coordinates?: EquatorialCoordinates;
+  raDeg: number;
+  decDeg: number;
+  frame: EquatorialFrame;
+};
+export interface StarCatalogueObject {
+  id?: string;
+  name: string;
+  alias?: string;
+  aliases?: string[];
+  coordinates?: EquatorialCoordinates;
+  raDeg: number;
+  decDeg: number;
+  frame: EquatorialFrame;
+  mag?: number;
+  magnitude?: number;
+  [key: string]: unknown;
+}
+export type CatalogueTarget =
+  | SelectedTarget
+  | DeepSkyCatalogueObject
+  | StarCatalogueObject;
 export interface SolarSystemObject extends SelectedTarget {
   id: string;
   objectType: string;
@@ -130,6 +197,10 @@ export interface CelestiaAtlasViewer {
       starMagnitudeLimit: number;
       galaxyMagnitudeLimit: number;
       deepSkyMagnitudeLimit: number;
+      /** Type-code allowlist; null means all and an empty array means none. */
+      deepSkyObjectTypes: string[] | null;
+      /** Catalogue-group allowlist; null means all and an empty array means none. */
+      deepSkyCatalogueGroups: string[] | null;
       starScale: number;
       deepSkyObjects: boolean;
       solarSystem: boolean;
@@ -140,17 +211,19 @@ export interface CelestiaAtlasViewer {
     }>,
   ): void;
   focusTarget(
-    target: SelectedTarget | EquatorialCoordinates,
+    target: CatalogueTarget | EquatorialCoordinates,
     fovDeg?: number,
   ): void;
-  select(value: SelectedTarget): void;
-  search(query: string): unknown[];
+  select(value: CatalogueTarget): void;
+  search(query: string): Array<
+    CatalogueTarget | SolarSystemObject | CometObject
+  >;
   getState(): unknown;
 }
 export function createCelestiaAtlasViewer(options: {
   container: HTMLElement;
-  catalog?: unknown[];
-  stars?: unknown[];
+  catalog?: DeepSkyCatalogueObject[];
+  stars?: StarCatalogueObject[];
   constellations?: Record<string, Array<[string, string]>>;
   observer?: Observer;
   utcMs?: number;
@@ -208,11 +281,43 @@ export function alignViewToHorizon(
   timestampUtcMs: number,
 ): ViewState & { rotationDeg: number };
 export function isGalaxyObject(object: unknown): boolean;
+export type DeepSkyVisualKind =
+  | "galaxy"
+  | "globular-cluster"
+  | "open-cluster"
+  | "dark-nebula"
+  | "reflection-nebula"
+  | "emission-nebula"
+  | "nebula"
+  | "other";
+export function deepSkyObjectTypeKey(object: unknown): string;
+export function deepSkyCatalogueGroupKeys(object: unknown): string[];
+export function classifyDeepSkyObject(object: unknown): DeepSkyVisualKind;
+export function hasApproximateCatalogShape(object: unknown): boolean;
+export function deepSkyUnknownMagnitudeFovLimit(object: unknown): number;
+export function passesDeepSkyCatalogFilter(
+  object: unknown,
+  deepSkyObjectTypes?: string[] | null,
+  deepSkyCatalogueGroups?: string[] | null,
+): boolean;
 export function passesDeepSkyMagnitudeFilter(
   object: unknown,
   galaxyMagnitudeLimit: number,
   deepSkyMagnitudeLimit: number,
 ): boolean;
+export function normalizeCatalogIdentifier(value: unknown): string;
+export interface CatalogSearchIndexEntry<T = unknown> {
+  item: T;
+  terms: readonly string[];
+}
+export function createCatalogSearchIndex<T>(
+  items: T[],
+): CatalogSearchIndexEntry<T>[];
+export function searchCatalogIndex<T>(
+  index: CatalogSearchIndexEntry<T>[],
+  query: unknown,
+  limit?: number,
+): T[];
 export function getSolarSystemObjects(
   timestampUtcMs: number,
   observer: Observer,

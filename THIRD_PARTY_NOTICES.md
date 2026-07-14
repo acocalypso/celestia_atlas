@@ -50,6 +50,61 @@ small curated description layer for prominent objects.
 Generated OpenNGC-derived catalogue files must remain available under
 CC BY-SA 4.0 with attribution and share-alike terms.
 
+## Optional historical nebula and dark-cloud catalogues
+
+Celestia Atlas contains build-time import support for the following CDS/VizieR
+catalogues. Their complete source tables and transformed records are **not**
+committed or included in the public deployment because neither the current CDS
+catalogue metadata nor the catalogue ReadMes state an open redistribution
+licence.
+
+| Catalogue | Original publication | CDS/VizieR ID |
+| --- | --- | --- |
+| Lynds Dark Nebulae (LDN) | Lynds, B. T. (1962), *ApJS* 7, 1, DOI `10.1086/190072` | `VII/7A` |
+| Barnard dark objects | Barnard, E. E. (1927), *A Photographic Atlas of Selected Regions of the Milky Way* | `VII/220A` |
+| Lynds Bright Nebulae (LBN) | Lynds, B. T. (1965), *ApJS* 12, 163, DOI `10.1086/190123` | `VII/9` |
+| Sharpless 2 H II regions | Sharpless, S. (1959), *ApJS* 4, 257, DOI `10.1086/190049` | `VII/20` |
+| van den Bergh reflection nebulae | van den Bergh, S. (1966), *AJ* 71, 990, DOI `10.1086/109995` | `VII/21` |
+| RCW emission nebulae | Rodgers, A. W.; Campbell, C. T.; Whiteoak, J. B. (1960), *MNRAS* 121, 103, DOI `10.1093/mnras/121.1.103` | `VII/216` |
+| Southern Dark Clouds | Hartley et al. (1986), *A&AS* 63, 27 | `VII/191` |
+| Feitzinger-Stuewe southern dark nebulae | Feitzinger, J. V.; Stuewe, J. A. (1984), *A&AS* 58, 365; erratum *A&AS* 63, 203 | `VII/68A` |
+
+CDS states in its [VizieR rules of
+usage](https://cds.unistra.fr/vizier-org/licences_vizier.html) that data are
+freely usable in a scientific context with citation of the original authors,
+publication, and publisher; commercial conditions depend on data origin and
+users must review the relevant ReadMe and journal policy. Those rules do not
+provide an open-source redistribution grant. The local fetch tool therefore
+requires an explicit acknowledgement, stores downloads under the ignored
+`.cache/` directory, and never runs in the public Pages workflow. A user's
+acknowledgement does not create redistribution rights.
+
+The source review is catalogue-specific:
+
+- `VII/7A`, `VII/9`, `VII/20`, and `VII/21` originate in historical AAS
+  journal publications; neither their CDS records nor ReadMes identify an open
+  data licence for the electronic tables.
+- Barnard's 1927 publication may be public domain in some jurisdictions, but
+  the later machine-readable compilation served as `VII/220A` has no explicit
+  redistribution licence. The project does not infer one.
+- The `VII/216` ReadMe expressly describes the original RCW/MNRAS publication
+  as copyrighted. Local access is not treated as permission to republish it.
+- `VII/191` and `VII/68A` originate in A&AS/ESO publications and have no open
+  table licence in their current CDS records. The Feitzinger-Stuewe raster is
+  excluded entirely.
+
+When locally importing these catalogues, cite the original publication above,
+the specific CDS/VizieR identifier, and the CDS/VizieR service DOI
+`10.26093/cds/vizier`. Generated provenance records identify the source table,
+original identifier and coordinate frame. Celestia Atlas modifications include
+schema validation, identifier and alias normalization, Astropy FK4/Galactic to
+ICRS transformation, explicitly marked approximate size derivation,
+conservative cross-identification merging, and compact browser serialization.
+
+The `VII/68A` raster sky map and globule table are not part of the initial
+import. Do not redistribute a locally generated combined catalogue until the
+rights for every included source are cleared for the intended use.
+
 ## NASA Image and Video Library
 
 Images downloaded with `tools/fetch_nasa_dso_images.py` come from the NASA Image

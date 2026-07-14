@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 
 test("standalone shell boots the shared public viewer", async () => {
-  const [html, application, publicApi, types, serviceWorker] =
+  const [html, application, styles, publicApi, types, serviceWorker] =
     await Promise.all([
       readFile(new URL("../index.html", import.meta.url), "utf8"),
       readFile(new URL("../standalone-app.js", import.meta.url), "utf8"),
+      readFile(new URL("../styles.css", import.meta.url), "utf8"),
       readFile(new URL("../src/public-api.js", import.meta.url), "utf8"),
       readFile(new URL("../src/index.d.ts", import.meta.url), "utf8"),
       readFile(new URL("../service-worker.js", import.meta.url), "utf8"),
@@ -41,6 +42,34 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(
     application,
     /deepSkyMagnitudeLimit: state\.deepSkyMagnitudeLimit/,
+  );
+  assert.match(html, /id="dsoTypeFilters"/);
+  assert.match(html, /id="dsoSourceFilters"/);
+  assert.match(html, /data-catalog-filter-action="all"/);
+  assert.match(html, /data-catalog-filter-action="none"/);
+  assert.match(
+    application,
+    /deepSkyObjectTypes: state\.deepSkyObjectTypes/,
+  );
+  assert.match(
+    application,
+    /deepSkyCatalogueGroups: state\.deepSkyCatalogueGroups/,
+  );
+  assert.match(application, /Number\.isFinite\(object\.raDeg\)/);
+  assert.match(application, /globalThis\.DSO_CATALOG_META/);
+  assert.match(application, /object\.primaryName \|\| object\.name/);
+  assert.match(application, /Source catalogues and identifiers/);
+  assert.match(application, /Source-specific property values/);
+  assert.match(application, /sourcePropertyConflicts/);
+  assert.match(application, /source\.vizierId/);
+  assert.match(application, /source\.originalIdentifier/);
+  assert.match(application, /Approximate geometry/);
+  assert.match(application, /properties\.opacity/);
+  assert.doesNotMatch(application, /aliases \?\? \[\]\)\.slice/);
+  assert.match(styles, /\.catalog-filter-options/);
+  assert.match(
+    styles,
+    /@media\(max-width:560px\)\{\.catalog-filter-options\{grid-template-columns:1fr/,
   );
   assert.match(types, /hideBelowHorizon: boolean/);
   assert.match(types, /setCoordinateMode\(value: CoordinateMode\)/);
@@ -97,6 +126,8 @@ test("mobile renderer keeps expensive work inside bounded frame contracts", asyn
   assert.match(publicApi, /milkyWayUploadKey !== milkyWayRasterCache\.key/);
   assert.match(publicApi, /currentSolarSystemObjects/);
   assert.match(publicApi, /interactionViewChangePending = true/);
+  assert.match(publicApi, /const dsoLabelBudget/);
+  assert.match(publicApi, /placedDsoLabelBoxes\.some/);
   assert.match(publicApi, /addEventListener\("contextlost"/);
   assert.match(publicApi, /removeEventListener\("contextrestored"/);
   assert.match(coordinates, /let observedFrameCache = null/);

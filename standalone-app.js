@@ -16,6 +16,48 @@ const escapeHtml = (value) =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 
+const uniqueStrings = (values) => [
+  ...new Set(
+    values
+      .flatMap((value) => (Array.isArray(value) ? value : [value]))
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean),
+  ),
+];
+
+function sourceCatalogueName(source) {
+  if (typeof source === "string") return source;
+  return (
+    source?.catalogueGroup ||
+    source?.catalogue ||
+    source?.catalogueName ||
+    source?.catalogName ||
+    source?.sourceCatalogue ||
+    source?.sourceName ||
+    source?.name ||
+    source?.group
+  );
+}
+
+function catalogueGroupsFor(object) {
+  const canonicalGroups = (values) =>
+    uniqueStrings(values).map((value) => value.toLowerCase());
+  const explicitGroups = canonicalGroups(
+    object.catalogueGroups ?? object.catalogGroups ?? [],
+  );
+  if (explicitGroups.length) return explicitGroups;
+  const sources = Array.isArray(object.sources)
+    ? object.sources
+    : object.sources
+      ? [object.sources]
+      : [];
+  return canonicalGroups([
+    sources.map(sourceCatalogueName),
+    object.catalogueSource,
+    object.catalogSource,
+  ]);
+}
+
 const stars = (globalThis.STAR_DATA ?? []).map((star) => ({
   ...star,
   id: star.name,
@@ -25,19 +67,64 @@ const stars = (globalThis.STAR_DATA ?? []).map((star) => ({
   frame: "ICRS",
   type: "Star",
 }));
-const catalog = (globalThis.DSO_DATA ?? []).map((object) => ({
-  ...object,
-  name: object.name || object.id,
-  raDeg: object.ra * 15,
-  decDeg: object.dec,
-  frame: "ICRS",
-  angularSizeArcMin: { major: object.major, minor: object.minor },
-}));
+const catalog = (globalThis.DSO_DATA ?? []).map((object) => {
+  const raDeg = Number.isFinite(object.raDeg)
+    ? object.raDeg
+    : Number.isFinite(object.coordinates?.raDeg)
+      ? object.coordinates.raDeg
+      : object.ra * 15;
+  const decDeg = Number.isFinite(object.decDeg)
+    ? object.decDeg
+    : Number.isFinite(object.coordinates?.decDeg)
+      ? object.coordinates.decDeg
+      : object.dec;
+  return {
+    ...object,
+    name: object.name || object.primaryName || object.id,
+    raDeg,
+    decDeg,
+    frame: object.frame || object.coordinates?.frame || "ICRS",
+    typeCode: object.typeCode || object.objectType || object.type,
+    catalogueGroups: catalogueGroupsFor(object),
+    angularSizeArcMin: object.angularSizeArcMin ?? {
+      major: object.major,
+      minor: object.minor,
+    },
+  };
+});
 const constellations = globalThis.CONSTELLATION_LINES ?? {};
-const catalogMeta = globalThis.OPENNGC_CATALOG_META ?? {
-  version: "local",
-  objectCount: catalog.length,
-};
+const catalogMeta =
+  globalThis.DSO_CATALOG_META ?? globalThis.OPENNGC_CATALOG_META ?? {
+    version: "local",
+    objectCount: catalog.length,
+  };
+const catalogVersion =
+  catalogMeta.version ||
+  catalogMeta.generatedAt ||
+  `schema ${catalogMeta.schemaVersion ?? 1}`;
+const availableObjectTypes = uniqueStrings(
+  catalog.map((object) => object.typeCode),
+).sort((left, right) => left.localeCompare(right));
+const availableCatalogueGroups = uniqueStrings(
+  catalog.map((object) => object.catalogueGroups),
+).sort((left, right) => left.localeCompare(right));
+const objectTypeLabels = new Map(
+  catalog.map((object) => [
+    object.typeCode,
+    object.objectType || object.type || object.typeCode,
+  ]),
+);
+const catalogueGroupLabels = new Map([
+  ["openngc", "OpenNGC"],
+  ["ldn", "LDN"],
+  ["barnard", "Barnard"],
+  ["lbn", "LBN"],
+  ["sharpless", "Sharpless 2"],
+  ["vdb", "vdB"],
+  ["rcw", "RCW"],
+  ["dcld", "Southern Dark Clouds"],
+  ["feitzinger", "Feitzinger-Stuewe"],
+]);
 
 const state = {
   mode: "horizontal",
@@ -58,6 +145,12 @@ const state = {
   starMagnitudeLimit: 5.5,
   galaxyMagnitudeLimit: 30,
   deepSkyMagnitudeLimit: 30,
+  deepSkyObjectTypes: availableObjectTypes.length
+    ? [...availableObjectTypes]
+    : null,
+  deepSkyCatalogueGroups: availableCatalogueGroups.length
+    ? [...availableCatalogueGroups]
+    : null,
   starScale: 1,
   dsoImages: true,
   timeRate: 0,
@@ -111,10 +204,17 @@ function normalizeTarget(object) {
   return {
     ...object,
     id: object.id || object.name,
-    name: object.name || object.id,
+    name: object.name || object.primaryName || object.id,
     objectType: object.objectType || object.type,
+    typeCode: object.typeCode || object.objectType || object.type,
     magnitude: object.magnitude ?? object.mag,
     catalogueSource: object.catalogueSource || object.catalogSource,
+    catalogueGroups: catalogueGroupsFor(object),
+    aliases: uniqueStrings([
+      object.aliases ?? [],
+      object.id,
+      object.primaryName || object.name,
+    ]),
     coordinates,
   };
 }
@@ -169,6 +269,125 @@ function detailCell(label, value) {
   return `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
 }
 
+function detailList(label, values) {
+  const items = uniqueStrings(values);
+  if (!items.length) return "";
+  return `<section class="detail-section"><h3>${escapeHtml(label)}</h3><ul>${items
+    .map((item) => `<li>${escapeHtml(item)}</li>`)
+    .join("")}</ul></section>`;
+}
+
+function sourceIdentifiers(source) {
+  if (!source || typeof source === "string") return [];
+  return uniqueStrings([
+    source.identifier,
+    source.originalIdentifier,
+    source.catalogueId,
+    source.catalogId,
+    source.objectId,
+    source.recordId,
+    source.sourceId,
+    source.id,
+  ]);
+}
+
+function sourceDescriptions(target) {
+  const sources = Array.isArray(target.sources)
+    ? target.sources
+    : target.sources
+      ? [target.sources]
+      : [];
+  const descriptions = sources.map((source) => {
+    if (typeof source === "string") return source;
+    const catalogue = uniqueStrings([
+      sourceCatalogueName(source),
+      source.vizierId,
+      source.table,
+    ]).join(" / ");
+    const identifiers = sourceIdentifiers(source).join(", ");
+    if (catalogue && identifiers) return `${catalogue} — ${identifiers}`;
+    return catalogue || identifiers;
+  });
+  const legacyCatalogue = target.catalogueSource;
+  const legacyIdentifier = target.catalogueId;
+  if (legacyCatalogue && legacyIdentifier)
+    descriptions.push(`${legacyCatalogue} — ${legacyIdentifier}`);
+  else descriptions.push(legacyCatalogue, legacyIdentifier);
+  if (!descriptions.some(Boolean)) descriptions.push(target.catalogueGroups ?? []);
+  return uniqueStrings(descriptions);
+}
+
+function sourcePropertyConflictDescriptions(properties) {
+  const conflicts = properties?.sourcePropertyConflicts;
+  if (!conflicts || typeof conflicts !== "object") return [];
+  const descriptions = [];
+  for (const [source, values] of Object.entries(conflicts)) {
+    if (!values || typeof values !== "object") continue;
+    if (values.brightnessClass != null) {
+      const scale = values.brightnessScale
+        ? `; ${values.brightnessScale}`
+        : "";
+      descriptions.push(
+        `${source}: brightness class ${values.brightnessClass}${scale}`,
+      );
+    }
+    for (const [key, value] of Object.entries(values)) {
+      if (
+        value == null ||
+        key === "brightnessClass" ||
+        key === "brightnessScale"
+      )
+        continue;
+      descriptions.push(`${source}: ${key} = ${String(value)}`);
+    }
+  }
+  return descriptions;
+}
+
+function formatArcminutes(value) {
+  if (!Number.isFinite(value)) return undefined;
+  return `${Number(value.toFixed(2))}′`;
+}
+
+function shapeDetails(target) {
+  const shape = target.shape ?? {};
+  const major =
+    shape.majorArcmin ?? target.angularSizeArcMin?.major ?? target.major;
+  const minor =
+    shape.minorArcmin ?? target.angularSizeArcMin?.minor ?? target.minor;
+  const majorText = formatArcminutes(major);
+  const minorText = formatArcminutes(minor);
+  let dimensions;
+  if (majorText && minorText) dimensions = `${majorText} × ${minorText}`;
+  else if (majorText)
+    dimensions = shape.kind === "circle" ? `${majorText} diameter` : majorText;
+  else if (typeof target.size === "string" && target.size !== "Not available")
+    dimensions = target.size;
+  if (dimensions && shape.approximate === true)
+    dimensions = `${dimensions} (approximate)`;
+  return {
+    kind: shape.kind,
+    dimensions,
+    approximate:
+      typeof shape.approximate === "boolean"
+        ? shape.approximate
+          ? "Yes"
+          : "No"
+        : undefined,
+    positionAngleDeg: shape.positionAngleDeg ?? target.positionAngle,
+  };
+}
+
+function aliasMarkup(target) {
+  const aliases = uniqueStrings(target.aliases ?? []).filter(
+    (alias) => alias !== target.name,
+  );
+  if (!aliases.length) return "";
+  return `<div class="object-aliases" aria-label="Aliases">${aliases
+    .map((alias) => `<span>${escapeHtml(alias)}</span>`)
+    .join("")}</div>`;
+}
+
 function showDetails(value) {
   const target = normalizeTarget(value);
   selectedTarget = target;
@@ -178,20 +397,54 @@ function showDetails(value) {
     state.observer,
     viewer.getTime(),
   );
+  const shape = shapeDetails(target);
+  const properties = target.properties ?? {};
+  const opacity =
+    properties.opacity ??
+    properties.opacityClass ??
+    target.opacity ??
+    target.opacityClass;
+  const brightness =
+    properties.brightness ??
+    properties.brightnessClass ??
+    target.brightness ??
+    target.brightnessClass;
+  const brightnessScale =
+    properties.brightnessScale ?? target.brightnessScale;
+  const density = properties.densityClass ?? target.densityClass;
+  const densityScale = properties.densityScale ?? target.densityScale;
+  const colorClass = properties.colorClass ?? target.colorClass;
+  const areaSquareDeg = properties.areaSquareDeg ?? target.areaSquareDeg;
+  const notes = uniqueStrings([properties.notes, target.description]);
   $("#detailsContent").innerHTML = `
-    <p class="object-kicker">${escapeHtml(target.objectType || "Sky object")}</p>
+    <p class="object-kicker">${escapeHtml(target.objectType || target.typeCode || "Sky object")}</p>
     <h2 class="object-title">${escapeHtml(target.name)}</h2>
-    <p class="object-aliases">${escapeHtml((target.aliases ?? []).slice(0, 8).join(" · "))}</p>
+    ${aliasMarkup(target)}
     <div class="detail-grid">
       ${detailCell("Right ascension", formatRa(raDeg))}
       ${detailCell("Declination", formatDec(decDeg))}
       ${detailCell("Altitude now", `${horizontal.altitudeDeg.toFixed(1)}°`)}
       ${detailCell("Magnitude", Number.isFinite(target.magnitude) ? target.magnitude.toFixed(2) : "Not available")}
-      ${detailCell("Catalogue", target.catalogueSource || "Local offline pack")}
+      ${detailCell("Dimensions", shape.dimensions)}
+      ${detailCell("Shape", shape.kind)}
+      ${detailCell("Position angle", Number.isFinite(shape.positionAngleDeg) ? `${Number(shape.positionAngleDeg.toFixed(1))}°` : undefined)}
+      ${detailCell("Approximate geometry", shape.approximate)}
+      ${detailCell("Opacity", opacity)}
+      ${detailCell("Brightness class", brightness)}
+      ${detailCell("Brightness scale", brightnessScale)}
+      ${detailCell("Density class", density)}
+      ${detailCell("Density scale", densityScale)}
+      ${detailCell("Colour class", colorClass)}
+      ${detailCell("Area", Number.isFinite(areaSquareDeg) ? `${Number(areaSquareDeg.toFixed(3))} deg²` : undefined)}
     </div>
+    ${detailList("Source catalogues and identifiers", sourceDescriptions(target))}
+    ${detailList("Source-specific property values", sourcePropertyConflictDescriptions(properties))}
+    ${notes.map((note) => `<p class="object-description">${escapeHtml(note)}</p>`).join("")}
     <div class="detail-actions"><button id="centerObjectButton">Centre and zoom</button><button id="closeDetailsButton">Close</button></div>`;
   $("#detailsPanel").classList.add("open");
+  $("#detailsPanel").classList.remove("closed");
   $("#detailsPanel").setAttribute("aria-hidden", "false");
+  $("#detailsPanel").inert = false;
   showObjectImage(target);
   $("#centerObjectButton").onclick = () => viewer.focusTarget(target);
   $("#closeDetailsButton").onclick = () => closePanel("detailsPanel");
@@ -203,15 +456,24 @@ function closePanel(id) {
     return;
   }
   const panel = $(`#${id}`);
+  if (panel.contains(document.activeElement)) {
+    const returnFocus =
+      id === "detailsPanel" ? $("#searchInput") : $("#aboutButton");
+    returnFocus?.focus({ preventScroll: true });
+  }
   panel.classList.remove("open");
   panel.classList.add("closed");
   panel.setAttribute("aria-hidden", "true");
+  panel.inert = true;
 }
 
 function setControlPanelOpen(open) {
   const panel = $("#controlPanel");
+  if (!open && panel.contains(document.activeElement))
+    $("#controlsButton")?.focus({ preventScroll: true });
   panel.classList.toggle("closed", !open);
   panel.setAttribute("aria-hidden", String(!open));
+  panel.inert = !open;
   for (const button of [$("#controlsButton"), $("#timeButton")])
     button?.setAttribute("aria-expanded", String(open));
   $("#controlsButton")?.classList.toggle("active", open);
@@ -238,6 +500,8 @@ function applyDisplayOptions() {
     starMagnitudeLimit: state.starMagnitudeLimit,
     galaxyMagnitudeLimit: state.galaxyMagnitudeLimit,
     deepSkyMagnitudeLimit: state.deepSkyMagnitudeLimit,
+    deepSkyObjectTypes: state.deepSkyObjectTypes,
+    deepSkyCatalogueGroups: state.deepSkyCatalogueGroups,
     starScale: state.starScale,
   });
   document.body.classList.toggle("night", state.nightMode);
@@ -365,6 +629,90 @@ function updateToggle(button, enabled) {
   button?.setAttribute("aria-pressed", String(enabled));
 }
 
+const catalogueFilterConfigs = {
+  types: {
+    containerId: "dsoTypeFilters",
+    summaryId: "dsoTypeFilterSummary",
+    stateKey: "deepSkyObjectTypes",
+    values: availableObjectTypes,
+    label: (value) => objectTypeLabels.get(value) || value,
+  },
+  sources: {
+    containerId: "dsoSourceFilters",
+    summaryId: "dsoSourceFilterSummary",
+    stateKey: "deepSkyCatalogueGroups",
+    values: availableCatalogueGroups,
+    label: (value) => catalogueGroupLabels.get(value.toLowerCase()) || value,
+  },
+};
+
+function renderCatalogueFilter(kind) {
+  const config = catalogueFilterConfigs[kind];
+  const container = $(`#${config.containerId}`);
+  const selected = new Set(state[config.stateKey] ?? config.values);
+  const summary = $(`#${config.summaryId}`);
+  summary.textContent = config.values.length
+    ? `${selected.size} of ${config.values.length}`
+    : "Not available";
+  container.replaceChildren();
+  if (!config.values.length) {
+    const empty = document.createElement("p");
+    empty.className = "catalog-filter-empty";
+    empty.textContent = "No catalogue metadata is included in this build.";
+    container.append(empty);
+    return;
+  }
+  for (const value of config.values) {
+    const option = document.createElement("label");
+    option.className = "catalog-filter-option";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = selected.has(value);
+    checkbox.value = value;
+    checkbox.onchange = () => {
+      const next = new Set(state[config.stateKey] ?? config.values);
+      if (checkbox.checked) next.add(value);
+      else next.delete(value);
+      state[config.stateKey] = config.values.filter((item) => next.has(item));
+      updateCatalogueFilterSummary(kind);
+      applyDisplayOptions();
+    };
+    const label = document.createElement("span");
+    label.textContent = config.label(value);
+    if (config.label(value) !== value) label.title = value;
+    option.append(checkbox, label);
+    container.append(option);
+  }
+}
+
+function updateCatalogueFilterSummary(kind) {
+  const config = catalogueFilterConfigs[kind];
+  const selected = new Set(state[config.stateKey] ?? config.values);
+  const summary = $(`#${config.summaryId}`);
+  summary.textContent = config.values.length
+    ? `${selected.size} of ${config.values.length}`
+    : "Not available";
+}
+
+function initializeCatalogueFilters() {
+  for (const kind of Object.keys(catalogueFilterConfigs))
+    renderCatalogueFilter(kind);
+  $$('[data-catalog-filter-action]').forEach((button) => {
+    const config = catalogueFilterConfigs[button.dataset.catalogFilterKind];
+    button.disabled = !config.values.length;
+    button.onclick = () => {
+      state[config.stateKey] =
+        button.dataset.catalogFilterAction === "all" ? [...config.values] : [];
+      const selected = new Set(state[config.stateKey]);
+      $$(`#${config.containerId} input[type="checkbox"]`).forEach(
+        (checkbox) => (checkbox.checked = selected.has(checkbox.value)),
+      );
+      updateCatalogueFilterSummary(button.dataset.catalogFilterKind);
+      applyDisplayOptions();
+    };
+  });
+}
+
 function setMode(mode) {
   state.mode = mode;
   $$("#modeSelect button").forEach((button) =>
@@ -444,8 +792,11 @@ function installControls() {
     resetView();
   };
   $("#aboutButton").onclick = () => {
-    $("#aboutPanel").classList.add("open");
-    $("#aboutPanel").classList.remove("closed");
+    const panel = $("#aboutPanel");
+    panel.classList.add("open");
+    panel.classList.remove("closed");
+    panel.setAttribute("aria-hidden", "false");
+    panel.inert = false;
   };
   $$("[data-close]").forEach(
     (button) => (button.onclick = () => closePanel(button.dataset.close)),
@@ -626,6 +977,7 @@ function initialize() {
     onError: (error) => showToast(error.message),
   });
   viewer.setView(currentView);
+  initializeCatalogueFilters();
   applyDisplayOptions();
   void applyLandscape();
   viewer.resume();
@@ -639,7 +991,7 @@ function initialize() {
   $("#constCount").textContent =
     Object.keys(constellations).length.toLocaleString();
   $("#catalogReadout").textContent =
-    `${catalogMeta.version} · ${catalog.length.toLocaleString()} DSOs`;
+    `${catalogVersion} · ${catalog.length.toLocaleString()} DSOs`;
   $("#statusText").textContent = "Shared offline viewer ready";
   setMode(state.mode);
   updateStatus();

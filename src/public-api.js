@@ -27,7 +27,19 @@ import {
   rasterizeHealpixLandscape,
   rasterizeMilkyWayPanorama,
 } from "./core/landscape.js";
-import { isGalaxyObject } from "./core/catalog-filters.js";
+import {
+  classifyDeepSkyObject,
+  deepSkyCatalogueGroupKeys,
+  deepSkyObjectTypeKey,
+  deepSkyUnknownMagnitudeFovLimit,
+  hasApproximateCatalogShape,
+  isGalaxyObject,
+} from "./core/catalog-filters.js";
+import {
+  createCatalogSearchIndex,
+  normalizeCatalogIdentifier,
+  searchCatalogIndex,
+} from "./core/catalog-identifiers.js";
 
 const DEG = Math.PI / 180;
 const MAX_FOV_DEG = 130;
@@ -104,6 +116,8 @@ export function createCelestiaAtlasViewer(options) {
     starMagnitudeLimit: 6.5,
     galaxyMagnitudeLimit: 30,
     deepSkyMagnitudeLimit: 30,
+    deepSkyObjectTypes: null,
+    deepSkyCatalogueGroups: null,
     starScale: 1,
     deepSkyObjects: true,
     solarSystem: true,
@@ -123,15 +137,62 @@ export function createCelestiaAtlasViewer(options) {
   let cometCache = { key: "", objects: [] };
   let solarSystemCache = { key: "", objects: [] };
   const searchableObjects = [...stars, ...catalog];
+  const searchableObjectIndex = createCatalogSearchIndex(searchableObjects);
   const galaxyCatalogFlags = Uint8Array.from(catalog, (object) =>
     isGalaxyObject(object) ? 1 : 0,
   );
+  const catalogTypeKeys = catalog.map(deepSkyObjectTypeKey);
+  const catalogGroupKeys = catalog.map(deepSkyCatalogueGroupKeys);
+  const catalogVisualKinds = catalog.map(classifyDeepSkyObject);
+  const catalogApproximateShapeFlags = Uint8Array.from(catalog, (object) =>
+    hasApproximateCatalogShape(object) ? 1 : 0,
+  );
+  const catalogUnknownMagnitudeFovLimits = Float32Array.from(
+    catalog,
+    deepSkyUnknownMagnitudeFovLimit,
+  );
+  let deepSkyObjectTypeAllowlist = null;
+  let deepSkyCatalogueGroupAllowlist = null;
+  const objectIdentity = (object) => object?.uid ?? object?.id;
+  const hasSameObjectIdentity = (left, right) => {
+    if (!left || !right) return false;
+    if (left.uid != null && right.uid != null) return left.uid === right.uid;
+    return left.id != null && right.id != null && left.id === right.id;
+  };
+  const isSelectedObject = (object) =>
+    hasSameObjectIdentity(selected, object);
   const starsByName = new Map();
   for (const star of stars) {
     starsByName.set(String(star.name).toLocaleLowerCase(), star);
     if (star.alias)
       starsByName.set(String(star.alias).toLocaleLowerCase(), star);
   }
+
+  const selectedTargetPayload = (object) => {
+    const suppliedCoordinates = object?.coordinates;
+    const coordinates = validateEquatorialCoordinates(
+      suppliedCoordinates &&
+        Number.isFinite(suppliedCoordinates.raDeg) &&
+        Number.isFinite(suppliedCoordinates.decDeg)
+        ? {
+            ...suppliedCoordinates,
+            frame: suppliedCoordinates.frame || object?.frame || "ICRS",
+          }
+        : {
+            raDeg: object?.raDeg,
+            decDeg: object?.decDeg,
+            frame: object?.frame || "ICRS",
+          },
+    );
+    return {
+      ...object,
+      name: object?.name ?? object?.primaryName ?? object?.id ?? "",
+      objectType: object?.objectType ?? object?.type,
+      magnitude: object?.magnitude ?? object?.mag,
+      catalogueSource: object?.catalogueSource ?? object?.catalogSource,
+      coordinates,
+    };
+  };
 
   const assertAlive = () => {
     if (destroyed) throw new Error("Celestia Atlas viewer has been destroyed");
@@ -228,27 +289,46 @@ export function createCelestiaAtlasViewer(options) {
     context.strokeRect(x - size, y - size, size * 2, size * 2);
     context.restore();
   };
-  const drawDsoGlyph = (object, x, y, size, selected) => {
-    const type = String(object.type ?? object.objectType ?? "").toLowerCase();
-    const color = type.includes("galaxy")
-      ? "#aa91ff"
-      : type.includes("cluster")
-        ? "#62d8ff"
-        : "#f6c978";
+  const drawDsoGlyph = (
+    object,
+    x,
+    y,
+    size,
+    selected,
+    visualKind = classifyDeepSkyObject(object),
+    approximateShape = hasApproximateCatalogShape(object),
+  ) => {
+    const color =
+      visualKind === "galaxy"
+        ? "#aa91ff"
+        : visualKind === "globular-cluster" || visualKind === "open-cluster"
+          ? "#62d8ff"
+          : visualKind === "dark-nebula"
+            ? "#8796ac"
+            : visualKind === "reflection-nebula"
+              ? "#75d7ff"
+              : visualKind === "emission-nebula"
+                ? "#ff8c92"
+                : "#f6c978";
     context.save();
     context.translate(x, y);
     context.strokeStyle = selected ? "#fff1bd" : color;
     context.fillStyle = context.strokeStyle;
     context.lineWidth = selected ? 1.4 : 1;
-    if (type.includes("galaxy")) {
-      context.rotate(((object.positionAngle ?? -20) * Math.PI) / 180);
+    if (approximateShape) context.setLineDash?.([2, 2]);
+    if (visualKind === "galaxy") {
+      context.rotate(
+        ((object.shape?.positionAngleDeg ?? object.positionAngle ?? -20) *
+          Math.PI) /
+          180,
+      );
       context.beginPath();
       context.ellipse(0, 0, size * 1.45, size * 0.55, 0, 0, Math.PI * 2);
       context.stroke();
       context.beginPath();
       context.arc(0, 0, Math.max(1.1, size * 0.18), 0, Math.PI * 2);
       context.fill();
-    } else if (type.includes("globular")) {
+    } else if (visualKind === "globular-cluster") {
       context.beginPath();
       context.arc(0, 0, size, 0, Math.PI * 2);
       context.stroke();
@@ -258,7 +338,7 @@ export function createCelestiaAtlasViewer(options) {
       context.moveTo(0, -size);
       context.lineTo(0, size);
       context.stroke();
-    } else if (type.includes("open cluster") || type.includes("association")) {
+    } else if (visualKind === "open-cluster") {
       for (let index = 0; index < 7; index += 1) {
         const angle = index * 2.399;
         const radius = size * (0.25 + (0.65 * ((index * 37) % 10)) / 10);
@@ -269,7 +349,43 @@ export function createCelestiaAtlasViewer(options) {
           2,
         );
       }
-    } else if (type.includes("nebula") || type.includes("remnant")) {
+    } else if (visualKind === "dark-nebula") {
+      context.beginPath();
+      context.arc(0, 0, size * 0.9, 0, Math.PI * 2);
+      context.stroke();
+      context.beginPath();
+      context.moveTo(-size * 0.55, size * 0.45);
+      context.lineTo(size * 0.55, -size * 0.45);
+      context.moveTo(-size * 0.45, -size * 0.55);
+      context.lineTo(size * 0.45, size * 0.55);
+      context.stroke();
+    } else if (visualKind === "reflection-nebula") {
+      context.beginPath();
+      context.moveTo(0, -size);
+      context.lineTo(size, 0);
+      context.lineTo(0, size);
+      context.lineTo(-size, 0);
+      context.closePath();
+      context.stroke();
+      context.beginPath();
+      context.arc(0, 0, Math.max(1.2, size * 0.2), 0, Math.PI * 2);
+      context.fill();
+    } else if (visualKind === "emission-nebula") {
+      context.beginPath();
+      for (let index = 0; index < 12; index += 1) {
+        const angle = (index * Math.PI) / 6;
+        const radius = size * (index % 2 ? 0.5 : 1);
+        const px = Math.cos(angle) * radius;
+        const py = Math.sin(angle) * radius;
+        if (index) context.lineTo(px, py);
+        else context.moveTo(px, py);
+      }
+      context.closePath();
+      context.stroke();
+      context.beginPath();
+      context.arc(0, 0, Math.max(1.1, size * 0.18), 0, Math.PI * 2);
+      context.fill();
+    } else if (visualKind === "nebula") {
       context.beginPath();
       for (let index = 0; index < 8; index += 1) {
         const angle = (index * Math.PI * 2) / 8;
@@ -306,7 +422,19 @@ export function createCelestiaAtlasViewer(options) {
     return 99;
   };
   const shouldDrawDso = (object, catalogIndex) => {
-    if (selected?.id && selected.id === object.id) return true;
+    if (isSelectedObject(object)) return true;
+    if (
+      deepSkyObjectTypeAllowlist !== null &&
+      !deepSkyObjectTypeAllowlist.has(catalogTypeKeys[catalogIndex])
+    )
+      return false;
+    if (
+      deepSkyCatalogueGroupAllowlist !== null &&
+      !catalogGroupKeys[catalogIndex].some((group) =>
+        deepSkyCatalogueGroupAllowlist.has(group),
+      )
+    )
+      return false;
     const magnitude = object.mag ?? object.magnitude;
     const categoryLimit = galaxyCatalogFlags[catalogIndex]
       ? display.galaxyMagnitudeLimit
@@ -314,7 +442,10 @@ export function createCelestiaAtlasViewer(options) {
     if (Number.isFinite(magnitude)) {
       return magnitude <= Math.min(categoryLimit, dsoMagnitudeLimit());
     }
-    return categoryLimit === 30 && view.fovDeg < 18;
+    return (
+      categoryLimit === 30 &&
+      view.fovDeg < catalogUnknownMagnitudeFovLimits[catalogIndex]
+    );
   };
   const drawGridLabel = (text, x, y) => {
     context.save();
@@ -698,7 +829,7 @@ export function createCelestiaAtlasViewer(options) {
     for (const star of stars) {
       const starMagnitude = star.mag ?? star.magnitude;
       if (
-        selected?.id !== star.id &&
+        !isSelectedObject(star) &&
         (!Number.isFinite(starMagnitude) ||
           starMagnitude > display.starMagnitudeLimit)
       )
@@ -726,7 +857,8 @@ export function createCelestiaAtlasViewer(options) {
         context.fillText(star.name, point.x + radius + 3, point.y - 3);
       }
     }
-    if (display.deepSkyObjects)
+    const dsoLabelCandidates = [];
+    if (display.deepSkyObjects) {
       for (
         let catalogIndex = 0;
         catalogIndex < catalog.length;
@@ -741,16 +873,81 @@ export function createCelestiaAtlasViewer(options) {
         const { x, y } = point;
         if (x < 0 || x > width || y < 0 || y > height) continue;
         if (!isAboveHorizon(object)) continue;
-        const isSelected = selected?.id === object.id;
+        const isSelected = isSelectedObject(object);
         const glyphSize = Math.max(3.7, Math.min(10, 3.2 + 70 / view.fovDeg));
-        drawDsoGlyph(object, x, y, glyphSize, isSelected);
+        drawDsoGlyph(
+          object,
+          x,
+          y,
+          glyphSize,
+          isSelected,
+          catalogVisualKinds[catalogIndex],
+          Boolean(catalogApproximateShapeFlags[catalogIndex]),
+        );
         hitTargets.push({ x, y, object });
-        if (display.labels && (isSelected || view.fovDeg < 20)) {
-          context.font = "11px system-ui";
-          context.fillStyle = display.nightMode ? "#ff8178" : "#dbe8f7";
-          context.fillText(object.id || object.name, x + 6, y - 4);
-        }
+        if (display.labels && (isSelected || view.fovDeg < 20))
+          dsoLabelCandidates.push({ object, x, y, isSelected });
       }
+    }
+    if (dsoLabelCandidates.length) {
+      dsoLabelCandidates.sort((left, right) => {
+        if (left.isSelected !== right.isSelected)
+          return left.isSelected ? -1 : 1;
+        const leftMagnitude = left.object.mag ?? left.object.magnitude;
+        const rightMagnitude = right.object.mag ?? right.object.magnitude;
+        const leftRank = Number.isFinite(leftMagnitude)
+          ? leftMagnitude
+          : Number.POSITIVE_INFINITY;
+        const rightRank = Number.isFinite(rightMagnitude)
+          ? rightMagnitude
+          : Number.POSITIVE_INFINITY;
+        if (leftRank !== rightRank) return leftRank - rightRank;
+        const leftExtent =
+          left.object.shape?.majorArcmin ?? left.object.major ?? 0;
+        const rightExtent =
+          right.object.shape?.majorArcmin ?? right.object.major ?? 0;
+        return rightExtent - leftExtent;
+      });
+      const dsoLabelBudget = Math.min(
+        coarsePointer ? 36 : 72,
+        Math.max(
+          12,
+          Math.floor(
+            (width * height) / (coarsePointer ? 22000 : 18000),
+          ),
+        ),
+      );
+      const placedDsoLabelBoxes = [];
+      let placedDsoLabels = 0;
+      context.font = "11px system-ui";
+      context.fillStyle = display.nightMode ? "#ff8178" : "#dbe8f7";
+      for (const candidate of dsoLabelCandidates) {
+        if (!candidate.isSelected && placedDsoLabels >= dsoLabelBudget) break;
+        const text =
+          candidate.object.primaryName ||
+          candidate.object.name ||
+          candidate.object.id;
+        const left = candidate.x + 6;
+        const labelWidth = context.measureText(text).width;
+        const box = {
+          left: left - 2,
+          right: left + labelWidth + 2,
+          top: candidate.y - 16,
+          bottom: candidate.y,
+        };
+        const collides = placedDsoLabelBoxes.some(
+          (placed) =>
+            box.left < placed.right + 3 &&
+            box.right + 3 > placed.left &&
+            box.top < placed.bottom + 3 &&
+            box.bottom + 3 > placed.top,
+        );
+        if (!candidate.isSelected && collides) continue;
+        context.fillText(text, left, candidate.y - 4);
+        placedDsoLabelBoxes.push(box);
+        placedDsoLabels += 1;
+      }
+    }
     if (display.solarSystem) {
       const timestamp = currentUtcMs();
       const solarObjects = currentSolarSystemObjects(timestamp);
@@ -760,7 +957,7 @@ export function createCelestiaAtlasViewer(options) {
         const { x, y } = point;
         if (x < 0 || x > width || y < 0 || y > height) continue;
         if (!isAboveHorizon(object)) continue;
-        const isSelected = selected?.id === object.id;
+        const isSelected = isSelectedObject(object);
         const radius = isSelected
           ? 7
           : Math.max(3, Math.min(6, 5 - (object.mag ?? 5) * 0.18));
@@ -787,7 +984,7 @@ export function createCelestiaAtlasViewer(options) {
     if (display.comets) {
       const magnitudeLimit = view.fovDeg > 55 ? 8 : view.fovDeg > 25 ? 12 : 18;
       for (const object of currentComets()) {
-        const isSelected = selected?.id === object.id;
+        const isSelected = isSelectedObject(object);
         if (
           !isSelected &&
           (!Number.isFinite(object.mag) || object.mag > magnitudeLimit)
@@ -1093,21 +1290,8 @@ export function createCelestiaAtlasViewer(options) {
           (a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y),
         )[0];
       if (hit) {
-        selected = hit.object;
-        onSelect?.({
-          id: hit.object.id,
-          name: hit.object.name || hit.object.id,
-          aliases: hit.object.aliases,
-          objectType: hit.object.type,
-          parentBody: hit.object.parentBody,
-          magnitude: hit.object.mag,
-          catalogueSource: hit.object.catalogSource,
-          coordinates: validateEquatorialCoordinates({
-            raDeg: hit.object.raDeg,
-            decDeg: hit.object.decDeg,
-            frame: hit.object.frame || "ICRS",
-          }),
-        });
+        selected = selectedTargetPayload(hit.object);
+        onSelect?.(selected);
         invalidate();
       }
     }
@@ -1357,6 +1541,7 @@ export function createCelestiaAtlasViewer(options) {
     },
     setDisplayOptions(value) {
       assertAlive();
+      const nextDisplay = { ...value };
       if (
         value.starMagnitudeLimit !== undefined &&
         (!Number.isFinite(value.starMagnitudeLimit) ||
@@ -1380,7 +1565,42 @@ export function createCelestiaAtlasViewer(options) {
           value.starScale > 4)
       )
         throw new TypeError("Invalid star scale");
-      display = { ...display, ...value };
+      for (const [key, label] of [
+        ["deepSkyObjectTypes", "Deep-sky object types"],
+        ["deepSkyCatalogueGroups", "Deep-sky catalogue groups"],
+      ]) {
+        if (value[key] === undefined) continue;
+        if (value[key] === null) {
+          nextDisplay[key] = null;
+          continue;
+        }
+        if (!Array.isArray(value[key]))
+          throw new TypeError(`${label} must be an array or null`);
+        nextDisplay[key] = value[key].map((item) => {
+          if (typeof item !== "string" || !item.trim())
+            throw new TypeError(`${label} entries must be non-empty strings`);
+          return item.trim();
+        });
+      }
+      if (value.deepSkyObjectTypes !== undefined)
+        deepSkyObjectTypeAllowlist =
+          nextDisplay.deepSkyObjectTypes === null
+            ? null
+            : new Set(
+                nextDisplay.deepSkyObjectTypes.map((item) =>
+                  item.toLowerCase(),
+                ),
+              );
+      if (value.deepSkyCatalogueGroups !== undefined)
+        deepSkyCatalogueGroupAllowlist =
+          nextDisplay.deepSkyCatalogueGroups === null
+            ? null
+            : new Set(
+                nextDisplay.deepSkyCatalogueGroups.map((item) =>
+                  item.toLowerCase(),
+                ),
+              );
+      display = { ...display, ...nextDisplay };
       invalidate();
     },
     focusTarget(
@@ -1395,21 +1615,20 @@ export function createCelestiaAtlasViewer(options) {
         center,
         fovDeg: Math.max(0.05, Math.min(MAX_FOV_DEG, fovDeg)),
       };
-      selected = target.id ? { ...target, id: target.id } : null;
+      selected = objectIdentity(target) ? { ...target } : null;
       onViewChange?.(structuredClone(view));
       invalidate();
     },
     select(value) {
       assertAlive();
-      const coordinates = validateEquatorialCoordinates(value.coordinates);
-      selected = value.id ? { ...value, id: value.id } : null;
-      onSelect?.({ ...value, coordinates });
+      const payload = selectedTargetPayload(value);
+      selected = objectIdentity(payload) ? payload : null;
+      onSelect?.(payload);
       invalidate();
     },
     search(query) {
       assertAlive();
-      const needle = String(query).trim().toLocaleLowerCase();
-      if (!needle) return [];
+      if (!normalizeCatalogIdentifier(query)) return [];
       const solarSystemObjects = display.solarSystem
         ? [
             ...getSolarSystemObjects(currentUtcMs(), observer),
@@ -1417,15 +1636,15 @@ export function createCelestiaAtlasViewer(options) {
           ]
         : [];
       const comets = display.comets ? currentComets() : [];
-      return [...solarSystemObjects, ...comets, ...searchableObjects]
-        .filter((item) =>
-          [item.name, item.id, ...(item.aliases ?? [])].some((text) =>
-            String(text ?? "")
-              .toLocaleLowerCase()
-              .includes(needle),
-          ),
-        )
-        .slice(0, 20);
+      const dynamicSearchIndex = createCatalogSearchIndex([
+        ...solarSystemObjects,
+        ...comets,
+      ]);
+      return searchCatalogIndex(
+        [...dynamicSearchIndex, ...searchableObjectIndex],
+        query,
+        20,
+      );
     },
     getState() {
       assertAlive();

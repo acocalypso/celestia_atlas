@@ -1,0 +1,46 @@
+{
+  "catalogues": {
+    "openngc": {
+      "authors": "Mattia Verga and OpenNGC contributors",
+      "excludedTypes": [
+        "*",
+        "**",
+        "Dup",
+        "NonEx",
+        "Nova"
+      ],
+      "files": {
+        "NGC.csv": "840fe0c9ee1332e551b2e722a0e92726cd7b157914a3d2177602832aadd3aa9e",
+        "addendum.csv": "1d8f0914e643ada325a5a94d88d8fefad6a4937a2f77cc34f21483af22b11983"
+      },
+      "license": "CC-BY-SA-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "modifications": "Parsed the semicolon-delimited OpenNGC release files; excluded unsupported stellar, duplicate, nonexistent, and nova rows; normalized identifiers and ICRS coordinates; selected V magnitude with B magnitude as fallback.",
+      "name": "OpenNGC",
+      "project": "https://github.com/mattiaverga/OpenNGC",
+      "publicationUrl": "https://github.com/mattiaverga/OpenNGC",
+      "readMeUrl": "https://github.com/mattiaverga/OpenNGC#readme",
+      "requiredAcknowledgement": "Attribute OpenNGC to Mattia Verga and contributors, link CC BY-SA 4.0, and indicate modifications.",
+      "rightsStatus": "redistribution-permitted-with-attribution-and-share-alike",
+      "sourceTables": [
+        "NGC.csv",
+        "addendum.csv"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/mattiaverga/OpenNGC/v20260501/database_files/NGC.csv",
+        "https://raw.githubusercontent.com/mattiaverga/OpenNGC/v20260501/database_files/addendum.csv"
+      ],
+      "termsUrl": "https://github.com/mattiaverga/OpenNGC/blob/master/LICENSE",
+      "version": "v20260501",
+      "vizierId": null
+    }
+  },
+  "dedupOverridesSha256": "c23eaccf0652c623721bae109d4d656eecd1155d057593434966f1f11c028257",
+  "rightsNoticeUrl": "https://cds.unistra.fr/vizier-org/licences_vizier.html",
+  "rightsPolicy": "Catalogue-specific public redistribution permission has not been established. Downloads are for acknowledged local scientific use and review only.",
+  "schemaVersion": 1,
+  "transformSoftware": {
+    "astropy": "8.0.1"
+  },
+  "vizierServiceDoi": "10.26093/cds/vizier"
+}

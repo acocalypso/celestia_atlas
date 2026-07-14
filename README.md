@@ -1,6 +1,6 @@
 # Celestia Atlas Offline v8
 
-Celestia Atlas source code is licensed under GNU GPL v3 or later. See
+Celestia Atlas source code is licensed under the MIT License. See
 `LICENSE`. Bundled and generated third-party data retains the separate terms
 listed in `THIRD_PARTY_NOTICES.md`.
 
@@ -11,8 +11,17 @@ services.
 
 ## What changed in v8
 
-- The GitHub Pages build downloads and converts the pinned OpenNGC release into
-  a local browser catalogue.
+- The GitHub Pages build feeds the pinned OpenNGC release through a shared,
+  source-independent catalogue model and creates a local browser catalogue.
+- Source-specific local importers support LDN, Barnard, LBN, Sharpless 2, vdB,
+  RCW, Southern Dark Clouds, and Feitzinger-Stuewe dark nebulae. These optional
+  historical tables are not publicly bundled because their current VizieR
+  records do not state an open redistribution licence.
+- Astropy performs true FK4/B1875, B1900, B1950, Galactic, FK5/J2000, and ICRS
+  build-time transformations. Original frames and source provenance are kept.
+- Catalogue/type controls, punctuation-tolerant ranked search, distinct dark,
+  reflection, and emission-nebula markers, and full source/shape/property
+  details are available in the standalone viewer and public API.
 - NGC, IC, Messier cross-identifiers, common names, coordinates, object type,
   magnitudes, angular sizes, Hubble class, redshift and radial velocity are
   preserved when available.
@@ -65,9 +74,12 @@ The deployed atlas makes no catalogue, tile, API, analytics or font requests.
 `dso-catalog.js`, the Astronomy Engine browser build, the Milky Way panorama
 and all DSO images are ordinary local files cached by the service worker.
 
-Online access is used only by optional **build tools**:
+Online access is used only by **build tools**:
 
-- `build_openngc_catalog.py` downloads the source CSV while building.
+- `build_dso_catalog.py` downloads the pinned OpenNGC CSV for the distributable
+  default build. `build_openngc_catalog.py` remains a compatibility command.
+- `fetch_catalog_sources.py` can explicitly download the optional VizieR tables
+  into the ignored local cache after the user acknowledges the rights review.
 - `fetch_nasa_dso_images.py` downloads selected publication images into the
   repository.
 
@@ -123,10 +135,15 @@ Settings → Pages → Source → GitHub Actions
 
 Push the project to `main`. The included workflow will:
 
-1. Download the pinned OpenNGC release.
-2. Generate `dso-catalog.js` and `data/openngc-catalog.json`.
-3. Rebuild the local DSO image index.
-4. Assemble and deploy the static Pages artifact.
+1. Install the pinned Python and Node.js build dependencies.
+2. Download the pinned OpenNGC release and generate neutral plus legacy
+   compatibility outputs from the same normalized records.
+3. Run the JavaScript/Python suites and a Chrome interaction/error smoke test.
+4. Rebuild the local DSO image index.
+5. Assemble and deploy the static Pages artifact.
+
+The workflow deliberately does not fetch or publish the optional VizieR
+catalogues while their redistribution status remains unresolved.
 
 The site address is normally:
 
@@ -134,48 +151,65 @@ The site address is normally:
 https://acocalypso.github.io/celestia_atlas/
 ```
 
-The committed `dso-catalog.js` is a small curated fallback. The complete file is
-created inside GitHub Actions. To commit the generated full catalogue as well,
-run the catalogue builder locally before `git add`.
+The committed `dso-catalog.js` is the distributable OpenNGC browser bundle. The
+workflow rebuilds it reproducibly. Optional local VizieR builds may replace it
+for evaluation, but those derived records must not be committed or published
+without catalogue-by-catalogue rights clearance.
 
-## Build the full catalogue locally
+## Build the catalogue locally
 
-Python 3.10 or newer is recommended:
+Python 3.11 or newer is required by the pinned Astropy release. Install the
+build-time astronomy dependency, then create the distributable OpenNGC-only
+catalogue:
+
+```bat
+python -m pip install -r tools\requirements-catalog.txt
+python tools\build_dso_catalog.py --catalogues openngc
+```
+
+The default source is pinned to OpenNGC `v20260501`. The compatibility command
+remains available for existing automation:
 
 ```bat
 python tools\build_openngc_catalog.py
 ```
 
-The default source is pinned for reproducibility:
-
-```text
-OpenNGC v20260501
-```
-
-Choose another tag or branch explicitly:
-
-```bat
-python tools\build_openngc_catalog.py --version master
-```
-
-Generated files:
+The shared builder creates:
 
 ```text
 dso-catalog.js
+data/dso-catalog.json
+data/dso-viewer-catalog.json
+data/catalog-sources.json
+data/dedup-candidates.json
 data/openngc-catalog.json
 data/openngc-viewer-catalog.json
 data/openngc-meta.json
 ```
 
-`openngc-catalog.json` preserves the full source metadata for tools and the
-standalone build. `openngc-viewer-catalog.json` is the smaller package payload:
-it contains only renderer/search fields and publishes coordinates directly as
-tagged ICRS decimal degrees, avoiding a second 12,578-object conversion in
-embedded mobile clients.
+`dso-catalog.json` preserves the normalized nested model and provenance.
+`dso-viewer-catalog.json` and `dso-catalog.js` contain the smaller degree-based
+runtime projection. Package consumers can load the neutral payload through
+`@acocalypso/celestia-atlas/normalized-viewer-catalog-data`; the existing
+`catalog-data` and `viewer-catalog-data` exports retain their legacy OpenNGC
+schemas for compatibility.
+`dedup-candidates.json` records report-only spatial candidates and ambiguous
+cross-identifications for manual review; neither category is auto-merged.
 
-The compact payload is 2,971,964 bytes raw (536,268 bytes with gzip level 9),
-versus 6,019,427 bytes for the source-preserving catalogue. Package consumers
-can lazy-load it through `@acocalypso/celestia-atlas/viewer-catalog-data`.
+To evaluate all optional catalogues locally, first review the source terms and
+then run:
+
+```bat
+python tools\fetch_catalog_sources.py --cache-dir .cache\catalog-sources --acknowledge-rights-review
+python tools\build_dso_catalog.py --catalogues all --vizier-source-dir .cache\catalog-sources --acknowledge-rights-review
+```
+
+Select individual groups with a comma-separated list such as
+`openngc,ldn,barnard,lbn,sharpless,vdb,rcw,dcld,feitzinger`. VizieR importers
+only read local files; they never download implicitly. Do not publish a local
+combined output until the included catalogue rights are cleared for the
+intended distribution. See [`docs/CATALOGUES.md`](docs/CATALOGUES.md) for the
+schemas, coordinate policy, deduplication rules, citations, and limitations.
 
 ## NASA image downloader v2
 
@@ -339,6 +373,22 @@ overloaded. Setting a stricter DSO limit also hides objects whose magnitude is
 unknown. A selected target bypasses the drawing filters, and search continues
 to query the complete offline catalogue.
 
+Catalogue and type filters are independent allowlists. `null` means all; an
+empty array intentionally hides the whole facet:
+
+```js
+viewer.setDisplayOptions({
+  deepSkyObjectTypes: ["DrkN", "RfN", "EmN", "HII"],
+  deepSkyCatalogueGroups: ["ldn", "barnard", "sharpless", "vdb", "rcw"],
+});
+```
+
+Historical nebula catalogues usually do not publish visual magnitudes. The
+renderer does not invent them: ordinary magnitude-less optional records appear
+in narrower fields, while only large explicitly approximate cloud markers are
+allowed at wider fields. Filtering happens before sky projection for mobile
+performance. Search still covers hidden groups and types.
+
 ## Project structure
 
 ```text
@@ -347,17 +397,22 @@ styles.css
 standalone.css              standalone shell styling
 standalone-app.js           standalone adapter for the shared viewer API
 catalog.js                 compact bright-star + curated fallback data
-dso-catalog.js             generated complete OpenNGC browser catalogue
+dso-catalog.js             generated degree-based browser catalogue
 src/public-api.js           shared standalone/embedded renderer
+src/core/catalog-identifiers.js ranked tolerant identifier search
 src/core/optics.js          physical imaging-train FOV calculations
 service-worker.js
 manifest.webmanifest
 assets/landscapes/          packaged offline HEALPix landscape
 images/dso/
 data/
-tools/build_openngc_catalog.py
+tools/build_dso_catalog.py  shared normalized catalogue builder
+tools/build_openngc_catalog.py compatibility command
+tools/fetch_catalog_sources.py explicit local source acquisition
+tools/catalog_sources/     source-specific importers and source manifest
 tools/build_dso_image_index.py
 tools/fetch_nasa_dso_images.py
+docs/CATALOGUES.md          schemas, science policy, build and rights notes
 .github/workflows/pages.yml
 ```
 
@@ -366,6 +421,13 @@ tools/fetch_nasa_dso_images.py
 OpenNGC catalogue data is by Mattia Verga and contributors and is licensed under
 CC BY-SA 4.0. Keep `THIRD_PARTY_NOTICES.md` and the in-app attribution when
 redistributing a generated catalogue.
+
+The supported VizieR-hosted historical catalogues have no populated open
+licence in their current CDS metadata. They are optional user-run imports and
+are not included in the public bundle. Review each source and publication terms
+before redistributing locally generated records. Full citations and the exact
+transformation notes are in `THIRD_PARTY_NOTICES.md` and
+[`docs/CATALOGUES.md`](docs/CATALOGUES.md).
 
 NASA image sidecars retain the source URL and credit returned by the NASA Image
 and Video Library. Review each source page before publication because a NASA

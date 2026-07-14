@@ -1,5 +1,5 @@
 try{importScripts('./dso-images.js')}catch(e){}
-const CACHE='celestia-atlas-offline-v24';
+const CACHE='celestia-atlas-offline-v26';
 const CORE=[
   './',
   './index.html',
@@ -9,6 +9,8 @@ const CORE=[
   './dso-images.js',
   './catalog.js',
   './dso-catalog.js',
+  './THIRD_PARTY_NOTICES.md',
+  './docs/CATALOGUES.md',
   './vendor/astronomy-engine-2.1.19.esm.js',
   './src/index.js',
   './src/public-api.js',
@@ -20,6 +22,7 @@ const CORE=[
   './src/core/reference-lines.js',
   './src/core/landscape.js',
   './src/core/catalog-filters.js',
+  './src/core/catalog-identifiers.js',
   './data/comets.js',
   './manifest.webmanifest',
   './assets/landscapes/guereins/properties',

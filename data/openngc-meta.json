@@ -1,19 +1,26 @@
 {
-  "name": "OpenNGC offline DSO catalogue",
-  "version": "v20260501",
-  "objectCount": 12578,
-  "license": "CC-BY-SA-4.0",
   "attribution": "OpenNGC by Mattia Verga and contributors",
-  "project": "https://github.com/mattiaverga/OpenNGC",
-  "sources": [
-    "https://raw.githubusercontent.com/mattiaverga/OpenNGC/v20260501/database_files/NGC.csv",
-    "https://raw.githubusercontent.com/mattiaverga/OpenNGC/v20260501/database_files/addendum.csv"
+  "catalogueGroups": [
+    "openngc"
   ],
+  "coordinateFrame": "ICRS",
   "excludedTypes": [
     "*",
     "**",
     "Dup",
     "NonEx",
     "Nova"
-  ]
+  ],
+  "license": "CC-BY-SA-4.0",
+  "name": "OpenNGC offline DSO catalogue",
+  "objectCount": 12578,
+  "project": "https://github.com/mattiaverga/OpenNGC",
+  "rightAscensionUnit": "degrees",
+  "schemaVersion": 1,
+  "sourceManifestSchemaVersion": 1,
+  "sources": [
+    "https://raw.githubusercontent.com/mattiaverga/OpenNGC/v20260501/database_files/NGC.csv",
+    "https://raw.githubusercontent.com/mattiaverga/OpenNGC/v20260501/database_files/addendum.csv"
+  ],
+  "version": "v20260501"
 }

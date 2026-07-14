@@ -50,3 +50,22 @@
 .imaging-readout.invalid {
   color: var(--red);
 }
+
+.switch {
+  position: relative;
+}
+
+.switch input {
+  display: block;
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.switch input:focus-visible + i {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}

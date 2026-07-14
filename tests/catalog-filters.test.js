@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  classifyDeepSkyObject,
+  deepSkyCatalogueGroupKeys,
+  deepSkyObjectTypeKey,
+  deepSkyUnknownMagnitudeFovLimit,
+  hasApproximateCatalogShape,
   isGalaxyObject,
+  passesDeepSkyCatalogFilter,
   passesDeepSkyMagnitudeFilter,
 } from "../src/core/catalog-filters.js";
 
@@ -10,6 +16,90 @@ test("classifies galaxy families separately from other deep-sky objects", () => 
   assert.equal(isGalaxyObject({ objectType: "Galaxy pair" }), true);
   assert.equal(isGalaxyObject({ type: "Galaxy cluster" }), true);
   assert.equal(isGalaxyObject({ type: "Planetary nebula" }), false);
+  assert.equal(isGalaxyObject({ typeCode: "GPair", type: "Other" }), true);
+});
+
+test("applies DSO type and catalogue-group allowlists", () => {
+  const object = {
+    typeCode: "DrkN",
+    catalogueGroups: ["LDN", "Barnard"],
+  };
+  assert.equal(deepSkyObjectTypeKey(object), "drkn");
+  assert.deepEqual(deepSkyCatalogueGroupKeys(object), ["ldn", "barnard"]);
+  assert.equal(passesDeepSkyCatalogFilter(object, null, null), true);
+  assert.equal(passesDeepSkyCatalogFilter(object, ["DrkN"], ["LDN"]), true);
+  assert.equal(passesDeepSkyCatalogFilter(object, ["EmN"], ["LDN"]), false);
+  assert.equal(passesDeepSkyCatalogFilter(object, ["DrkN"], ["RCW"]), false);
+  assert.equal(passesDeepSkyCatalogFilter(object, [], null), false);
+  assert.equal(
+    passesDeepSkyCatalogFilter(
+      { type: "Galaxy", catalogSource: "OpenNGC" },
+      ["Galaxy"],
+      ["openngc"],
+    ),
+    true,
+  );
+});
+
+test("rejects malformed DSO categorical allowlists", () => {
+  assert.throws(
+    () => passesDeepSkyCatalogFilter({}, "DrkN", null),
+    /array or null/,
+  );
+  assert.throws(
+    () => passesDeepSkyCatalogFilter({}, [""], null),
+    /non-empty strings/,
+  );
+});
+
+test("classifies new nebula families and approximate shapes", () => {
+  assert.equal(classifyDeepSkyObject({ typeCode: "DrkN" }), "dark-nebula");
+  assert.equal(
+    classifyDeepSkyObject({ type: "Reflection nebula" }),
+    "reflection-nebula",
+  );
+  assert.equal(classifyDeepSkyObject({ typeCode: "HII" }), "emission-nebula");
+  assert.equal(classifyDeepSkyObject({ typeCode: "EmN" }), "emission-nebula");
+  assert.equal(
+    hasApproximateCatalogShape({ shape: { approximate: true } }),
+    true,
+  );
+  assert.equal(
+    hasApproximateCatalogShape({ shape: { approximate: false } }),
+    false,
+  );
+});
+
+test("widens unknown-magnitude visibility only for optional and large approximate objects", () => {
+  assert.equal(
+    deepSkyUnknownMagnitudeFovLimit({ catalogueGroups: ["OpenNGC"] }),
+    18,
+  );
+  assert.equal(
+    deepSkyUnknownMagnitudeFovLimit({ catalogueGroups: ["Sh2"] }),
+    25,
+  );
+  assert.equal(
+    deepSkyUnknownMagnitudeFovLimit({
+      catalogueGroups: ["LDN"],
+      shape: { majorArcmin: 90, approximate: true },
+    }),
+    45,
+  );
+  assert.equal(
+    deepSkyUnknownMagnitudeFovLimit({
+      catalogueGroups: ["LDN"],
+      shape: { majorArcmin: 240, approximate: true },
+    }),
+    70,
+  );
+  assert.equal(
+    deepSkyUnknownMagnitudeFovLimit({
+      catalogueGroups: ["LDN"],
+      shape: { majorArcmin: 240, approximate: false },
+    }),
+    25,
+  );
 });
 
 test("applies independent galaxy and other-DSO limiting magnitudes", () => {
