@@ -2,6 +2,7 @@ import {
   calculateCameraFieldOfView,
   combineCatalogLayers,
   createCelestiaAtlasViewer,
+  DEFAULT_DSS_SKY_SURVEY_SOURCE,
   equatorialToHorizontal,
   horizontalToEquatorial,
 } from "./src/index.js";
@@ -155,6 +156,8 @@ const state = {
   deepSkyObjects: true,
   labels: true,
   milkyWay: true,
+  skySurvey:
+    localStorage.getItem("celestia-atlas.sky-survey") !== "false",
   cardinals: true,
   ecliptic: false,
   meridian: false,
@@ -511,6 +514,7 @@ function applyDisplayOptions() {
     ecliptic: state.ecliptic,
     atmosphere: state.atmosphere,
     milkyWay: state.milkyWay,
+    skySurvey: state.skySurvey,
     cardinals: state.cardinals && state.mode === "horizontal",
     constellations: state.constellations,
     labels: state.labels,
@@ -608,6 +612,15 @@ function updateStatus() {
     hour: "2-digit",
     minute: "2-digit",
   });
+  const survey = viewer.getState().skySurvey;
+  $("#statusText").textContent =
+    !survey.enabled || !survey.configured
+      ? "Offline atlas ready"
+      : survey.active
+        ? `${survey.source?.label ?? "Sky survey"} imagery · offline cache when browser storage permits`
+        : survey.lastError
+          ? "Offline atlas ready · photographic imagery unavailable"
+          : "Offline atlas ready · DSS imagery on demand";
 }
 
 function saveHash() {
@@ -896,6 +909,13 @@ function installControls() {
       state[key] = event.target.checked;
       applyDisplayOptions();
     };
+  $("#skySurveySwitch").checked = state.skySurvey;
+  $("#skySurveySwitch").onchange = (event) => {
+    state.skySurvey = event.target.checked;
+    localStorage.setItem("celestia-atlas.sky-survey", String(state.skySurvey));
+    applyDisplayOptions();
+    updateStatus();
+  };
   $("#dsoImageSwitch").onchange = (event) => {
     state.dsoImages = event.target.checked;
     if (selectedTarget) showObjectImage(selectedTarget);
@@ -984,6 +1004,12 @@ function initializeTour() {
 
 function initialize() {
   loadHash();
+  const configuredSkySurveySource = Object.hasOwn(
+    globalThis,
+    "CELESTIA_ATLAS_SKY_SURVEY_SOURCE",
+  )
+    ? globalThis.CELESTIA_ATLAS_SKY_SURVEY_SOURCE
+    : DEFAULT_DSS_SKY_SURVEY_SOURCE;
   viewer = createCelestiaAtlasViewer({
     container: $("#viewerHost"),
     catalog,
@@ -991,6 +1017,7 @@ function initialize() {
     constellations,
     observer: state.observer,
     utcMs: Date.now(),
+    skySurveySource: configuredSkySurveySource,
     onSelect: showDetails,
     onViewChange: (view) => {
       currentView = view;
@@ -999,6 +1026,11 @@ function initialize() {
     },
     onError: (error) => showToast(error.message),
   });
+  if (globalThis.CELESTIA_ATLAS_ENABLE_TEST_HOOKS === true) {
+    globalThis.__CELESTIA_ATLAS_VIEWER__ = viewer;
+    globalThis.__CELESTIA_ATLAS_SKY_SURVEY_SOURCE__ =
+      configuredSkySurveySource;
+  }
   viewer.setView(currentView);
   initializeCatalogueFilters();
   applyDisplayOptions();
@@ -1015,7 +1047,7 @@ function initialize() {
     Object.keys(constellations).length.toLocaleString();
   $("#catalogReadout").textContent =
     `${catalogVersion} · ${catalog.length.toLocaleString()} DSOs`;
-  $("#statusText").textContent = "Shared offline viewer ready";
+  $("#statusText").textContent = "Offline atlas ready · DSS imagery on demand";
   setMode(state.mode);
   updateStatus();
   setInterval(updateStatus, 1000);

@@ -9,7 +9,7 @@
     <meta name="theme-color" content="#050812" />
     <meta
       name="description"
-      content="Celestia Atlas Offline v8 — a self-contained interactive sky atlas with no external services or libraries."
+      content="Celestia Atlas Offline v8 — an offline-first interactive sky atlas with optional photographic detail."
     />
     <title>Celestia Atlas Offline</title>
     <link
@@ -406,6 +406,12 @@
           ></label>
         </div>
         <div class="toggle-row">
+          <span>DSS photographic sky</span
+          ><label class="switch"
+            ><input id="skySurveySwitch" type="checkbox" checked aria-label="DSS photographic sky survey" /><i></i
+          ></label>
+        </div>
+        <div class="toggle-row">
           <span>DSO image previews</span
           ><label class="switch"
             ><input id="dsoImageSwitch" type="checkbox" checked aria-label="DSO image previews" /><i></i
@@ -550,8 +556,10 @@
         </div>
 
         <p class="panel-note">
-          Everything rendered here is local. No network requests, tile servers,
-          remote scripts, analytics, or API keys are used.
+          The atlas and illustrated sky work offline. The optional DSS layer
+          loads only the visible photographic tiles while zoomed in, then keeps
+          a bounded cache of recently viewed tiles when browser storage permits.
+          No analytics or API keys are used.
         </p>
       </section>
 
@@ -622,7 +630,9 @@
           viewer as embedded applications. Stars, constellations, moving
           objects, reference layers, landscapes, and deep-sky objects therefore
           share one rendering implementation. It has no Aladin, Stellarium Web,
-          external fonts, remote imagery, or online catalog calls.
+          external fonts, or online catalogue calls. At narrow fields, the
+          optional DSS2 Color survey progressively adds real photographic sky
+          imagery from a CDS-listed MAST mirror.
         </p>
         <div class="data-stats">
           <div>
@@ -645,7 +655,9 @@
           symbols and scaled catalogue footprints. Faint objects appear
           progressively as you zoom in, while every bundled entry remains
           searchable offline. The Milky Way panorama and available local DSO
-          images require no runtime network access.
+          images require no runtime network access. DSS tiles are requested on
+          demand, may be cached after viewing, and fall back to the local
+          panorama when a field is unavailable offline.
         </p>
         <h3>Catalogue attribution</h3>
         <p>
@@ -674,14 +686,16 @@
         <p>
           Serve this folder once on localhost and choose “Install app” in a
           compatible browser. The included service worker caches every required
-          file.
+          atlas file and can retain a bounded set of DSS tiles you have viewed.
+          Unseen DSS fields still need a connection; the local atlas remains
+          usable without them.
         </p>
       </section>
 
       <footer class="statusbar glass" aria-live="polite">
         <div>
           <span class="status-dot"></span
-          ><span id="statusText">Offline engine ready</span>
+          ><span id="statusText">Offline atlas ready · DSS imagery on demand</span>
         </div>
         <div class="coordinates">
           <span id="coordReadout">Az — · Alt —</span
@@ -695,7 +709,7 @@
         <div class="loader-orbit"><span></span><span></span><i></i></div>
         <p class="eyebrow">CELESTIA ATLAS</p>
         <h1>Loading the offline sky catalogue</h1>
-        <p>No network connection required</p>
+        <p>Offline atlas first · photographic detail loads on demand</p>
       </div>
     </main>
     <script src="dso-images.js"></script>

@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Added an independently implemented celestial HiPS image renderer and a
+  default DSS2 Color source. Real survey imagery fades in between 20 and 10
+  degrees FOV, refines progressively to order 9, respects rotation and custom
+  horizons, and remains behind catalogue/grid/landscape overlays.
+- Added bounded mobile/desktop tile loading, gesture-time preview orders,
+  non-fatal Milky Way fallback, conditional in-view attribution, an embed API
+  and standalone toggle. A separate 96-tile Cache Storage layer shared by the
+  viewer and service worker can preserve viewed fields offline in standalone
+  and embedded builds when browser storage permits, without attempting to
+  redistribute the full survey.
+- Kept survey rendering responsive on mobile by chunking and cancelling
+  high-quality reprojection work, aborting obsolete downloads, planning only
+  above-horizon tiles, and filling unavailable detail tiles from cached parent
+  orders before falling back transparently to the bundled Milky Way.
 - Reworked equatorial-to-horizontal conversion around explicitly tagged ICRS
   and FK5/J2000 (Astronomy Engine EQJ) frames. ICRS inputs receive the explicit
   IAU SOFA `iauFk5hip` orientation rotation; the pinned Astronomy Engine 2.1.19

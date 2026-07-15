@@ -7,10 +7,9 @@ Stellarium DSO supplement remains under GPL-2.0-or-later.
 These data assets do not inherit the MIT code licence or each other's licence.
 See `THIRD_PARTY_NOTICES.md` and the files under `licenses/`.
 
-A self-contained browser planetarium with a local Milky Way dome, offline star
-catalogue, a comprehensive OpenNGC deep-sky catalogue, local DSO photographs,
-live offline Sun, Moon, planet and comet positions, and no runtime astronomy
-services.
+A browser planetarium with a local Milky Way dome, offline star and deep-sky
+catalogues, local DSO previews, live offline Sun, Moon, planet and comet
+positions, plus an optional progressive DSS2 photographic sky at narrow fields.
 
 ## What changed in v8
 
@@ -44,6 +43,12 @@ services.
   bright-star glow. At narrower fields, galaxies and nebulae also show
   type-coloured ellipses scaled and rotated from their catalogue dimensions;
   approximate shapes remain dashed instead of implying measured boundaries.
+- Below 20 degrees FOV, an independently implemented celestial HiPS renderer
+  progressively blends in real DSS2 Color survey images and reaches the
+  survey's order 9 resolution while zooming. It loads only visible tiles from a
+  CDS-listed MAST mirror, keeps decoded mobile/desktop LRUs byte-bounded, uses
+  tiny gesture previews, and chunks cancellable high-quality reprojection work
+  so it does not monopolize a mobile animation frame.
 - NGC, IC, Messier cross-identifiers, common names, coordinates, object type,
   magnitudes, angular sizes, Hubble class, redshift and radial velocity are
   preserved when available.
@@ -95,13 +100,30 @@ services.
 
 ## Runtime privacy and offline behavior
 
-The deployed atlas makes no catalogue, tile, API, analytics or font requests.
-`dso-catalog.js`, `abell-pn-catalog.js`, `stellarium-supplement.js`,
-`hyg-star-catalog.js`, the
-Astronomy Engine browser build, the Milky Way panorama and all DSO images are
-ordinary local files cached by the service worker.
+The catalogue, search, calculations, controls, landscape, illustrated Milky Way,
+fonts, and available DSO previews are local. `dso-catalog.js`,
+`abell-pn-catalog.js`, `stellarium-supplement.js`, `hyg-star-catalog.js`, the
+Astronomy Engine browser build, and all required application files are cached by
+the service worker. They continue working without a connection.
 
-Online access is used only by **build tools**:
+The optional `DSS photographic sky` layer is the sole runtime astronomy
+request. It is idle at fields of view of 20 degrees or wider, then requests only
+the visible `CDS/P/DSS2/color` HiPS JPEG tiles from the configured source. The
+viewer and service worker share a separate cache of up to 96 viewed DSS tiles
+when browser Cache Storage is available; decoded memory caches are capped by
+both count and byte budgets (24 MiB on coarse-pointer devices and 64 MiB on
+desktop). Cached fields remain photographic offline. An unseen offline field
+uses available cached lower-order parent tiles and otherwise falls back
+transparently to the bundled Milky Way instead of blocking the renderer.
+No remote survey request delays viewer startup, catalogue search, or navigation.
+
+The complete survey contains millions of tiles and is neither precached nor
+redistributed by this repository. Disable it with the standalone toggle,
+`viewer.setDisplayOptions({ skySurvey: false })`, or construct a strictly local
+viewer with `skySurveySource: null`. The atlas makes no analytics or remote-font
+requests and uses no runtime API key.
+
+Other online access is used only by **build tools**:
 
 - `build_dso_catalog.py` downloads the pinned OpenNGC CSV for the distributable
   default build. `build_openngc_catalog.py` remains a compatibility command.
@@ -117,7 +139,8 @@ Online access is used only by **build tools**:
 - `fetch_nasa_dso_images.py` downloads selected publication images into the
   repository.
 
-After those files are generated, the website remains offline-capable.
+After those files are generated, the base website remains fully
+offline-capable. Survey imagery is an optional cached enhancement.
 
 ## Coordinate frames and horizontal geometry
 
@@ -444,6 +467,50 @@ The helper also returns physical sensor dimensions, diagonal FOV, pixel scale
 in arcseconds per pixel and, when aperture is supplied, focal ratio. Aperture
 does not change angular FOV; that is determined by sensor size and focal length.
 
+## Photographic sky survey
+
+New viewers use the exported `DEFAULT_DSS_SKY_SURVEY_SOURCE`. The photographic
+layer smoothly fades from zero opacity at 20 degrees FOV to full opacity at 10
+degrees, while the local Milky Way supplies pixels not covered by available
+survey tiles. Catalogue symbols, stars, grids, the custom horizon, and the local
+landscape continue to render above it. Required DSS credit is shown by the
+viewer only while survey pixels are visible.
+
+Embedded applications can toggle the layer without replacing its source:
+
+```js
+viewer.setDisplayOptions({ skySurvey: true });
+```
+
+They can also supply another browser-decodable image HiPS or disable all survey
+loading. The source must use standard NESTED HiPS paths and provide its geometry
+explicitly, so startup never depends on fetching a remote `properties` file:
+
+```js
+viewer.setSkySurvey({
+  key: "my-local-survey",
+  label: "My local survey",
+  url: "/surveys/my-local-survey",
+  frame: "ICRS",
+  minOrder: 0,
+  maxOrder: 7,
+  tileWidth: 512,
+  format: "webp",
+  attribution: "Required source credit",
+  attributionUrl: "https://example.invalid/survey-credit",
+});
+
+viewer.setSkySurvey(null);
+```
+
+`getState().skySurvey` reports the requested/rendered order, opacity, ready and
+pending tile counts, and non-fatal fallback status. Network misses do not call
+the generic `onError` callback, because the offline background remains a valid
+render result. Cache Storage persistence lives in the viewer as well as the
+standalone service worker, so embedded applications such as Touch-N-Stars can
+reuse viewed fields offline without installing that worker when the embedding
+browser permits persistent storage. Cache or quota failures remain non-fatal.
+
 ## Brightness filters
 
 The viewer accepts separate apparent limiting magnitudes for stars, galaxies
@@ -498,6 +565,7 @@ stellarium-supplement.js   separate GPL-2.0-or-later public supplement
 src/public-api.js           shared standalone/embedded renderer
 src/core/catalog-identifiers.js ranked tolerant identifier search
 src/core/optics.js          physical imaging-train FOV calculations
+src/core/sky-survey.js      celestial HiPS mapping and rasterization
 service-worker.js
 manifest.webmanifest
 assets/landscapes/          packaged offline HEALPix landscape
@@ -517,6 +585,14 @@ docs/CATALOGUES.md          schemas, science policy, build and rights notes
 ```
 
 ## Data attribution
+
+The optional runtime photographic layer is Digitized Sky Survey imagery from
+STScI/NASA, colored and HiPS-processed by CDS (CNRS/Unistra). Tiles are fetched
+on demand and are not part of the MIT-licensed source distribution. MAST's
+current photographic-survey policy permits scientific and educational website
+use with acknowledgment, prohibits commercial use, and requires an agreement
+for bulk redistribution. Review `THIRD_PARTY_NOTICES.md` and the linked current
+source policy before deploying or changing the survey endpoint.
 
 OpenNGC catalogue data is by Mattia Verga and contributors and is licensed under
 CC BY-SA 4.0. Keep `THIRD_PARTY_NOTICES.md` and the in-app attribution when

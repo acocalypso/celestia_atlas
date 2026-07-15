@@ -1,5 +1,12 @@
 try{importScripts('./dso-images.js')}catch(e){}
-const CACHE='celestia-atlas-offline-v29';
+const CACHE='celestia-atlas-offline-v30';
+// Keep the survey schema independent from routine app-shell cache releases.
+const SURVEY_CACHE='celestia-atlas-survey-v1';
+const SURVEY_CACHE_LIMIT=96;
+const ATLAS_CACHE_PREFIXES=['celestia-atlas-offline-','celestia-atlas-survey-'];
+const DSS_SURVEY_ORIGIN='https://stpubdata.s3.us-east-1.amazonaws.com';
+const DSS_SURVEY_PATH='/mast/skybackgrounds/DSSColor/';
+const HIPS_TILE_PATH=/\/Norder\d+\/Dir\d+\/Npix\d+\.(?:jpe?g|png|webp)$/i;
 const CORE=[
   './',
   './index.html',
@@ -30,8 +37,10 @@ const CORE=[
   './src/core/catalog-filters.js',
   './src/core/catalog-identifiers.js',
   './src/core/catalog-layers.js',
+  './src/core/sky-survey.js',
   './data/comets.js',
   './manifest.webmanifest',
+  './assets/milky-way.webp',
   './assets/landscapes/guereins/properties',
   './assets/landscapes/guereins/Norder0/Dir0/Npix0.webp',
   './assets/landscapes/guereins/Norder0/Dir0/Npix1.webp',
@@ -57,7 +66,10 @@ self.addEventListener('install',event=>event.waitUntil((async()=>{
 
 self.addEventListener('activate',event=>event.waitUntil((async()=>{
   const keys=await caches.keys();
-  await Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)));
+  const current=new Set([CACHE,SURVEY_CACHE]);
+  await Promise.all(keys.filter(key=>
+    !current.has(key)&&ATLAS_CACHE_PREFIXES.some(prefix=>key.startsWith(prefix))
+  ).map(key=>caches.delete(key)));
   await self.clients.claim();
 })()));
 
@@ -83,9 +95,76 @@ async function cacheFirst(request){
   }catch(error){return Response.error()}
 }
 
+function isDssSurveyTile(url){
+  return url.origin===DSS_SURVEY_ORIGIN&&
+    url.pathname.startsWith(DSS_SURVEY_PATH)&&
+    HIPS_TILE_PATH.test(url.pathname);
+}
+
+function isPackagedLandscapeTile(url){
+  return url.origin===self.location.origin&&
+    url.pathname.includes('/assets/landscapes/')&&
+    HIPS_TILE_PATH.test(url.pathname);
+}
+
+function isSurveyTile(url){
+  return isDssSurveyTile(url)||(
+    url.origin===self.location.origin&&
+    HIPS_TILE_PATH.test(url.pathname)&&
+    !isPackagedLandscapeTile(url)
+  );
+}
+
+let surveyTrimQueue=Promise.resolve();
+function trimSurveyCache(cache){
+  surveyTrimQueue=surveyTrimQueue.catch(()=>{}).then(async()=>{
+    const keys=await cache.keys();
+    const excess=keys.length-SURVEY_CACHE_LIMIT;
+    if(excess>0)await Promise.all(keys.slice(0,excess).map(key=>cache.delete(key)));
+  });
+  return surveyTrimQueue;
+}
+
+async function fetchAndCacheSurveyTile(request){
+  let response;
+  try{response=await fetch(request)}catch(error){return null}
+  if(!response||!response.ok)return response;
+  try{
+    const cache=await caches.open(SURVEY_CACHE);
+    // Reinsert refreshed tiles so eviction approximates least-recently-used order.
+    await cache.delete(request);
+    await cache.put(request,response.clone());
+    await trimSurveyCache(cache);
+  }catch(error){
+    // Storage quota and private-mode failures must not prevent the live tile.
+  }
+  return response;
+}
+
+function surveyTileRequest(event){
+  // Start revalidation immediately. The rejection handler keeps offline misses quiet.
+  const networkUpdate=fetchAndCacheSurveyTile(event.request);
+  event.waitUntil(networkUpdate.then(()=>undefined,()=>undefined));
+  event.respondWith((async()=>{
+    let cached;
+    try{
+      const cache=await caches.open(SURVEY_CACHE);
+      cached=await cache.match(event.request);
+    }catch(error){
+      // Cache access is optional; continue with the network response.
+    }
+    if(cached)return cached;
+    return (await networkUpdate)||Response.error();
+  })());
+}
+
 self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET')return;
   const url=new URL(event.request.url);
+  if(isSurveyTile(url)){
+    surveyTileRequest(event);
+    return;
+  }
   if(url.origin!==self.location.origin)return;
   if(event.request.mode==='navigate'){
     event.respondWith(networkFirst(event.request,'./index.html'));

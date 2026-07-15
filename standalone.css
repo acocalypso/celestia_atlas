@@ -1,7 +1,7 @@
 .atlas-viewer-host {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: auto;
   background: #02050c;
 }
 
@@ -12,6 +12,23 @@
 
 .atlas-viewer-host canvas:active {
   cursor: grabbing;
+}
+
+.atlas-viewer-host .celestia-atlas-survey-credit {
+  right: auto !important;
+  bottom: calc(6rem + env(safe-area-inset-bottom, 0px)) !important;
+  left: 50%;
+  z-index: 3 !important;
+  width: max-content;
+  max-width: min(
+    34rem,
+    calc(
+      100% - 1rem - env(safe-area-inset-left, 0px) -
+        env(safe-area-inset-right, 0px)
+    )
+  ) !important;
+  text-align: center !important;
+  transform: translateX(-50%);
 }
 
 .imaging-grid {

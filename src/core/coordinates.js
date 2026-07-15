@@ -128,6 +128,23 @@ function applyRowMajorMatrix(matrix, vector) {
   };
 }
 
+/** Rotate an equatorial unit/vector direction between ICRS and FK5/J2000. */
+export function transformEquatorialVectorFrame(vector, fromFrame, toFrame) {
+  if (
+    !vector ||
+    ![vector.x, vector.y, vector.z].every(Number.isFinite)
+  )
+    throw new TypeError("Equatorial vectors require finite x, y, and z values");
+  if (![fromFrame, toFrame].every((frame) => ["ICRS", "J2000"].includes(frame)))
+    throw new TypeError("Equatorial vector frames must be ICRS or J2000");
+  if (fromFrame === toFrame)
+    return { x: vector.x, y: vector.y, z: vector.z };
+  return applyRowMajorMatrix(
+    fromFrame === "ICRS" ? ICRS_TO_J2000 : J2000_TO_ICRS,
+    vector,
+  );
+}
+
 // Astronomy Engine stores its rotation matrices in the same orientation used
 // by RotateVector. Keeping this multiplication local avoids allocating a
 // Vector for every catalogue object and horizon sample.

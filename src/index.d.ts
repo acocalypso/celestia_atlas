@@ -60,6 +60,76 @@ export interface LandscapeSource {
   url: string;
   key: string;
 }
+export interface SkySurveySource {
+  url: string;
+  key: string;
+  label?: string;
+  /** Visible credit rendered whenever survey pixels are on screen. */
+  creditLabel?: string;
+  frame?: "ICRS" | "J2000" | "equatorial" | "GALACTIC" | "galactic";
+  minOrder?: number;
+  maxOrder: number;
+  tileWidth?: number;
+  format?: "jpg" | "jpeg" | "png" | "webp";
+  attribution?: string;
+  attributionUrl?: string;
+  rightsUrl?: string;
+}
+export interface SkySurveyRuntimeState {
+  enabled: boolean;
+  configured: boolean;
+  active: boolean;
+  opacity: number;
+  targetOrder: number | null;
+  renderedOrder: number | null;
+  loadedTiles: number;
+  pendingTiles: number;
+  failedTiles: number;
+  lastError: string | null;
+  source: Pick<
+    SkySurveySource,
+    | "key"
+    | "label"
+    | "creditLabel"
+    | "attribution"
+    | "attributionUrl"
+    | "rightsUrl"
+  > | null;
+}
+export interface CelestiaAtlasDisplayOptions {
+  grid: boolean;
+  azimuthalGrid: boolean;
+  meridian: boolean;
+  ecliptic: boolean;
+  atmosphere: boolean;
+  milkyWay: boolean;
+  skySurvey: boolean;
+  cardinals: boolean;
+  constellations: boolean;
+  labels: boolean;
+  starMagnitudeLimit: number;
+  galaxyMagnitudeLimit: number;
+  deepSkyMagnitudeLimit: number;
+  deepSkyObjectTypes: string[] | null;
+  deepSkyCatalogueGroups: string[] | null;
+  starScale: number;
+  deepSkyObjects: boolean;
+  solarSystem: boolean;
+  comets: boolean;
+  horizon: boolean;
+  hideBelowHorizon: boolean;
+  nightMode: boolean;
+}
+export interface CelestiaAtlasState {
+  observer: Observer;
+  utcMs: number;
+  timeRate: number;
+  view: ViewState;
+  coordinateMode: CoordinateMode;
+  display: CelestiaAtlasDisplayOptions;
+  skySurvey: SkySurveyRuntimeState;
+  paused: boolean;
+}
 export interface CatalogueSourceMetadata {
   catalogue?: string;
   identifier?: string;
@@ -193,33 +263,9 @@ export interface CelestiaAtlasViewer {
   setFieldOfView(value: FieldOfViewOverlay | null): void;
   setHorizon(value: HorizonPoint[]): void;
   setLandscape(value: LandscapeSource | null): Promise<boolean>;
-  setDisplayOptions(
-    value: Partial<{
-      grid: boolean;
-      azimuthalGrid: boolean;
-      meridian: boolean;
-      ecliptic: boolean;
-      atmosphere: boolean;
-      milkyWay: boolean;
-      cardinals: boolean;
-      constellations: boolean;
-      labels: boolean;
-      starMagnitudeLimit: number;
-      galaxyMagnitudeLimit: number;
-      deepSkyMagnitudeLimit: number;
-      /** Type-code allowlist; null means all and an empty array means none. */
-      deepSkyObjectTypes: string[] | null;
-      /** Catalogue-group allowlist; null means all and an empty array means none. */
-      deepSkyCatalogueGroups: string[] | null;
-      starScale: number;
-      deepSkyObjects: boolean;
-      solarSystem: boolean;
-      comets: boolean;
-      horizon: boolean;
-      hideBelowHorizon: boolean;
-      nightMode: boolean;
-    }>,
-  ): void;
+  /** Replace or disable the optional progressive photographic sky survey. */
+  setSkySurvey(value: SkySurveySource | null): void;
+  setDisplayOptions(value: Partial<CelestiaAtlasDisplayOptions>): void;
   focusTarget(
     target: CatalogueTarget | EquatorialCoordinates,
     fovDeg?: number,
@@ -228,7 +274,7 @@ export interface CelestiaAtlasViewer {
   search(query: string): Array<
     CatalogueTarget | SolarSystemObject | CometObject
   >;
-  getState(): unknown;
+  getState(): CelestiaAtlasState;
 }
 export function createCelestiaAtlasViewer(options: {
   container: HTMLElement;
@@ -239,15 +285,130 @@ export function createCelestiaAtlasViewer(options: {
   utcMs?: number;
   devicePixelRatioCap?: number;
   milkyWayPanoramaUrl?: string;
+  /** Defaults to the online DSS2 Color HiPS; pass null for a local-only viewer. */
+  skySurveySource?: SkySurveySource | null;
   onSelect?: (value: SelectedTarget) => void;
   onViewChange?: (value: ViewState) => void;
   onError?: (error: Error) => void;
 }): CelestiaAtlasViewer;
+export const DEFAULT_DSS_SKY_SURVEY_SOURCE: Readonly<
+  Required<Omit<SkySurveySource, "frame">> & { frame: "ICRS" }
+>;
+export function validateSkySurveyConfig(
+  value: SkySurveySource,
+): Readonly<
+  Required<
+    Pick<
+      SkySurveySource,
+      "key" | "url" | "minOrder" | "maxOrder" | "tileWidth" | "format"
+    >
+  > & { frame: "ICRS" | "GALACTIC" }
+>;
+export function skySurveyPixelAngularSizeDeg(
+  order: number,
+  tileWidth?: number,
+): number;
+export function skySurveyBlendOpacity(
+  fovDeg: number,
+  startFovDeg?: number,
+  fullFovDeg?: number,
+): number;
+export function selectSkySurveyOrder(
+  survey: SkySurveySource,
+  fovDeg: number,
+  viewportWidthPixels: number,
+): number;
+export function equatorialToHipsTile(
+  coordinates: EquatorialCoordinates,
+  survey: SkySurveySource,
+  order: number,
+): {
+  tileIndex: number;
+  tileX: number;
+  tileY: number;
+  pixelColumn: number;
+  pixelRow: number;
+  pixelX: number;
+  pixelY: number;
+};
+export function skySurveyTileKey(order: number, tileIndex: number): string;
+export function skySurveyTilePath(
+  order: number,
+  tileIndex: number,
+  format?: SkySurveySource["format"],
+): string;
+export function skySurveyTileUrl(
+  survey: SkySurveySource,
+  order: number,
+  tileIndex: number,
+): string;
+export interface SkySurveyTileDiscoveryOptions {
+  survey: SkySurveySource;
+  order: number;
+  view: ViewState & { rotationDeg?: number };
+  observer?: Observer;
+  timestampUtcMs?: number;
+  canvasWidth: number;
+  canvasHeight: number;
+  outputWidth?: number;
+  sampleStep?: number;
+  hideBelowHorizon?: boolean;
+  horizon?: HorizonPoint[];
+}
+export function discoverVisibleSkySurveyTiles(
+  options: SkySurveyTileDiscoveryOptions,
+): number[];
+export interface SkySurveyTilePixels {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+}
+export interface SkySurveyRasterOptions {
+  survey: SkySurveySource;
+  order: number;
+  tiles: Map<string | number, SkySurveyTilePixels>;
+  view: ViewState & { rotationDeg?: number };
+  observer?: Observer;
+  timestampUtcMs?: number;
+  canvasWidth: number;
+  canvasHeight: number;
+  outputWidth?: number;
+  fallbackMinOrder?: number;
+  hideBelowHorizon?: boolean;
+  horizon?: HorizonPoint[];
+}
+export interface SkySurveyRasterResult {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+  usedTileIndices: number[];
+  usedTileKeys: string[];
+  usedOrders: number[];
+  /** Target-order tiles still absent, even when cached parents painted them. */
+  missingTileIndices: number[];
+}
+export interface SkySurveyAsyncRasterOptions extends SkySurveyRasterOptions {
+  /** Positive number of output rows computed before yielding; defaults to 8. */
+  rowsPerChunk?: number;
+  /** Returning true rejects the operation with an AbortError. */
+  isCancelled?: () => boolean;
+}
+export function rasterizeSkySurvey(
+  options: SkySurveyRasterOptions,
+): SkySurveyRasterResult;
+export function rasterizeSkySurveyAsync(
+  options: SkySurveyAsyncRasterOptions,
+): Promise<SkySurveyRasterResult>;
 export function normalizeDegrees(value: number): number;
 export function validateEquatorialCoordinates(
   value: EquatorialCoordinates,
 ): EquatorialCoordinates;
 export function validateObserver(value: Observer): Observer;
+export function transformEquatorialVectorFrame(
+  vector: { x: number; y: number; z: number },
+  fromFrame: EquatorialFrame,
+  toFrame: EquatorialFrame,
+): { x: number; y: number; z: number };
 export function combineCatalogLayers<
   TBase extends object,
   TSupplement extends object,

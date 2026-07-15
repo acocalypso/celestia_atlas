@@ -258,3 +258,34 @@ Review each source page before redistribution.
 
 `assets/milky-way.webp` is a locally generated artistic panorama included with
 this project. It is not calibrated scientific survey imagery.
+
+## Optional Digitized Sky Survey imagery
+
+The narrow-field photographic background uses the registered HiPS survey
+`CDS/P/DSS2/color` through this CDS-listed MAST mirror:
+
+`https://stpubdata.s3.us-east-1.amazonaws.com/mast/skybackgrounds/DSSColor`
+
+The remote survey is not bundled with, derived into, or redistributed as part of
+this repository. The application requests only visible tiles and may retain a
+bounded browser cache of tiles already viewed. A full mirror or bulk download is
+explicitly outside the application design.
+
+Display credit:
+
+> Digitized Sky Survey — STScI/NASA; colored and HiPS-processed by CDS
+> (CNRS/Unistra).
+
+The [CDS survey record](https://alasky.cds.unistra.fr/MocServer/query?ID=CDS%2FP%2FDSS2%2Fcolor&fmt=html&get=record)
+advertises the HiPS product under ODbL 1.0. The underlying photographic survey
+plates retain their own rights. The current
+[MAST photographic-survey policy](https://outerspace.stsci.edu/spaces/MASTDATA/pages/176435492/Photographic+Sky+Surveys)
+allows scientific and educational website use with acknowledgment, prohibits
+commercial use, and requires an agreement with STScI for bulk redistribution.
+The older [DSS copyright notice](https://archive.stsci.edu/dss/copyright.html)
+also requires acknowledgment. In addition to the visible short credit,
+deployments should acknowledge DSS production at STScI under U.S. Government
+grant NAG W-2166 and the original photographic observations from the Oschin
+Schmidt Telescope at Palomar and the UK Schmidt Telescope. Recheck the current
+terms for the intended deployment; the MIT licence for Celestia Atlas code
+grants no rights to remote survey imagery.

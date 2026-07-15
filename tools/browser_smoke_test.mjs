@@ -79,12 +79,16 @@ function chromeExecutable() {
   return executable;
 }
 
-async function staticServer() {
+async function staticServer(port = 0) {
   const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? "/", "http://localhost");
       const requested = decodeURIComponent(url.pathname === "/" ? "/index.html" : url.pathname);
-      const relative = normalize(requested).replace(/^([/\\])+/, "");
+      const servedPath = requested.replace(
+        /^\/__survey__\//,
+        "/assets/landscapes/guereins/",
+      );
+      const relative = normalize(servedPath).replace(/^([/\\])+/, "");
       const path =
         relative === "dso-catalog.js" && CATALOG_BUNDLE
           ? CATALOG_BUNDLE
@@ -105,7 +109,7 @@ async function staticServer() {
   });
   await new Promise((resolveListen, reject) => {
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolveListen);
+    server.listen(port, "127.0.0.1", resolveListen);
   });
   return server;
 }
@@ -175,6 +179,98 @@ async function waitForAtlas(client) {
     });
     if (result.result?.value) return;
     if (attempt === 119) throw new Error("Atlas did not finish initializing");
+    await delay(100);
+  }
+}
+
+async function waitForServiceWorkerControl(client) {
+  let state;
+  for (let attempt = 0; attempt < 150; attempt += 1) {
+    const result = await client.send("Runtime.evaluate", {
+      expression: `(async () => {
+        if (!('serviceWorker' in navigator)) return { supported: false };
+        const registration = await navigator.serviceWorker.getRegistration();
+        return {
+          supported: true,
+          registered: Boolean(registration),
+          active: Boolean(registration?.active),
+          controlled: Boolean(navigator.serviceWorker.controller),
+        };
+      })()`,
+      awaitPromise: true,
+      returnByValue: true,
+    });
+    state = result.result?.value;
+    if (state?.active && state.controlled) return state;
+    if (attempt === 149)
+      throw new Error(
+        `Service worker did not take control before the offline reload: ${JSON.stringify(state)}`,
+      );
+    await delay(100);
+  }
+}
+
+async function reloadAndWaitForAtlas(client) {
+  const reloadToken = `before-offline-reload-${Date.now()}`;
+  await client.send("Runtime.evaluate", {
+    expression: `globalThis.__CELESTIA_ATLAS_RELOAD_TOKEN__ = ${JSON.stringify(reloadToken)}`,
+  });
+  await client.send("Page.reload");
+  for (let attempt = 0; attempt < 150; attempt += 1) {
+    const result = await client.send("Runtime.evaluate", {
+      expression: `globalThis.__CELESTIA_ATLAS_RELOAD_TOKEN__ !== ${JSON.stringify(reloadToken)} && document.readyState === 'complete' && document.querySelector('.celestia-atlas-canvas') && document.querySelector('#loadingScreen')?.classList.contains('hidden')`,
+      returnByValue: true,
+    });
+    if (result.result?.value) return;
+    if (attempt === 149)
+      throw new Error("Atlas did not boot after the service-worker offline reload");
+    await delay(100);
+  }
+}
+
+async function waitForSkySurvey(
+  client,
+  { settled = false, idle = false } = {},
+) {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const result = await client.send("Runtime.evaluate", {
+      expression: `(() => {
+        const canvas = document.querySelector('.celestia-atlas-canvas');
+        const credit = document.querySelector('.celestia-atlas-survey-credit');
+        return {
+          active: canvas?.dataset.skySurveyActive === 'true',
+          loadedTiles: Number(canvas?.dataset.skySurveyLoadedTiles || 0),
+          order: Number(canvas?.dataset.skySurveyOrder),
+          targetOrder: Number(canvas?.dataset.skySurveyTargetOrder),
+          rasterUsedOrders: canvas?.dataset.skySurveyRasterUsedOrders,
+          rasterMissingTiles: canvas?.dataset.skySurveyRasterMissingTiles,
+          creditVisible: Boolean(credit && !credit.hidden && getComputedStyle(credit).display !== 'none'),
+          creditText: credit?.textContent?.trim(),
+          online: navigator.onLine,
+          runtime: globalThis.__CELESTIA_ATLAS_VIEWER__?.getState().skySurvey,
+          resources: performance.getEntriesByType('resource').map(entry => entry.name).filter(name => name.includes('/__survey__/')),
+        };
+      })()`,
+      returnByValue: true,
+    });
+    const state = result.result?.value;
+    const settledAtTarget =
+      state?.order === state?.targetOrder &&
+      state?.rasterMissingTiles === "0" &&
+      state?.rasterUsedOrders === String(state?.targetOrder) &&
+      state?.runtime?.pendingTiles === 0;
+    if (
+      state?.active &&
+      state.loadedTiles > 0 &&
+      Number.isInteger(state.order) &&
+      (!settled || settledAtTarget) &&
+      (!idle || state.runtime?.pendingTiles === 0) &&
+      state.creditVisible &&
+      state.creditText
+    )
+      return state;
+    if (attempt === 119)
+      throw new Error(`Sky survey did not become visible: ${JSON.stringify(state)}`);
     await delay(100);
   }
 }
@@ -290,6 +386,7 @@ async function loadMobileViewport(client, sitePort, viewport) {
 }
 
 async function run() {
+  const liveSurvey = process.env.SMOKE_LIVE_SURVEY === "1";
   const searchQuery = process.env.SMOKE_QUERY || "M 31";
   const expectedSourceFilters = Number(
     process.env.SMOKE_EXPECTED_SOURCE_FILTERS || 0,
@@ -300,7 +397,7 @@ async function run() {
   const expectedTitle = process.env.SMOKE_EXPECT_TITLE || "";
   const expectedStarCount = Number(process.env.SMOKE_EXPECTED_STAR_COUNT || 0);
   const expectedDsoCount = Number(process.env.SMOKE_EXPECTED_DSO_COUNT || 0);
-  const server = await staticServer();
+  let server = await staticServer();
   const sitePort = server.address().port;
   const debugPort = await unusedPort();
   const profile = await mkdtemp(join(tmpdir(), "celestia-atlas-chrome-"));
@@ -324,10 +421,20 @@ async function run() {
     chromeStderr += String(chunk);
   });
   const errors = [];
+  let offlineReloadStarted = false;
+  let offlineDocumentFromServiceWorker = false;
   let client;
   try {
     const target = await devtoolsTarget(debugPort);
     client = cdpClient(target.webSocketDebuggerUrl, (method, params) => {
+      if (
+        offlineReloadStarted &&
+        method === "Network.responseReceived" &&
+        params.type === "Document" &&
+        params.response?.url?.startsWith(`http://127.0.0.1:${sitePort}/`) &&
+        params.response?.fromServiceWorker
+      )
+        offlineDocumentFromServiceWorker = true;
       if (method === "Runtime.exceptionThrown") {
         errors.push(`Uncaught exception: ${params.exceptionDetails?.text ?? "unknown"}`);
       } else if (
@@ -336,7 +443,9 @@ async function run() {
       ) {
         errors.push(`console.${params.type}: ${params.args.map(remoteValue).join(" ")}`);
       } else if (method === "Log.entryAdded" && params.entry?.level === "error") {
-        errors.push(`Browser log: ${params.entry.text}`);
+        errors.push(
+          `Browser log${params.entry.url ? ` (${params.entry.url})` : ""}: ${params.entry.text}`,
+        );
       } else if (
         method === "Network.loadingFailed" &&
         ["Document", "Script", "Stylesheet", "Image", "Fetch", "XHR", "Manifest"].includes(
@@ -344,7 +453,9 @@ async function run() {
         ) &&
         params.errorText !== "net::ERR_ABORTED"
       ) {
-        errors.push(`Resource failed (${params.type}): ${params.errorText}`);
+        errors.push(
+          `Resource failed (${params.type}, request ${params.requestId}): ${params.errorText}`,
+        );
       } else if (
         method === "Network.responseReceived" &&
         ["Document", "Script", "Stylesheet", "Image", "Fetch", "XHR", "Manifest"].includes(
@@ -361,6 +472,24 @@ async function run() {
       client.send("Network.enable"),
       client.send("Page.enable"),
     ]);
+    await client.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: "globalThis.CELESTIA_ATLAS_ENABLE_TEST_HOOKS = true;",
+    });
+    if (!liveSurvey)
+      await client.send("Page.addScriptToEvaluateOnNewDocument", {
+        source: `globalThis.CELESTIA_ATLAS_SKY_SURVEY_SOURCE = {
+          key: 'browser-smoke-survey',
+          label: 'Browser smoke survey',
+          url: location.origin + '/__survey__',
+          frame: 'ICRS',
+          minOrder: 0,
+          maxOrder: 0,
+          tileWidth: 512,
+          format: 'webp',
+          attribution: 'Local browser smoke survey fixture.',
+          attributionUrl: location.origin + '/assets/README.md',
+        };`,
+      });
     await client.send("Page.navigate", {
       url: `http://127.0.0.1:${sitePort}/index.html`,
     });
@@ -374,6 +503,10 @@ async function run() {
         controls?.click();
         const hideBelow = document.querySelector('#hideBelowHorizonSwitch');
         if (hideBelow?.checked) hideBelow.click();
+        if (${JSON.stringify(liveSurvey)}) {
+          const landscape = document.querySelector('#horizonSwitch');
+          if (landscape?.checked) landscape.click();
+        }
         const labelledSwitch = document.querySelector('#milkyWaySwitch');
         labelledSwitch?.focus();
         document.querySelector('[data-catalog-filter-kind="sources"][data-catalog-filter-action="none"]')?.click();
@@ -438,6 +571,70 @@ async function run() {
     )
       throw new Error(`Standalone interaction failed: ${JSON.stringify(interactionState)}`);
 
+    const initialSurveyState = await waitForSkySurvey(client);
+    if (
+      liveSurvey &&
+      !/Digitized Sky Survey.*STScI\/NASA.*CDS/.test(
+        initialSurveyState.creditText,
+      )
+    )
+      throw new Error(
+        `The live photographic layer omitted its visible credit: ${JSON.stringify(initialSurveyState)}`,
+      );
+    if (!liveSurvey) {
+      await waitForSkySurvey(client, { settled: true });
+      const persistentSurvey = await client.send("Runtime.evaluate", {
+        expression: `(async () => {
+          const cache = await caches.open('celestia-atlas-survey-v1');
+          const keys = await cache.keys();
+          return keys.filter(request => request.url.includes('/__survey__/Norder0/')).length;
+        })()`,
+        awaitPromise: true,
+        returnByValue: true,
+      });
+      if (!(persistentSurvey.result.value > 0))
+        throw new Error("The viewer did not persist its loaded survey tiles");
+
+      await client.send("Runtime.evaluate", {
+        expression: `(() => {
+          const viewer = globalThis.__CELESTIA_ATLAS_VIEWER__;
+          const source = globalThis.__CELESTIA_ATLAS_SKY_SURVEY_SOURCE__;
+          globalThis.__CELESTIA_ATLAS_NATIVE_FETCH__ = globalThis.fetch;
+          globalThis.fetch = (input, init) => {
+            const url = String(input?.url || input);
+            if (url.includes('/__survey__/Norder1/'))
+              return Promise.reject(new TypeError('Intentional target-order smoke-test failure'));
+            return globalThis.__CELESTIA_ATLAS_NATIVE_FETCH__(input, init);
+          };
+          viewer?.setSkySurvey(null);
+          viewer?.setSkySurvey({ ...source, maxOrder: 1 });
+        })()`,
+      });
+      const onlineParentFallback = await waitForSkySurvey(client, {
+        idle: true,
+      });
+      if (
+        !onlineParentFallback.online ||
+        onlineParentFallback.targetOrder !== 1 ||
+        onlineParentFallback.order !== 0 ||
+        onlineParentFallback.rasterUsedOrders !== "0"
+      )
+        throw new Error(
+          `Cached parent survey imagery did not survive a target fetch failure while online: ${JSON.stringify(onlineParentFallback)}`,
+        );
+      await client.send("Runtime.evaluate", {
+        expression: `(() => {
+          const viewer = globalThis.__CELESTIA_ATLAS_VIEWER__;
+          const source = globalThis.__CELESTIA_ATLAS_SKY_SURVEY_SOURCE__;
+          globalThis.fetch = globalThis.__CELESTIA_ATLAS_NATIVE_FETCH__;
+          delete globalThis.__CELESTIA_ATLAS_NATIVE_FETCH__;
+          viewer?.setSkySurvey(null);
+          viewer?.setSkySurvey(source);
+        })()`,
+      });
+      await waitForSkySurvey(client, { settled: true });
+    }
+
     const box = await client.send("Runtime.evaluate", {
       expression: `(() => {
         const r = document.querySelector('.celestia-atlas-canvas').getBoundingClientRect();
@@ -449,39 +646,12 @@ async function run() {
     const x = rectangle.x + rectangle.width / 2;
     const y = rectangle.y + rectangle.height / 2;
     await delay(250);
-    await client.send("Runtime.evaluate", {
-      expression:
-        "document.querySelector('[data-close=\"detailsPanel\"]')?.click()",
-    });
-    await client.send("Input.dispatchMouseEvent", {
-      type: "mousePressed",
+    await assertCentredMarkerHitTest(
+      client,
       x,
       y,
-      button: "left",
-      clickCount: 1,
-    });
-    await client.send("Input.dispatchMouseEvent", {
-      type: "mouseReleased",
-      x,
-      y,
-      button: "left",
-      clickCount: 1,
-    });
-    await delay(200);
-    const markerSelection = await client.send("Runtime.evaluate", {
-      expression: `({
-        open: document.querySelector('#detailsPanel')?.classList.contains('open'),
-        title: document.querySelector('.object-title')?.textContent?.trim()
-      })`,
-      returnByValue: true,
-    });
-    if (
-      !markerSelection.result.value?.open ||
-      markerSelection.result.value?.title !== interactionState.detailTitle
-    )
-      throw new Error(
-        `Selected catalogue object was not rendered and hit-testable at the view centre: ${JSON.stringify(markerSelection.result.value)}`,
-      );
+      interactionState.detailTitle,
+    );
     const beforeDragHash = await currentHash(client);
     await client.send("Input.dispatchMouseEvent", {
       type: "mousePressed",
@@ -507,17 +677,164 @@ async function run() {
     await delay(350);
     const afterDragHash = await currentHash(client);
     assertViewChanged(beforeDragHash, afterDragHash, { center: true });
-    const beforeWheelHash = afterDragHash;
+    let beforeWheelHash = afterDragHash;
+    if (liveSurvey) {
+      const eagle = await focusSearchResult(client, "M 16");
+      const eagleIdentity = [eagle?.id, eagle?.name, ...(eagle?.aliases || [])]
+        .filter(Boolean)
+        .join(" ");
+      const eagleCenter = eagle?.view?.center;
+      if (
+        eagle?.count < 1 ||
+        !/\bM\s*16\b|Eagle Nebula/i.test(eagleIdentity) ||
+        !/Eagle Nebula|M\s*16/i.test(eagle?.detailTitle || "") ||
+        !Number.isFinite(eagle?.coordinates?.raDeg) ||
+        !Number.isFinite(eagle?.coordinates?.decDeg) ||
+        !Number.isFinite(eagleCenter?.raDeg) ||
+        !Number.isFinite(eagleCenter?.decDeg) ||
+        Math.abs(eagleCenter.raDeg - eagle.coordinates.raDeg) > 1e-6 ||
+        Math.abs(eagleCenter.decDeg - eagle.coordinates.decDeg) > 1e-6
+      )
+        throw new Error(
+          `The live survey did not re-centre on M16 before zooming: ${JSON.stringify(eagle)}`,
+        );
+      await delay(350);
+      await assertCentredMarkerHitTest(client, x, y, eagle.detailTitle);
+      await client.send("Runtime.evaluate", {
+        expression:
+          "document.querySelector('[data-close=\"detailsPanel\"]')?.click()",
+      });
+      beforeWheelHash = await currentHash(client);
+    }
     await client.send("Input.dispatchMouseEvent", {
       type: "mouseWheel",
       x,
       y,
       deltaX: 0,
-      deltaY: -240,
+      deltaY: liveSurvey ? -2000 : -240,
     });
-    await delay(700);
+    await delay(liveSurvey ? 1500 : 700);
+    if (liveSurvey) await waitForSkySurvey(client, { settled: true });
     const afterWheelHash = await currentHash(client);
     assertViewChanged(beforeWheelHash, afterWheelHash, { fov: true });
+    if (liveSurvey) {
+      const liveSurveyScreenshot = await client.send("Page.captureScreenshot", {
+        format: "png",
+        captureBeyondViewport: false,
+      });
+      await mkdir(join(ROOT, ".cache"), { recursive: true });
+      await writeFile(
+        join(ROOT, ".cache", "browser-smoke-live-survey.png"),
+        Buffer.from(liveSurveyScreenshot.data, "base64"),
+      );
+    }
+
+    await waitForServiceWorkerControl(client);
+    await client.send("Network.setCacheDisabled", { cacheDisabled: true });
+    await client.send("Network.emulateNetworkConditions", {
+      offline: true,
+      latency: 0,
+      downloadThroughput: 0,
+      uploadThroughput: 0,
+    });
+    await client.send("Runtime.evaluate", {
+      expression: `(() => {
+        const viewer = globalThis.__CELESTIA_ATLAS_VIEWER__;
+        const source = globalThis.__CELESTIA_ATLAS_SKY_SURVEY_SOURCE__;
+        viewer?.setSkySurvey(null);
+        viewer?.setSkySurvey(source);
+      })()`,
+    });
+    // The source reset clears every decoded tile, so becoming active again
+    // proves that the viewer rehydrated imagery from persistent Cache Storage.
+    await waitForSkySurvey(client, { idle: true });
+    const offlineState = await client.send("Runtime.evaluate", {
+      expression: `(() => {
+        const canvas = document.querySelector('.celestia-atlas-canvas');
+        return {
+          canvas: Boolean(canvas),
+          surveyActive: canvas?.dataset.skySurveyActive === 'true',
+          searchEnabled: !document.querySelector('#searchInput')?.disabled,
+          status: document.querySelector('#statusText')?.textContent,
+        };
+      })()`,
+      returnByValue: true,
+    });
+    if (
+      !offlineState.result.value?.canvas ||
+      !offlineState.result.value?.surveyActive ||
+      !offlineState.result.value?.searchEnabled
+    )
+      throw new Error(
+        `Offline atlas fallback/cache was not usable: ${JSON.stringify(offlineState.result.value)}`,
+      );
+
+    // Remove the origin server entirely so a successful reload cannot be
+    // mistaken for Chrome's HTTP cache or a network-first service-worker hit.
+    await new Promise((resolveClose) => server.close(resolveClose));
+    offlineReloadStarted = true;
+    await reloadAndWaitForAtlas(client);
+    const offlineReloadSurvey = await waitForSkySurvey(client, { idle: true });
+    const offlineReloadState = await client.send("Runtime.evaluate", {
+      expression: `(() => {
+        const canvas = document.querySelector('.celestia-atlas-canvas');
+        return {
+          canvas: Boolean(canvas),
+          controlled: Boolean(navigator.serviceWorker?.controller),
+          online: navigator.onLine,
+          surveyActive: canvas?.dataset.skySurveyActive === 'true',
+          searchEnabled: !document.querySelector('#searchInput')?.disabled,
+          status: document.querySelector('#statusText')?.textContent,
+        };
+      })()`,
+      returnByValue: true,
+    });
+    if (
+      !offlineDocumentFromServiceWorker ||
+      !offlineReloadState.result.value?.canvas ||
+      !offlineReloadState.result.value?.controlled ||
+      !offlineReloadState.result.value?.surveyActive ||
+      !offlineReloadState.result.value?.searchEnabled ||
+      !offlineReloadSurvey?.active ||
+      offlineReloadSurvey.loadedTiles < 1
+    )
+      throw new Error(
+        `Service-worker-controlled offline reload did not restore the app shell and cached survey: ${JSON.stringify({ documentFromServiceWorker: offlineDocumentFromServiceWorker, page: offlineReloadState.result.value, survey: offlineReloadSurvey })}`,
+      );
+    if (liveSurvey) {
+      await client.send("Runtime.evaluate", {
+        expression: `(() => {
+          const landscape = document.querySelector('#horizonSwitch');
+          if (landscape?.checked) landscape.click();
+        })()`,
+      });
+      await delay(350);
+      await waitForSkySurvey(client, { idle: true });
+      const offlineSurveyScreenshot = await client.send(
+        "Page.captureScreenshot",
+        { format: "png", captureBeyondViewport: false },
+      );
+      await writeFile(
+        join(ROOT, ".cache", "browser-smoke-live-survey-offline.png"),
+        Buffer.from(offlineSurveyScreenshot.data, "base64"),
+      );
+    }
+    server = await staticServer(sitePort);
+    offlineReloadStarted = false;
+    await client.send("Network.emulateNetworkConditions", {
+      offline: false,
+      latency: 0,
+      downloadThroughput: -1,
+      uploadThroughput: -1,
+    });
+    await client.send("Network.setCacheDisabled", { cacheDisabled: false });
+    await delay(500);
+    await client.send("Runtime.evaluate", {
+      expression: "window.dispatchEvent(new Event('online'))",
+    });
+    await waitForSkySurvey(client, { settled: liveSurvey });
+    await delay(500);
+    await waitForSkySurvey(client, { settled: liveSurvey });
 
     const screenshot = await client.send("Page.captureScreenshot", {
       format: "png",
@@ -538,6 +855,22 @@ async function run() {
       { width: 390, height: 844 },
     ])
       await loadMobileViewport(client, sitePort, viewport);
+    const mobileSurveyTarget = await client.send("Runtime.evaluate", {
+      expression: `(() => {
+        const viewer = globalThis.__CELESTIA_ATLAS_VIEWER__;
+        const target = viewer?.search('M 31')?.[0];
+        if (target) viewer.focusTarget(target);
+        return { found: Boolean(target), id: target?.id, name: target?.name };
+      })()`,
+      returnByValue: true,
+    });
+    if (!mobileSurveyTarget.result.value?.found)
+      throw new Error("The mobile credit layout fixture could not focus M31");
+    await waitForSkySurvey(client, { idle: true });
+    await assertMobileSurveyCreditLayout(client, {
+      width: 390,
+      height: 844,
+    });
     const mobileBox = await client.send("Runtime.evaluate", {
       expression: `(() => {
         const r = document.querySelector('.celestia-atlas-canvas').getBoundingClientRect();
@@ -604,6 +937,149 @@ async function run() {
     if (chrome.exitCode && chromeStderr)
       process.stderr.write(chromeStderr.slice(-4000));
   }
+}
+
+async function assertMobileSurveyCreditLayout(client, expectedViewport) {
+  const result = await client.send("Runtime.evaluate", {
+    expression: `(() => {
+      const viewport = { width: window.innerWidth, height: window.innerHeight };
+      const credit = document.querySelector('.celestia-atlas-survey-credit');
+      if (!credit) return { viewport, missing: true };
+      const rect = credit.getBoundingClientRect();
+      const style = getComputedStyle(credit);
+      const hit = document.elementFromPoint(
+        rect.left + rect.width / 2,
+        rect.top + rect.height / 2,
+      );
+      const overlaps = ['.quick-tour', '.statusbar', '.topbar', '.left-rail']
+        .map(selector => {
+          const element = document.querySelector(selector);
+          if (!element) return null;
+          const obstacle = element.getBoundingClientRect();
+          const obstacleStyle = getComputedStyle(element);
+          const visible =
+            obstacle.width > 0 &&
+            obstacle.height > 0 &&
+            obstacleStyle.display !== 'none' &&
+            obstacleStyle.visibility !== 'hidden' &&
+            Number(obstacleStyle.opacity) > 0;
+          const intersects =
+            visible &&
+            rect.left < obstacle.right &&
+            rect.right > obstacle.left &&
+            rect.top < obstacle.bottom &&
+            rect.bottom > obstacle.top;
+          return intersects ? selector : null;
+        })
+        .filter(Boolean);
+      return {
+        viewport,
+        rect: {
+          left: rect.left,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+          width: rect.width,
+          height: rect.height,
+        },
+        visible:
+          !credit.hidden &&
+          style.display !== 'none' &&
+          style.visibility !== 'hidden' &&
+          Number(style.opacity) > 0 &&
+          style.pointerEvents !== 'none',
+        insideViewport:
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.left >= 0 &&
+          rect.top >= 0 &&
+          rect.right <= viewport.width &&
+          rect.bottom <= viewport.height,
+        reachable: Boolean(hit && credit.contains(hit)),
+        linked: Boolean(credit.href),
+        overlaps,
+      };
+    })()`,
+    returnByValue: true,
+  });
+  const state = result.result?.value;
+  if (
+    state?.viewport?.width !== expectedViewport.width ||
+    state?.viewport?.height !== expectedViewport.height ||
+    state?.missing ||
+    !state?.visible ||
+    !state?.insideViewport ||
+    !state?.reachable ||
+    !state?.linked ||
+    state?.overlaps?.length
+  )
+    throw new Error(
+      `Mobile survey credit is clipped, obscured, or unreachable at ${expectedViewport.width}x${expectedViewport.height}: ${JSON.stringify(state)}`,
+    );
+}
+
+async function focusSearchResult(client, query) {
+  const result = await client.send("Runtime.evaluate", {
+    expression: `(() => {
+      const viewer = globalThis.__CELESTIA_ATLAS_VIEWER__;
+      const candidates = viewer?.search(${JSON.stringify(query)}) || [];
+      const target = candidates[0];
+      const search = document.querySelector('#searchInput');
+      if (search) {
+        search.value = ${JSON.stringify(query)};
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      document.querySelector('.search-result')?.click();
+      const coordinates = target?.coordinates || target;
+      return {
+        count: candidates.length,
+        id: target?.id,
+        name: target?.name,
+        aliases: target?.aliases,
+        coordinates: target
+          ? { raDeg: coordinates?.raDeg, decDeg: coordinates?.decDeg }
+          : null,
+        view: viewer?.getState().view,
+        detailTitle: document.querySelector('.object-title')?.textContent?.trim(),
+      };
+    })()`,
+    returnByValue: true,
+  });
+  return result.result?.value;
+}
+
+async function assertCentredMarkerHitTest(client, x, y, expectedTitle) {
+  await client.send("Runtime.evaluate", {
+    expression:
+      "document.querySelector('[data-close=\"detailsPanel\"]')?.click()",
+  });
+  await delay(150);
+  await client.send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x,
+    y,
+    button: "left",
+    clickCount: 1,
+  });
+  await client.send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x,
+    y,
+    button: "left",
+    clickCount: 1,
+  });
+  await delay(200);
+  const result = await client.send("Runtime.evaluate", {
+    expression: `({
+      open: document.querySelector('#detailsPanel')?.classList.contains('open'),
+      title: document.querySelector('.object-title')?.textContent?.trim()
+    })`,
+    returnByValue: true,
+  });
+  if (!result.result.value?.open || result.result.value?.title !== expectedTitle)
+    throw new Error(
+      `Selected catalogue object was not rendered and hit-testable at the view centre: ${JSON.stringify(result.result.value)}`,
+    );
 }
 
 run().catch((error) => {

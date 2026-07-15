@@ -149,7 +149,7 @@ function horizontalVectorToHealpixPosition(
   output.y = Math.max(0, Math.min(tileWidth - 1, y));
 }
 
-function createEquatorialRayGeometry({
+export function createEquatorialRayGeometry({
   view,
   canvasWidth,
   canvasHeight,
@@ -217,7 +217,7 @@ function createEquatorialRayGeometry({
   };
 }
 
-function equatorialRayGeometryToHorizontal(
+export function equatorialRayGeometryToHorizontal(
   equatorial,
   observer,
   timestampUtcMs,
@@ -257,7 +257,14 @@ function equatorialRayGeometryToGalactic(equatorial) {
   };
 }
 
-function sampleTileBilinear(tile, tileWidth, x, y, output, targetIndex) {
+export function sampleTileBilinear(
+  tile,
+  tileWidth,
+  x,
+  y,
+  output,
+  targetIndex,
+) {
   const x0 = Math.floor(x);
   const y0 = Math.floor(y);
   const x1 = Math.min(tileWidth - 1, x0 + 1);

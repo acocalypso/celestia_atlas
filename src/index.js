@@ -1,4 +1,7 @@
-export { createCelestiaAtlasViewer } from "./public-api.js";
+export {
+  createCelestiaAtlasViewer,
+  DEFAULT_DSS_SKY_SURVEY_SOURCE,
+} from "./public-api.js";
 export * from "./core/coordinates.js";
 export * from "./core/projection.js";
 export * from "./core/optics.js";
@@ -6,6 +9,7 @@ export * from "./core/solar-system.js";
 export * from "./core/comets.js";
 export * from "./core/reference-lines.js";
 export * from "./core/landscape.js";
+export * from "./core/sky-survey.js";
 export * from "./core/catalog-filters.js";
 export * from "./core/catalog-identifiers.js";
 export * from "./core/catalog-layers.js";

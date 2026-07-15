@@ -2,6 +2,10 @@
 
 Celestia Atlas builds its browser catalogue ahead of time. The browser never
 queries VizieR, SIMBAD, OpenNGC, or another astronomy service at runtime.
+The optional DSS2 Color layer is a remote image survey, not a catalogue query:
+it loads only visible HiPS image tiles below 20 degrees FOV, caches a bounded
+recent set, and is never used for search, coordinates, object identity, or
+metadata. Disabling or losing that layer does not change catalogue behavior.
 
 The public atlas loads four separately generated catalogue assets. OpenNGC and
 HYG-derived data are each distributed under CC BY-SA 4.0. The SIMBAD A66 layer

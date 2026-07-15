@@ -47,6 +47,14 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(html, /id="fovOpticsReadout"/);
   assert.doesNotMatch(html, /id="fov(?:Width|Height)Input"/);
   assert.match(application, /viewer\.setDisplayOptions/);
+  assert.match(html, /id="skySurveySwitch" type="checkbox" checked/);
+  assert.match(application, /celestia-atlas\.sky-survey/);
+  assert.match(application, /skySurvey: state\.skySurvey/);
+  assert.match(application, /CELESTIA_ATLAS_SKY_SURVEY_SOURCE/);
+  assert.match(
+    html,
+    /bounded cache of recently viewed tiles when browser storage permits/,
+  );
   assert.match(application, /viewer\.setCoordinateMode\(state\.mode\)/);
   assert.match(
     html,
@@ -111,10 +119,34 @@ test("standalone shell boots the shared public viewer", async () => {
     /\.left-rail,[\s\S]*\.details-panel\s*\{[^}]*safe-area-inset-top/,
   );
   assert.match(types, /hideBelowHorizon: boolean/);
+  assert.match(types, /setSkySurvey\(value: SkySurveySource \| null\)/);
+  assert.match(types, /skySurveySource\?: SkySurveySource \| null/);
+  assert.match(types, /skySurvey: boolean/);
   assert.match(types, /setCoordinateMode\(value: CoordinateMode\)/);
   assert.match(types, /galaxyMagnitudeLimit: number/);
   assert.match(types, /deepSkyMagnitudeLimit: number/);
   assert.match(publicApi, /assets\/milky-way\.webp/);
+  assert.match(publicApi, /DEFAULT_DSS_SKY_SURVEY_SOURCE/);
+  assert.match(publicApi, /stpubdata\.s3\.us-east-1\.amazonaws\.com/);
+  assert.match(publicApi, /skySurveyBlendOpacity\(view\.fovDeg\)/);
+  assert.match(
+    publicApi,
+    /\(projectionView\.rotationDeg \?\? 0\)\.toFixed\(1\),\s*coordinateMode/,
+  );
+  assert.match(publicApi, /rasterizeSkySurveyAsync/);
+  assert.match(
+    publicApi,
+    /if \(interactive\) return Math\.min\(baseWidth, coarsePointer \? 64 : 128\)/,
+  );
+  assert.match(publicApi, /const skySurveyCacheLimit = coarsePointer \? 24 : 64/);
+  assert.match(publicApi, /const skySurveyLoadConcurrency = coarsePointer \? 2 : 4/);
+  assert.match(publicApi, /SKY_SURVEY_PERSISTENT_CACHE = "celestia-atlas-survey-v1"/);
+  assert.match(publicApi, /SKY_SURVEY_PERSISTENT_CACHE_LIMIT = 96/);
+  assert.match(publicApi, /globalThis\.caches\.open\(SKY_SURVEY_PERSISTENT_CACHE\)/);
+  assert.match(publicApi, /navigator\.onLine === false/);
+  assert.match(publicApi, /cachedAncestorOrders = offline[\s\S]*cacheOnly: true/);
+  assert.match(publicApi, /error\?\.name === "CacheMissError"/);
+  assert.match(publicApi, /Photographic survey unavailable; using the offline sky background/);
   assert.match(publicApi, /drawDsoGlyph/);
   assert.doesNotMatch(publicApi, /if \(!display\.azimuthalGrid\) return view/);
   const landscapeDraw = publicApi.indexOf(
@@ -125,6 +157,10 @@ test("standalone shell boots the shared public viewer", async () => {
   );
   assert.ok(landscapeDraw > 0);
   assert.ok(landscapeDraw < horizontalGridDraw);
+  const surveyDraw = publicApi.indexOf(
+    "    drawSkySurvey(width, height, projectionView, referenceUtcMs, dpr);",
+  );
+  assert.ok(surveyDraw > 0 && surveyDraw < landscapeDraw);
   assert.match(types, /milkyWayPanoramaUrl\?: string/);
   assert.match(types, /calculateCameraFieldOfView/);
   assert.match(types, /cameraFrameScreenRotationDeg/);
@@ -135,6 +171,9 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(serviceWorker, /\.\/src\/core\/optics\.js/);
   assert.match(serviceWorker, /\.\/src\/core\/catalog-filters\.js/);
   assert.match(serviceWorker, /\.\/src\/core\/catalog-layers\.js/);
+  assert.match(serviceWorker, /\.\/src\/core\/sky-survey\.js/);
+  assert.match(serviceWorker, /celestia-atlas-survey-v1/);
+  assert.match(serviceWorker, /SURVEY_CACHE_LIMIT=96/);
   assert.match(serviceWorker, /\.\/stellarium-supplement\.js/);
   assert.match(serviceWorker, /\.\/abell-pn-catalog\.js/);
   assert.match(serviceWorker, /\.\/hyg-star-catalog\.js/);
