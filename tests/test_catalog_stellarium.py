@@ -20,6 +20,7 @@ class StellariumSourceImporterTests(unittest.TestCase):
         self.assertEqual(stellarium.SOURCE_VERSION, "v26.2")
         self.assertEqual(stellarium.CATALOG_VERSION, "3.23")
         self.assertEqual(stellarium.EXPECTED_ROWS, 94_899)
+        self.assertEqual(stellarium.EXPECTED_SELECTED_ROWS, 8_658)
         self.assertEqual(
             stellarium.SOURCE_SHA256,
             "38a7c8c19b07bb3b2a659769acf4e5611a261732727d8e541c52ce691ab607aa",
@@ -30,10 +31,11 @@ class StellariumSourceImporterTests(unittest.TestCase):
         self.assertEqual(stellarium._TYPE_MAP["GNE"], "HII")
         self.assertEqual(stellarium._TYPE_MAP["IR"], "DrkN")
         self.assertEqual(stellarium._TYPE_MAP["CGB"], "Neb")
+        self.assertEqual(stellarium._TYPE_MAP["CLG"], "GCluster")
 
     def test_filters_rows_and_preserves_designations_shape_type_and_photometry(self):
         objects = stellarium.load(FIXTURE, strict=False)
-        self.assertEqual(len(objects), 6)
+        self.assertEqual(len(objects), 8)
 
         dark = objects[0]
         self.assertEqual(dark.uid, "stellarium:90001")
@@ -115,8 +117,41 @@ class StellariumSourceImporterTests(unittest.TestCase):
         self.assertEqual(associated_ldn.properties["opacityClass"], 5)
         self.assertNotIn("magnitude", associated_ldn.properties)
 
+        southern_cluster = objects[6]
+        self.assertEqual(southern_cluster.uid, "stellarium:90007")
+        self.assertEqual(southern_cluster.primary_name, "Abell S1")
+        self.assertEqual(southern_cluster.type_code, "GCluster")
+        self.assertEqual(southern_cluster.type_name, "Galaxy cluster")
+        self.assertIn("AbellS1", southern_cluster.aliases)
+        self.assertIn("Abell S 1", southern_cluster.aliases)
+        self.assertIn("ACO S1", southern_cluster.aliases)
+        self.assertIn("ACOS1", southern_cluster.aliases)
+        self.assertEqual(southern_cluster.cross_identifications, ("ACO S1",))
+        self.assertEqual(southern_cluster.sources[0].catalogue, "Abell via Stellarium")
+        self.assertEqual(southern_cluster.sources[0].identifier, "S1")
+        self.assertEqual(southern_cluster.catalogue_groups, ("abell",))
+
+        dual_cluster = objects[7]
+        self.assertEqual(dual_cluster.primary_name, "Abell 2462")
+        self.assertEqual(dual_cluster.type_code, "GCluster")
+        self.assertIn("Abell 3897", dual_cluster.aliases)
+        self.assertIn("ACO 2462", dual_cluster.aliases)
+        self.assertIn("ACO3897", dual_cluster.aliases)
+        self.assertIn("Abell 2462,3897", dual_cluster.aliases)
+        self.assertIn("ACO 2462,3897", dual_cluster.aliases)
+        self.assertEqual(
+            dual_cluster.cross_identifications,
+            ("ACO 2462", "ACO 3897"),
+        )
+        self.assertEqual(
+            [source.identifier for source in dual_cluster.sources],
+            ["2462", "3897"],
+        )
+        self.assertEqual(dual_cluster.catalogue_groups, ("abell",))
+        self.assertEqual(dual_cluster.properties["magnitude"], 14.7)
+
     def test_strict_mode_applies_the_release_row_gate(self):
-        with self.assertRaisesRegex(SourceRowError, "expected 94,899 rows, found 6"):
+        with self.assertRaisesRegex(SourceRowError, "expected 94,899 rows, found 8"):
             stellarium.load(FIXTURE)
 
     def test_malformed_rows_report_file_and_line(self):
@@ -124,6 +159,15 @@ class StellariumSourceImporterTests(unittest.TestCase):
             path = Path(directory) / "catalog.txt"
             path.write_text("# Version 3.23 standard\n1\t2\t3\n", encoding="utf-8")
             with self.assertRaisesRegex(SourceRowError, r"catalog\.txt:2: expected 45"):
+                stellarium.load(path, strict=False)
+
+    def test_malformed_aco_identifiers_are_rejected(self):
+        source_row = FIXTURE.read_text(encoding="utf-8").splitlines()[-1].split("\t")
+        source_row[36] = "S1,bad"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "catalog.txt"
+            path.write_text("\t".join(source_row) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(SourceRowError, "invalid ACO identifier"):
                 stellarium.load(path, strict=False)
 
 

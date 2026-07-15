@@ -89,6 +89,7 @@ export interface CatalogueShape {
 export interface CatalogueLayerMetadata {
   name?: string;
   version?: string;
+  versionLabel?: string;
   objectCount?: number;
   catalogueGroups?: string[];
   supplements?: CatalogueLayerMetadata[];

@@ -27,6 +27,7 @@ def _catalog_match(value: str) -> tuple[str, str] | None:
         (r"^(?:sharpless|sh)\s*2?\s*[- ]?\s*0*(\d+)$", "sh2"),
         (r"^(?:van\s+den\s+bergh|vdb)\s*0*(\d+)$", "vdb"),
         (r"^rcw\s*0*(\d+)$", "rcw"),
+        (r"^(?:abell|aco)\s*(s?)\s*0*(\d+)$", "abell"),
         (r"^(?:fest|feitzinger\s*[- ]?\s*st(?:u|ü)we)\s*([12])\s*-?\s*0*(\d+)$", "fest"),
         (r"^(ngc|ic)\s*0*(\d+)\s*([a-z]?)$", "ngcic"),
         (r"^(m|c)\s*0*(\d+)$", "messiercaldwell"),
@@ -44,6 +45,9 @@ def _catalog_match(value: str) -> tuple[str, str] | None:
             return groups[0].lower(), f"{_integer(groups[1])}{groups[2].lower()}"
         if namespace == "messiercaldwell":
             return groups[0].lower(), _integer(groups[1])
+        if namespace == "abell":
+            southern, number = groups
+            return namespace, f"{'s' if southern else ''}{_integer(number)}"
         return namespace, _integer(groups[0])
 
     dcld = re.fullmatch(
@@ -70,6 +74,7 @@ def identifier_key(value: str, catalogue: str | None = None) -> str:
             "sh2": "Sh2-",
             "vdb": "vdB ",
             "rcw": "RCW ",
+            "abell": "Abell ",
             "dcld": "DCld ",
         }.get(hinted)
         if prefix and not normalize_text(raw).startswith(normalize_text(prefix).split()[0]):
@@ -123,6 +128,21 @@ def catalogue_aliases(catalogue: str, identifier: str) -> tuple[str, ...]:
         return (f"VdB {value}", f"vdB{value}", f"van den Bergh {value}")
     if catalog == "rcw":
         return (f"RCW{value}",)
+    if catalog == "abell":
+        match = re.fullmatch(r"(?i)s?\s*0*(\d+)", value)
+        if not match:
+            return ()
+        number = _integer(match.group(1))
+        southern = normalize_text(value).startswith("s")
+        if southern:
+            return (
+                f"AbellS{number}",
+                f"Abell S {number}",
+                f"ACO S{number}",
+                f"ACOS{number}",
+                f"ACO S {number}",
+            )
+        return (f"Abell{number}", f"ACO {number}", f"ACO{number}")
     if catalog in {"fest1", "fest2"}:
         family = catalog[-1]
         return (f"FEST {family}-{value}", f"Feitzinger-Stüwe {family}-{value}")

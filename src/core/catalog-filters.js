@@ -41,7 +41,8 @@ export function deepSkyCatalogueGroupKeys(object) {
 /** Returns true for galaxies, galaxy pairs/groups and galaxy clusters. */
 export function isGalaxyObject(object) {
   const typeCode = normalizedFacet(object?.typeCode);
-  if (["g", "gpair", "gtrpl", "ggroup"].includes(typeCode)) return true;
+  if (["g", "gpair", "gtrpl", "ggroup", "gcluster"].includes(typeCode))
+    return true;
   return normalizedFacet(object?.type ?? object?.objectType).includes("galaxy");
 }
 

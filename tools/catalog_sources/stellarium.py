@@ -1,14 +1,15 @@
-"""Importer for the target nebula cross-indexes in Stellarium's DSO catalogue.
+"""Importer for the selected cross-indexes in Stellarium's DSO catalogue.
 
 The upstream file is a 45-column tab-separated catalogue.  This module reads a
-local copy only and emits one shared-model object for each row carrying a
-Barnard, Sh2, vdB, RCW, LDN, or LBN designation.
+local copy only and emits one shared-model object for each row carrying an
+Abell/ACO, Barnard, Sh2, vdB, RCW, LDN, or LBN designation.
 """
 
 from __future__ import annotations
 
 import math
 from pathlib import Path
+import re
 
 from catalog_coordinates import fk5_j2000_to_icrs, shape_from_axes
 from catalog_identifiers import catalogue_aliases, dedupe_aliases
@@ -19,7 +20,7 @@ from catalog_sources.base import SourceRowError, compact_properties
 SOURCE_VERSION = "v26.2"
 CATALOG_VERSION = "3.23"
 EXPECTED_ROWS = 94_899
-EXPECTED_SELECTED_ROWS = 3_409
+EXPECTED_SELECTED_ROWS = 8_658
 SOURCE_URL = (
     "https://raw.githubusercontent.com/Stellarium/stellarium/"
     f"{SOURCE_VERSION}/nebulae/default/catalog.txt"
@@ -78,6 +79,7 @@ _TARGET_GROUPS = {
     "rcw": "rcw",
     "ldn": "ldn",
     "lbn": "lbn",
+    "abell": "abell",
 }
 
 _TYPE_MAP = {
@@ -92,6 +94,7 @@ _TYPE_MAP = {
     "MOC": "DrkN",
     "CGB": "Neb",
     "GIG": "G",
+    "CLG": "GCluster",
     "RN": "RfN",
     "EN": "EmN",
     "C+N": "Cl+N",
@@ -166,6 +169,10 @@ def _cross_identifications(
         raw = row[index].strip()
         if raw in {"", "0"}:
             continue
+        if index == 36:
+            identifiers.extend(f"ACO {value}" for value in _aco_values(raw, path, line_number))
+            groups.append(group)
+            continue
         if integer_field:
             value = _integer(row, index, group, path, line_number, optional=True)
             assert value is not None
@@ -177,18 +184,41 @@ def _cross_identifications(
     return tuple(identifiers), tuple(groups)
 
 
-def _target_values(
-    row: list[str], path: Path, line_number: int
-) -> tuple[tuple[int, str, str, int], ...]:
-    values: list[tuple[int, str, str, int]] = []
-    for index, hint, catalogue in _TARGET_FIELDS:
-        value = _integer(row, index, hint, path, line_number, optional=True)
-        if value is not None:
-            values.append((index, hint, catalogue, value))
+def _aco_values(raw: str, path: Path, line_number: int) -> tuple[str, ...]:
+    """Parse Stellarium's numeric and southern Abell/ACO designations."""
+
+    values: list[str] = []
+    seen: set[str] = set()
+    for source_value in raw.split(","):
+        match = re.fullmatch(r"(?i)(s?)\s*0*(\d+)", source_value.strip())
+        if not match or int(match.group(2)) <= 0:
+            raise _error(path, line_number, f"invalid ACO identifier: {raw!r}")
+        value = f"{'S' if match.group(1) else ''}{int(match.group(2))}"
+        if value in seen:
+            raise _error(path, line_number, f"duplicate ACO identifier: {raw!r}")
+        seen.add(value)
+        values.append(value)
     return tuple(values)
 
 
-def _target_designation(index: int, value: int) -> str:
+def _target_values(
+    row: list[str], path: Path, line_number: int
+) -> tuple[tuple[int, str, str, str], ...]:
+    values: list[tuple[int, str, str, str]] = []
+    for index, hint, catalogue in _TARGET_FIELDS:
+        value = _integer(row, index, hint, path, line_number, optional=True)
+        if value is not None:
+            values.append((index, hint, catalogue, str(value)))
+    raw_aco = row[36].strip()
+    if raw_aco not in {"", "0"}:
+        values.extend(
+            (36, "abell", "Abell via Stellarium", value)
+            for value in _aco_values(raw_aco, path, line_number)
+        )
+    return tuple(values)
+
+
+def _target_designation(index: int, value: str) -> str:
     return {
         20: f"Barnard {value}",
         21: f"Sh2-{value}",
@@ -196,6 +226,7 @@ def _target_designation(index: int, value: int) -> str:
         23: f"RCW {value}",
         24: f"LDN {value}",
         25: f"LBN {value}",
+        36: f"Abell {value}",
     }[index]
 
 
@@ -237,16 +268,21 @@ def _object(row: list[str], path: Path, line_number: int) -> CatalogObject | Non
     sources: list[CatalogSourceRef] = []
     for index, hint, catalogue, value in targets:
         designation = _target_designation(index, value)
-        variants.extend(catalogue_aliases(hint, str(value)))
+        variants.append(designation)
+        variants.extend(catalogue_aliases(hint, value))
         sources.append(
             CatalogSourceRef(
                 catalogue=catalogue,
-                identifier=str(value),
+                identifier=value,
                 table=SOURCE_TABLE,
                 original_identifier=designation,
                 original_frame="FK5/J2000",
             )
         )
+    aco_values = [value for index, _, _, value in targets if index == 36]
+    if len(aco_values) > 1:
+        combined = ",".join(aco_values)
+        variants.extend((f"Abell {combined}", f"ACO {combined}"))
 
     redshift = _catalog_float(row, 10, "redshift", path, line_number, sentinel_99=True)
     redshift_error = _catalog_float(row, 11, "redshift error", path, line_number)
@@ -309,7 +345,9 @@ def _object(row: list[str], path: Path, line_number: int) -> CatalogObject | Non
             }
         ),
         sources=tuple(sources),
-        catalogue_groups=tuple(_TARGET_GROUPS[target[1]] for target in targets),
+        catalogue_groups=tuple(
+            dict.fromkeys(_TARGET_GROUPS[target[1]] for target in targets)
+        ),
         cross_identifications=cross_ids,
     )
 

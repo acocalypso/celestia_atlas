@@ -17,6 +17,7 @@ TYPE_NAMES: dict[str, str] = {
     "GPair": "Galaxy pair",
     "GTrpl": "Galaxy triplet",
     "GGroup": "Galaxy group",
+    "GCluster": "Galaxy cluster",
     "OCl": "Open cluster",
     "GCl": "Globular cluster",
     "Cl+N": "Cluster with nebulosity",

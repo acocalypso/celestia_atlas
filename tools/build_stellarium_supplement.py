@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the separately licensed Stellarium nebula catalogue supplement."""
+"""Build the separately licensed Stellarium DSO cross-index supplement."""
 
 from __future__ import annotations
 
@@ -135,8 +135,8 @@ def _metadata(
         "licenseUrl": LICENSE_URL.format(version=version),
         "attribution": "Stellarium DSO catalogue by the Stellarium project and contributors",
         "modifications": (
-            "Selected rows carrying Barnard, Sh2, vdB, RCW, LDN, or LBN "
-            "cross-identifiers; normalized names and types; preserved dark-nebula "
+            "Selected rows carrying Abell/ACO, Barnard, Sh2, vdB, RCW, LDN, or "
+            "LBN cross-identifiers; normalized names and types; preserved dark-nebula "
             "opacity classes without treating them as magnitudes; transformed the "
             "catalogue's J2000 positions to ICRS; serialized a separate browser asset."
         ),

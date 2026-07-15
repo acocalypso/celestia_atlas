@@ -27,6 +27,95 @@ Solar-system positions, illumination and visual magnitudes are calculated with
 Astronomy Engine is distributed under the MIT licence. Its copyright and
 permission notice are available in the upstream project.
 
+## HYG v4.1 naked-eye star layer
+
+The separate star supplement is derived from the **HYG Database** by David Nash
+(Astronomy Nexus).
+
+- Project: https://github.com/astronexus/HYG-Database
+- Pinned version: `v4.1`
+- Pinned source commit: `3bf37f4b2d5460e1278286320d1d62fab9b493c1`
+- Pinned source:
+  https://github.com/astronexus/HYG-Database/blob/3bf37f4b2d5460e1278286320d1d62fab9b493c1/hyg/CURRENT/hygdata_v41.csv
+- Source SHA-256:
+  `d9f69fd86bbf90a4e4d52b4c5c53eacfa6dfc0bfdef85bfd94f095e0bebe4ebd`
+- Upstream rows: 119,626
+- Licence: Creative Commons Attribution-ShareAlike 4.0 International
+  (CC BY-SA 4.0)
+- Local licence notice: `licenses/HYG-CC-BY-SA-4.0.md`
+
+Celestia Atlas selects the 8,920 non-solar records whose apparent visual
+magnitude is at most 6.5. To prevent duplicate plotting, it removes all 140 HYG
+components within 2 arcminutes of a star in the curated 130-record `STAR_DATA`
+layer. The 8,780 remaining records retain their HYG row identity, HIP identifier
+when supplied, HYG proper name when supplied, J2000.0 right ascension and
+declination, visual magnitude, optional B-V colour index, constellation and a
+compact HYG source label. The `named` field is emitted only for rows with a HYG
+proper name. HYG's `ci` field is renamed to `bv`; no missing colour is invented.
+
+These derived assets remain under CC BY-SA 4.0 and are kept separate from the
+MIT code and the other generated catalogue layers:
+
+```text
+hyg-star-catalog.js
+data/hyg-star-catalog.json
+```
+
+Redistributors must retain the attribution, source link, licence link and
+indication of the selection, field renaming, duplicate removal and compact
+serialization modifications described above.
+
+## SIMBAD A66 planetary-nebula layer
+
+The separate Abell 1966 planetary-nebula layer is derived from a pinned TAP
+response from the **SIMBAD astronomical database**, operated at CDS,
+Strasbourg, France.
+
+- Service: https://simbad.u-strasbg.fr/simbad/
+- TAP endpoint: https://simbad.u-strasbg.fr/simbad/sim-tap/sync
+- Advertised service release at retrieval: `SIMBAD4 1.8 - 2026-06`
+- Retrieval date: `2026-07-15`
+- Committed query: `data/sources/simbad/a66-2026-07-15.adql`
+- Query SHA-256:
+  `ab2fe86d5c84e6d027bcb363c9d775b428d11eb003ec3fbf426331b64751e639`
+- Committed TAP response: `data/sources/simbad/a66-2026-07-15.tsv`
+- Response SHA-256:
+  `1aac0fb91c4ae39581b86a6bf1e8cc2fbdeaa93d0460762f73df59dd7e501348`
+- Response rows: 1,152 exact identifiers for 86 distinct `PN A66` objects
+- Licence: Open Data Commons Open Database License 1.0 (`ODbL-1.0`)
+- Local licence notice: `licenses/SIMBAD-ODbL-1.0.md`
+
+Required acknowledgement retained by Celestia Atlas:
+
+> This research has made use of the SIMBAD database, operated at CDS,
+> Strasbourg, France.
+
+SIMBAD also requests citation of Wenger et al. (2000), “The SIMBAD astronomical
+database,” *Astronomy and Astrophysics Supplement Series* 143, 9. The historical
+designation originates with Abell (1966), *Astrophysical Journal* 144, 259.
+
+Celestia Atlas groups the long-form response by the SIMBAD object selected by
+the query, normalizes display spacing, adds deterministic `Abell`, `A66`, and
+`PN A66` search variants, and preserves the SIMBAD main identifier, object
+type, ICRS coordinates, and exact cross-identifiers. Only four unique exact
+NGC/IC identities are emitted as optional merge keys. Sky position is never
+used to infer identity. SIMBAD's current classification is preserved even for
+historical A66 entries now typed as a galaxy, possible object, possible active
+galaxy, emission-line galaxy, H II region, or supernova remnant rather than a
+planetary nebula.
+
+The snapshot and these derived assets remain under ODbL 1.0 and are kept
+separate from the MIT code and other catalogue licence boundaries:
+
+```text
+data/sources/simbad/a66-2026-07-15.tsv
+abell-pn-catalog.js
+data/abell-pn-catalog.json
+```
+
+Redistributors must retain the ODbL terms, SIMBAD attribution, source/query
+metadata, hashes, and modification statement above.
+
 ## OpenNGC
 
 The generated deep-sky catalogue is based on **OpenNGC**, created by Mattia
@@ -52,7 +141,7 @@ CC BY-SA 4.0 with attribution and share-alike terms.
 
 ## Stellarium DSO cross-index supplement
 
-The separate public historical-nebula supplement is derived from the standard
+The separate public historical DSO supplement is derived from the standard
 DSO catalogue distributed with **Stellarium**.
 
 - Project: https://github.com/Stellarium/stellarium
@@ -64,8 +153,8 @@ DSO catalogue distributed with **Stellarium**.
 - Upstream licence: GPL-2.0-or-later (declared by Stellarium's `CITATION.cff`)
 - Full licence copy: `licenses/Stellarium-GPL-2.0.txt`
 
-Celestia Atlas selects only rows carrying at least one non-zero Barnard, Sh2,
-vdB, RCW, LDN, or LBN cross-index. Modifications include strict schema and row
+Celestia Atlas selects 8,658 rows carrying at least one non-zero Abell/ACO,
+Barnard, Sh2, vdB, RCW, LDN, or LBN cross-index. Modifications include strict schema and row
 count validation; source-aware aliases; FK5/J2000-to-ICRS transformation with
 build-time coordinate provenance; conservative type mapping; dark-nebula
 opacity handling that does not mislabel the ordinal class as magnitude; exact
@@ -74,6 +163,11 @@ deterministic compact JSON/JavaScript serialization. Original Stellarium type,
 morphology when supplied, row identifier, selected cross-indices, catalogue
 version, and source URL are retained in the derived records or supplement
 metadata.
+
+The Abell/ACO galaxy-cluster designations refer to Abell, Corwin, and Olowin
+(1989), “A Catalog of Rich Clusters of Galaxies,” *Astrophysical Journal
+Supplement Series* 70, 1, DOI `10.1086/191333`. They are distinct from the
+Abell-1966 planetary-nebula designations in the separate SIMBAD A66 layer.
 
 The following derived assets remain under GPL-2.0-or-later and are kept
 separate from the OpenNGC-derived CC BY-SA 4.0 files:
@@ -145,8 +239,8 @@ The `VII/68A` raster sky map and globule table are not part of the initial
 import. Do not redistribute a locally generated combined catalogue until the
 rights for every included source are cleared for the intended use.
 
-The public Stellarium supplement covers only LDN, Barnard, LBN, Sharpless 2,
-vdB, and RCW cross-indices. Southern Dark Clouds (`VII/191`) and
+The public Stellarium supplement covers Abell/ACO, LDN, Barnard, LBN,
+Sharpless 2, vdB, and RCW cross-indices. Southern Dark Clouds (`VII/191`) and
 Feitzinger-Stuewe (`VII/68A`) remain local-only and are not present in the
 public deployment.
 

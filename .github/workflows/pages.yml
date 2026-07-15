@@ -53,6 +53,12 @@ jobs:
       - name: Build redistributable Stellarium nebula supplement
         run: python tools/build_stellarium_supplement.py --version "$STELLARIUM_VERSION"
 
+      - name: Build pinned Abell planetary-nebula layer
+        run: python tools/build_abell_pn_catalog.py
+
+      - name: Build redistributable HYG naked-eye star layer
+        run: python tools/build_hyg_star_catalog.py
+
       - name: Run catalogue and browser-core tests
         run: npm test
 
@@ -63,12 +69,23 @@ jobs:
         run: |
           test -s dso-catalog.js
           test -s stellarium-supplement.js
+          test -s abell-pn-catalog.js
+          test -s hyg-star-catalog.js
           test -s data/dso-catalog.json
           test -s data/dso-viewer-catalog.json
           test -s data/catalog-sources.json
           test -s data/openngc-catalog.json
           test -s data/openngc-viewer-catalog.json
           test -s data/stellarium-dso-supplement.json
+          test -s data/stellarium-supplement-meta.json
+          test -s data/abell-pn-catalog.json
+          test -s data/hyg-star-catalog.json
+          test -s data/sources/simbad/a66-2026-07-15.tsv
+          test -s data/sources/simbad/a66-2026-07-15.adql
+          test -s data/sources/simbad/a66-2026-07-15.meta.json
+          test -s licenses/Stellarium-GPL-2.0.txt
+          test -s licenses/HYG-CC-BY-SA-4.0.md
+          test -s licenses/SIMBAD-ODbL-1.0.md
           python - <<'PY'
           import json
           from pathlib import Path
@@ -81,26 +98,86 @@ jobs:
           if len(viewer.get('objects', [])) != count:
             raise SystemExit('Viewer catalogue count does not match source catalogue')
           supplement=json.loads(Path('data/stellarium-dso-supplement.json').read_text(encoding='utf-8'))
+          supplement_meta=json.loads(Path('data/stellarium-supplement-meta.json').read_text(encoding='utf-8'))
           supplement_objects=supplement.get('objects', [])
           print(f'Stellarium supplement objects: {len(supplement_objects):,}')
-          if len(supplement_objects) < 3000:
-            raise SystemExit('Stellarium supplement is unexpectedly small')
+          if len(supplement_objects) != 8658:
+            raise SystemExit('Stellarium supplement does not match its pinned row count')
+          if supplement.get('meta') != supplement_meta:
+            raise SystemExit('Stellarium supplement metadata files disagree')
+          if supplement_meta.get('catalogueGroups') != ['abell', 'barnard', 'lbn', 'ldn', 'rcw', 'sharpless', 'vdb']:
+            raise SystemExit('Stellarium supplement catalogue groups are incomplete')
+          if not any('abell' in item.get('catalogueGroups', []) for item in supplement_objects):
+            raise SystemExit('Stellarium supplement contains no Abell/ACO records')
           if not any('ldn' in item.get('catalogueGroups', []) for item in supplement_objects):
             raise SystemExit('Stellarium supplement contains no LDN records')
+          abell_pn=json.loads(Path('data/abell-pn-catalog.json').read_text(encoding='utf-8'))
+          abell_pn_objects=abell_pn.get('objects', [])
+          print(f'Abell planetary nebulae: {len(abell_pn_objects):,}')
+          if len(abell_pn_objects) != 86 or abell_pn.get('meta', {}).get('objectCount') != 86:
+            raise SystemExit('Abell planetary-nebula layer does not match its pinned row count')
+          abell39=next((item for item in abell_pn_objects if item.get('id') == 'Abell PN 39'), None)
+          if not abell39 or 'Abell 39' not in abell39.get('aliases', []):
+            raise SystemExit('Abell planetary-nebula search aliases are missing')
+          if abell_pn.get('meta', {}).get('sourceSha256') != '1aac0fb91c4ae39581b86a6bf1e8cc2fbdeaa93d0460762f73df59dd7e501348':
+            raise SystemExit('Abell planetary-nebula snapshot hash changed')
+          hyg=json.loads(Path('data/hyg-star-catalog.json').read_text(encoding='utf-8'))
+          hyg_stars=hyg.get('stars', [])
+          print(f'HYG naked-eye stars: {len(hyg_stars):,}')
+          if len(hyg_stars) != 8780 or hyg.get('meta', {}).get('objectCount') != 8780:
+            raise SystemExit('HYG naked-eye layer does not match its pinned row count')
+          if not any(item.get('name') == 'Larawag' for item in hyg_stars):
+            raise SystemExit('HYG named-star records are missing')
+          if any(item.get('mag', 99) > 6.5 for item in hyg_stars):
+            raise SystemExit('HYG layer exceeds its pinned magnitude limit')
           PY
 
       - name: Exercise generated atlas in Chrome and inspect browser errors
         env:
           SMOKE_QUERY: LDN 1
-          SMOKE_EXPECTED_SOURCE_FILTERS: "7"
+          SMOKE_EXPECT_TITLE: LDN 1
+          SMOKE_EXPECTED_SOURCE_FILTERS: "9"
+          SMOKE_EXPECTED_STAR_COUNT: "8910"
+          SMOKE_EXPECTED_DSO_COUNT: "21191"
           SMOKE_EXPECT_DETAIL_TEXT: LDN via Stellarium
+        run: npm run test:browser
+
+      - name: Exercise Abell catalogue objects in Chrome
+        env:
+          SMOKE_QUERY: Abell 1656
+          SMOKE_EXPECT_TITLE: Abell 1656
+          SMOKE_EXPECTED_SOURCE_FILTERS: "9"
+          SMOKE_EXPECTED_STAR_COUNT: "8910"
+          SMOKE_EXPECTED_DSO_COUNT: "21191"
+          SMOKE_EXPECT_DETAIL_TEXT: Abell via Stellarium
+        run: npm run test:browser
+
+      - name: Exercise Abell planetary nebulae in Chrome
+        env:
+          SMOKE_QUERY: Abell 39
+          SMOKE_EXPECT_TITLE: Abell PN 39
+          SMOKE_EXPECTED_SOURCE_FILTERS: "9"
+          SMOKE_EXPECTED_STAR_COUNT: "8910"
+          SMOKE_EXPECTED_DSO_COUNT: "21191"
+          SMOKE_EXPECT_DETAIL_TEXT: SIMBAD A66
+        run: npm run test:browser
+
+      - name: Exercise expanded HYG stars in Chrome
+        env:
+          SMOKE_QUERY: Larawag
+          SMOKE_EXPECT_TITLE: Larawag
+          SMOKE_EXPECTED_SOURCE_FILTERS: "9"
+          SMOKE_EXPECTED_STAR_COUNT: "8910"
+          SMOKE_EXPECTED_DSO_COUNT: "21191"
+          SMOKE_EXPECT_DETAIL_TEXT: HYG
         run: npm run test:browser
 
       - name: Exercise optional catalogue objects in Chrome
         env:
           SMOKE_CATALOG_BUNDLE: .cache/catalog-browser-fixture/dso-catalog.js
           SMOKE_QUERY: Sh 2-1
-          SMOKE_EXPECTED_SOURCE_FILTERS: "9"
+          SMOKE_EXPECTED_SOURCE_FILTERS: "11"
+          SMOKE_EXPECTED_STAR_COUNT: "8910"
           SMOKE_EXPECT_DETAIL_TEXT: VII/20
         run: |
           python tools/build_catalog_browser_fixture.py
@@ -117,7 +194,9 @@ jobs:
           cp standalone-engine-bridge.js _site/
           cp milky-way-renderer.js _site/
           cp catalog.js _site/
+          cp hyg-star-catalog.js _site/
           cp dso-catalog.js _site/
+          cp abell-pn-catalog.js _site/
           cp stellarium-supplement.js _site/
           cp dso-images.js _site/
           cp styles.css _site/
@@ -147,13 +226,15 @@ jobs:
             cp -R docs _site/docs
           fi
 
-          if [ -d licenses ]; then
-            cp -R licenses _site/licenses
-          fi
+          cp -R licenses _site/licenses
 
           if [ -d src ]; then
             cp -R src _site/src
           fi
+
+          test -s _site/licenses/Stellarium-GPL-2.0.txt
+          test -s _site/licenses/HYG-CC-BY-SA-4.0.md
+          test -s _site/licenses/SIMBAD-ODbL-1.0.md
 
           echo "Deployment contents:"
           find _site -maxdepth 3 -type f | sort

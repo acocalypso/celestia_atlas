@@ -1,0 +1,11 @@
+SELECT a.id AS a66_id,
+       b.main_id,
+       b.ra,
+       b.dec,
+       b.otype,
+       x.id AS identifier
+FROM ident AS a
+JOIN basic AS b ON a.oidref = b.oid
+JOIN ident AS x ON b.oid = x.oidref
+WHERE a.id LIKE 'PN A66 %'
+ORDER BY a66_id, identifier

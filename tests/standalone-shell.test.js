@@ -3,11 +3,20 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 
 test("standalone shell boots the shared public viewer", async () => {
-  const [html, application, styles, publicApi, types, serviceWorker] =
+  const [
+    html,
+    application,
+    styles,
+    standaloneStyles,
+    publicApi,
+    types,
+    serviceWorker,
+  ] =
     await Promise.all([
       readFile(new URL("../index.html", import.meta.url), "utf8"),
       readFile(new URL("../standalone-app.js", import.meta.url), "utf8"),
       readFile(new URL("../styles.css", import.meta.url), "utf8"),
+      readFile(new URL("../standalone.css", import.meta.url), "utf8"),
       readFile(new URL("../src/public-api.js", import.meta.url), "utf8"),
       readFile(new URL("../src/index.d.ts", import.meta.url), "utf8"),
       readFile(new URL("../service-worker.js", import.meta.url), "utf8"),
@@ -15,12 +24,18 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(html, /type="module" src="standalone-app\.js"/);
   assert.match(
     html,
-    /dso-catalog\.js[\s\S]*stellarium-supplement\.js[\s\S]*standalone-app\.js/,
+    /catalog\.js[\s\S]*hyg-star-catalog\.js[\s\S]*dso-catalog\.js[\s\S]*abell-pn-catalog\.js[\s\S]*stellarium-supplement\.js[\s\S]*standalone-app\.js/,
   );
   assert.doesNotMatch(html, /app-v8\.js|standalone-engine-bridge\.js/);
   assert.match(application, /createCelestiaAtlasViewer/);
   assert.match(application, /combineCatalogLayers/);
   assert.match(application, /STELLARIUM_DSO_SUPPLEMENT_DATA/);
+  assert.match(application, /globalThis\.ABELL_PN_CATALOG_DATA/);
+  assert.match(application, /catalogWithAbellPlanetaryNebulae/);
+  assert.match(application, /globalThis\.HYG_STAR_DATA/);
+  assert.match(application, /\.\.\.\(globalThis\.STAR_DATA \?\? \[\]\)/);
+  assert.match(application, /\.\.\.\(globalThis\.HYG_STAR_DATA \?\? \[\]\)/);
+  assert.match(html, /id="magLimit"[\s\S]*max="6\.5"[\s\S]*value="6\.5"/);
   assert.match(application, /viewer\.setLandscape/);
   assert.match(application, /viewer\.setFieldOfView/);
   assert.match(application, /calculateCameraFieldOfView/);
@@ -77,6 +92,24 @@ test("standalone shell boots the shared public viewer", async () => {
     styles,
     /@media\(max-width:560px\)\{\.catalog-filter-options\{grid-template-columns:1fr/,
   );
+  assert.match(standaloneStyles, /\.search\s*\{[^}]*min-width:\s*0;/s);
+  assert.match(
+    standaloneStyles,
+    /@media \(max-width: 560px\)[\s\S]*grid-template-columns: minmax\(0, 1fr\) auto;/,
+  );
+  assert.match(
+    standaloneStyles,
+    /@media \(max-width: 560px\)[\s\S]*\.top-actions\s*\{[^}]*flex: 0 0 auto;/,
+  );
+  for (const inset of ["top", "right", "left"])
+    assert.match(
+      standaloneStyles,
+      new RegExp(`env\\(safe-area-inset-${inset}, 0px\\)`),
+    );
+  assert.match(
+    standaloneStyles,
+    /\.left-rail,[\s\S]*\.details-panel\s*\{[^}]*safe-area-inset-top/,
+  );
   assert.match(types, /hideBelowHorizon: boolean/);
   assert.match(types, /setCoordinateMode\(value: CoordinateMode\)/);
   assert.match(types, /galaxyMagnitudeLimit: number/);
@@ -103,6 +136,8 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(serviceWorker, /\.\/src\/core\/catalog-filters\.js/);
   assert.match(serviceWorker, /\.\/src\/core\/catalog-layers\.js/);
   assert.match(serviceWorker, /\.\/stellarium-supplement\.js/);
+  assert.match(serviceWorker, /\.\/abell-pn-catalog\.js/);
+  assert.match(serviceWorker, /\.\/hyg-star-catalog\.js/);
 });
 
 test("standalone package contains all twelve offline landscape faces", async () => {
@@ -136,6 +171,12 @@ test("mobile renderer keeps expensive work inside bounded frame contracts", asyn
   assert.match(publicApi, /interactionViewChangePending = true/);
   assert.match(publicApi, /const dsoLabelBudget/);
   assert.match(publicApi, /placedDsoLabelBoxes\.some/);
+  assert.match(publicApi, /const renderStars = stars[\s\S]*\.sort\(/);
+  assert.match(publicApi, /function starColorFromBv\(/);
+  assert.match(publicApi, /const interactionStarMagnitudeLimit/);
+  assert.match(publicApi, /if \(!pendingSelectedStar\) break/);
+  assert.match(publicApi, /const drawDsoFootprint = \(/);
+  assert.match(publicApi, /projectAngularExtent\(/);
   assert.match(publicApi, /addEventListener\("contextlost"/);
   assert.match(publicApi, /removeEventListener\("contextrestored"/);
   assert.match(coordinates, /let observedFrameCache = null/);

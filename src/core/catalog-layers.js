@@ -18,6 +18,7 @@ function identityValues(item) {
     item?.id,
     item?.catalogId,
     item?.name,
+    item?.primaryName,
     ...(Array.isArray(item?.aliases) ? item.aliases : []),
   ];
 }
@@ -195,6 +196,14 @@ function metadataGroups(baseMeta, supplementMeta) {
   );
 }
 
+function metadataVersionLabel(metadata) {
+  const explicit = String(metadata?.versionLabel ?? "").trim();
+  if (explicit) return explicit;
+  const name = String(metadata?.name ?? "").trim();
+  if (/stellarium/i.test(name)) return "Stellarium";
+  return name || "Supplement";
+}
+
 /**
  * Combines a base catalogue with a separately distributed supplement.
  *
@@ -274,17 +283,24 @@ export function combineCatalogLayers(
 
   const baseVersion = baseMeta?.version || "OpenNGC";
   const supplementVersion = supplementMeta?.version || "unknown";
+  const supplementVersionLabel = metadataVersionLabel(supplementMeta);
   const existingSupplements = Array.isArray(baseMeta?.supplements)
     ? baseMeta.supplements
     : [];
+  const existingPositionConflictCount = Number.isFinite(
+    baseMeta?.supplementAttachmentPositionConflicts,
+  )
+    ? baseMeta.supplementAttachmentPositionConflicts
+    : 0;
   const meta = {
     ...baseMeta,
     name: "Celestia Atlas offline DSO catalogue",
-    version: `${baseVersion} + Stellarium ${supplementVersion}`,
+    version: `${baseVersion} + ${supplementVersionLabel} ${supplementVersion}`,
     objectCount: objects.length,
     catalogueGroups: metadataGroups(baseMeta, supplementMeta),
     supplements: [...existingSupplements, supplementMeta],
-    supplementAttachmentPositionConflicts: attachmentPositionConflictCount,
+    supplementAttachmentPositionConflicts:
+      existingPositionConflictCount + attachmentPositionConflictCount,
   };
 
   return { objects, meta };

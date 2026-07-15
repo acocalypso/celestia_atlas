@@ -43,10 +43,35 @@ import {
 
 const DEG = Math.PI / 180;
 const MAX_FOV_DEG = 130;
+const STAR_COLOR_STOPS = [
+  [-0.4, [155, 190, 255]],
+  [0, [202, 218, 255]],
+  [0.4, [248, 247, 255]],
+  [0.8, [255, 238, 205]],
+  [1.4, [255, 197, 128]],
+  [2, [255, 151, 80]],
+];
 const DEFAULT_MILKY_WAY_URL = new URL(
   "../assets/milky-way.webp",
   import.meta.url,
 ).href;
+
+function starColorFromBv(value) {
+  if (!Number.isFinite(value)) return "rgb(237 245 255)";
+  const bv = Math.max(
+    STAR_COLOR_STOPS[0][0],
+    Math.min(STAR_COLOR_STOPS.at(-1)[0], value),
+  );
+  let upperIndex = STAR_COLOR_STOPS.findIndex(([stop]) => stop >= bv);
+  if (upperIndex <= 0) upperIndex = 1;
+  const [lowerStop, lowerColor] = STAR_COLOR_STOPS[upperIndex - 1];
+  const [upperStop, upperColor] = STAR_COLOR_STOPS[upperIndex];
+  const mix = (bv - lowerStop) / (upperStop - lowerStop || 1);
+  const color = lowerColor.map((channel, index) =>
+    Math.round(channel + (upperColor[index] - channel) * mix),
+  );
+  return `rgb(${color.join(" ")})`;
+}
 
 export function createCelestiaAtlasViewer(options) {
   const coarsePointer = Boolean(
@@ -136,6 +161,21 @@ export function createCelestiaAtlasViewer(options) {
   let clockTimer = null;
   let cometCache = { key: "", objects: [] };
   let solarSystemCache = { key: "", objects: [] };
+  const renderStars = stars
+    .map((star) => ({
+      star,
+      magnitude: star.mag ?? star.magnitude,
+      color: starColorFromBv(star.bv ?? star.colorIndex),
+    }))
+    .sort((left, right) => {
+      const leftMagnitude = Number.isFinite(left.magnitude)
+        ? left.magnitude
+        : Number.POSITIVE_INFINITY;
+      const rightMagnitude = Number.isFinite(right.magnitude)
+        ? right.magnitude
+        : Number.POSITIVE_INFINITY;
+      return leftMagnitude - rightMagnitude;
+    });
   const searchableObjects = [...stars, ...catalog];
   const searchableObjectIndex = createCatalogSearchIndex(searchableObjects);
   const galaxyCatalogFlags = Uint8Array.from(catalog, (object) =>
@@ -154,6 +194,9 @@ export function createCelestiaAtlasViewer(options) {
   let deepSkyObjectTypeAllowlist = null;
   let deepSkyCatalogueGroupAllowlist = null;
   const objectIdentity = (object) => object?.uid ?? object?.id;
+  const starIdentityKeys = new Set(
+    stars.map(objectIdentity).filter((value) => value !== undefined),
+  );
   const hasSameObjectIdentity = (left, right) => {
     if (!left || !right) return false;
     if (left.uid != null && right.uid != null) return left.uid === right.uid;
@@ -164,8 +207,12 @@ export function createCelestiaAtlasViewer(options) {
   const starsByName = new Map();
   for (const star of stars) {
     starsByName.set(String(star.name).toLocaleLowerCase(), star);
-    if (star.alias)
-      starsByName.set(String(star.alias).toLocaleLowerCase(), star);
+    for (const alias of [
+      ...(Array.isArray(star.aliases) ? star.aliases : []),
+      star.alias,
+    ]) {
+      if (alias) starsByName.set(String(alias).toLocaleLowerCase(), star);
+    }
   }
 
   const selectedTargetPayload = (object) => {
@@ -404,6 +451,72 @@ export function createCelestiaAtlasViewer(options) {
     }
     context.restore();
     if (selected) drawObjectBox(x, y, size + 5, "#fff1bd");
+  };
+  const drawDsoFootprint = (
+    object,
+    x,
+    y,
+    scale,
+    projectionRotationDeg,
+    visualKind,
+    approximateShape,
+  ) => {
+    if (view.fovDeg > 55) return;
+    const majorArcmin = object.shape?.majorArcmin ?? object.major;
+    const minorArcmin =
+      object.shape?.minorArcmin ?? object.minor ?? majorArcmin;
+    if (
+      !Number.isFinite(majorArcmin) ||
+      majorArcmin <= 0 ||
+      !Number.isFinite(minorArcmin) ||
+      minorArcmin <= 0
+    )
+      return;
+    const majorPixels = projectAngularExtent(
+      Math.min(majorArcmin / 60, 179),
+      scale,
+    );
+    const minorPixels = projectAngularExtent(
+      Math.min(minorArcmin / 60, 179),
+      scale,
+    );
+    if (majorPixels < 6 || minorPixels < 2) return;
+    const colors = {
+      galaxy: ["rgba(170,145,255,.09)", "rgba(189,171,255,.38)"],
+      "dark-nebula": ["rgba(0,0,0,.28)", "rgba(135,150,172,.34)"],
+      "reflection-nebula": ["rgba(117,215,255,.07)", "rgba(117,215,255,.34)"],
+      "emission-nebula": ["rgba(255,100,120,.07)", "rgba(255,140,146,.34)"],
+      nebula: ["rgba(246,201,120,.06)", "rgba(246,201,120,.3)"],
+    };
+    const [fill, stroke] = colors[visualKind] ?? [];
+    if (!fill || !stroke) return;
+    const positionAngleDeg =
+      object.shape?.positionAngleDeg ?? object.positionAngle ?? 0;
+    const rotationDeg = cameraFrameScreenRotationDeg(
+      projectionRotationDeg,
+      positionAngleDeg,
+      "clockwise-from-celestial-north",
+    );
+    context.save();
+    context.translate(x, y);
+    context.rotate((rotationDeg * Math.PI) / 180);
+    context.fillStyle = display.nightMode ? "rgba(95,0,0,.12)" : fill;
+    context.strokeStyle = display.nightMode ? "rgba(255,88,79,.3)" : stroke;
+    context.lineWidth = 0.8;
+    if (approximateShape) context.setLineDash?.([3, 3]);
+    context.beginPath();
+    context.ellipse(
+      0,
+      0,
+      Math.min(canvas.clientWidth * 0.75, majorPixels / 2),
+      Math.min(canvas.clientHeight * 0.75, minorPixels / 2),
+      0,
+      0,
+      Math.PI * 2,
+    );
+    context.fill();
+    context.stroke();
+    context.restore();
   };
   const rasterOutputWidth = (width, dpr) => {
     return landscapeRasterWidth(
@@ -826,14 +939,23 @@ export function createCelestiaAtlasViewer(options) {
           context.stroke();
         }
       }
-    for (const star of stars) {
-      const starMagnitude = star.mag ?? star.magnitude;
+    const interactionStarMagnitudeLimit = Math.min(
+      display.starMagnitudeLimit,
+      performance.now() < lowQualityUntil ? (coarsePointer ? 5 : 5.7) : 30,
+    );
+    let pendingSelectedStar = starIdentityKeys.has(objectIdentity(selected));
+    for (const entry of renderStars) {
+      const { star, magnitude: starMagnitude } = entry;
+      const isSelectedStar = isSelectedObject(star);
+      if (isSelectedStar) pendingSelectedStar = false;
       if (
-        !isSelectedObject(star) &&
+        !isSelectedStar &&
         (!Number.isFinite(starMagnitude) ||
-          starMagnitude > display.starMagnitudeLimit)
-      )
+          starMagnitude > interactionStarMagnitudeLimit)
+      ) {
+        if (!pendingSelectedStar) break;
         continue;
+      }
       const point = project(star);
       if (
         !point ||
@@ -844,15 +966,30 @@ export function createCelestiaAtlasViewer(options) {
       )
         continue;
       if (!isAboveHorizon(star)) continue;
+      const drawMagnitude = Number.isFinite(starMagnitude) ? starMagnitude : 4;
       const radius =
-        Math.max(0.7, Math.min(4, 3.5 - (star.mag ?? 4) * 0.45)) *
+        Math.max(0.7, Math.min(4, 3.5 - drawMagnitude * 0.45)) *
         display.starScale;
-      context.fillStyle = display.nightMode ? "#ff584f" : "#edf5ff";
+      context.fillStyle = display.nightMode ? "#ff584f" : entry.color;
+      if (radius > 1.8) {
+        context.save();
+        context.globalAlpha = display.nightMode ? 0.16 : 0.22;
+        context.beginPath();
+        context.arc(point.x, point.y, radius * 2.4, 0, Math.PI * 2);
+        context.fill();
+        context.restore();
+      }
       context.beginPath();
       context.arc(point.x, point.y, radius, 0, Math.PI * 2);
       context.fill();
       hitTargets.push({ x: point.x, y: point.y, object: star });
-      if (display.labels && (starMagnitude < 1.5 || view.fovDeg < 25)) {
+      const hasDisplayName =
+        star.named === true || !String(star.uid ?? "").startsWith("hyg:");
+      if (
+        display.labels &&
+        hasDisplayName &&
+        (starMagnitude < 1.5 || view.fovDeg < 25)
+      ) {
         context.font = "10px system-ui";
         context.fillText(star.name, point.x + radius + 3, point.y - 3);
       }
@@ -875,6 +1012,15 @@ export function createCelestiaAtlasViewer(options) {
         if (!isAboveHorizon(object)) continue;
         const isSelected = isSelectedObject(object);
         const glyphSize = Math.max(3.7, Math.min(10, 3.2 + 70 / view.fovDeg));
+        drawDsoFootprint(
+          object,
+          x,
+          y,
+          scale,
+          projectionView.rotationDeg ?? 0,
+          catalogVisualKinds[catalogIndex],
+          Boolean(catalogApproximateShapeFlags[catalogIndex]),
+        );
         drawDsoGlyph(
           object,
           x,

@@ -3,12 +3,13 @@
 Celestia Atlas builds its browser catalogue ahead of time. The browser never
 queries VizieR, SIMBAD, OpenNGC, or another astronomy service at runtime.
 
-The public atlas loads two separately generated catalogue assets. OpenNGC data
-is distributed under CC BY-SA 4.0. A second asset selects historical-nebula
+The public atlas loads four separately generated catalogue assets. OpenNGC and
+HYG-derived data are each distributed under CC BY-SA 4.0. The SIMBAD A66 layer
+is distributed under ODbL 1.0. A fourth asset selects historical DSO
 cross-index records from Stellarium v26.2 DSO catalogue v3.23 and is distributed
 under GPL-2.0-or-later. The assets retain separate metadata, notices, package
-exports, and licence files; neither asset changes the terms of the other or the
-MIT licence of the Celestia Atlas code.
+exports, and licence files; no asset changes the terms of another or the MIT
+licence of the Celestia Atlas code.
 
 Richer import support is also provided for eight historical nebula and
 dark-cloud tables from CDS/VizieR. Their current CDS records do not state an
@@ -22,15 +23,56 @@ terms. Acceptance is not a grant of additional rights.
 | Asset | Pinned source | Included records | Runtime groups | Licence |
 | --- | --- | --- | --- | --- |
 | OpenNGC browser catalogue | OpenNGC `v20260501` | 12,578 in the pinned build | `openngc` | CC BY-SA 4.0 |
-| Stellarium DSO supplement | Stellarium `v26.2`, DSO catalogue `3.23` | Records from the validated 94,899-row input having at least one selected cross-index | `ldn`, `barnard`, `lbn`, `sharpless`, `vdb`, `rcw` | GPL-2.0-or-later |
+| Abell 1966 planetary-nebula layer | Committed SIMBAD TAP snapshot, retrieved 2026-07-15 from SIMBAD4 1.8 (2026-06) | 86 objects from 1,152 identifier rows | `abell-pn` | ODbL 1.0 |
+| Stellarium DSO supplement | Stellarium `v26.2`, DSO catalogue `3.23` | 8,658 records from the validated 94,899-row input having at least one selected cross-index | `abell`, `ldn`, `barnard`, `lbn`, `sharpless`, `vdb`, `rcw` | GPL-2.0-or-later |
+| HYG naked-eye star layer | HYG `v4.1`, commit `3bf37f4` | 8,780 records after curated-layer duplicate removal | stars through visual magnitude 6.5 | CC BY-SA 4.0 |
+
+### Abell 1966 planetary-nebula layer
+
+The `abell-pn` group is not the Abell/ACO galaxy-cluster cross-index in the
+Stellarium supplement. Its primary display identifiers are `Abell PN 1` through
+`Abell PN 86`, with explicit search aliases `Abell n`, `Abelln`, `A66 n`,
+`A66-n`, and `PN A66 n`. Loading this layer before Stellarium makes a generic
+`Abell 39` result prefer the planetary nebula while `Abell 1656` remains the ACO
+galaxy cluster. Both objects remain independently searchable where the two
+historical namespaces overlap.
+
+SIMBAD is dynamic rather than a versioned catalogue. For reproducibility the
+project commits the exact ADQL query, its unedited 1,152-row TAP response, a
+source manifest, retrieval date, advertised service release, and SHA-256 hashes
+under `data/sources/simbad/`. The offline builder groups only rows joined to the
+same SIMBAD object. It retains each source main ID, object type, ICRS position,
+and exact cross-identifiers. Four unique exact NGC/IC identifiers (`IC 972`,
+`NGC 6742`, `NGC 7076`, and `IC 1454`) may attach to OpenNGC; coordinates are
+never identity evidence. The source and derived assets remain under ODbL 1.0.
+
+### HYG star selection
+
+`build_hyg_star_catalog.py` validates the pinned 119,626-row HYG v4.1 CSV and
+its SHA-256 before processing it. It excludes Sol and selects 8,920 stars with
+apparent visual magnitude at most 6.5. All HYG components within 2 arcminutes
+of a curated `STAR_DATA` position are then removed, not just the nearest
+component of a multiple system. This removes 140 source rows around the 130
+curated stars and leaves 8,780 supplemental records without replacing the
+curated names or descriptions.
+
+The compact record fields are `uid` (`hyg:<row id>`), numeric `hyg`, `id`,
+`name`, J2000.0 `ra` in hours, `dec` in degrees, visual `mag`, optional `bv`,
+`con`, and `catalogSource`. `named: true` appears only when the HYG `proper`
+field is non-empty; unnamed rows use `HIP n` or `HYG n` as both identifier and
+name so the renderer can avoid generating thousands of fallback labels. The
+asset metadata preserves the exact source URL, commit, hash, selection limit,
+counts, attribution, licence and modifications.
 
 The supplement reads Stellarium's standard
 [`nebulae/default/catalog.txt`](https://raw.githubusercontent.com/Stellarium/stellarium/v26.2/nebulae/default/catalog.txt)
-and selects rows with a non-zero Barnard, Sh2, vdB, RCW, LDN, or LBN column.
+and selects rows with a non-zero Abell/ACO, Barnard, Sh2, vdB, RCW, LDN, or
+LBN column. The Abell gate contributes 5,249 rows, including the southern
+`S` series and one row with two comma-separated identifiers.
 One Stellarium row can contribute more than one searchable alias and runtime
 group. The emitted record retains the Stellarium row identifier, original
 cross-indices, catalogue version, source URL, and transformation provenance.
-All seven runtime groups are searchable and filterable in the deployed atlas.
+All nine runtime groups are searchable and filterable in the deployed atlas.
 
 The Stellarium-derived JavaScript/JSON and metadata stay separate from the
 OpenNGC-derived files. See `licenses/Stellarium-GPL-2.0.txt` for the complete
@@ -55,7 +97,7 @@ import scope. The globule table has a second, colliding `FEST` number sequence,
 and the raster has separate scientific and redistribution questions.
 
 The public Stellarium supplement does not make these VizieR tables public and
-does not replace the richer local importers. It covers only six cross-index
+does not replace the richer local importers. It covers seven cross-index
 families and does not include Southern Dark Clouds (`dcld`) or
 Feitzinger-Stuewe (`feitzinger`). Those two groups remain local-only.
 
@@ -127,19 +169,32 @@ as an ordinal opacity class is retained as `opacityClass` and never enters the
 visual-magnitude filter. Only confident type mappings are normalized; an
 unrecognized or uncertain input class remains `Other` rather than being
 silently reclassified.
+Stellarium's `ClG` class is normalized as `GCluster` / `Galaxy cluster` for
+Abell records; the original `stellariumType` remains available in provenance.
 
 ## Names and search
 
 Importers create source-aware identifiers and common aliases such as `B 72`,
 `Barnard 72`, `Sh2-101`, `Sh 2-101`, `Sharpless 101`, `LDN1235`, `LBN331`,
-`vdB 142`, and `RCW104`. Browser search normalizes Unicode, case, spaces, and
-hyphens once when the viewer starts. Results rank exact normalized identifiers
-before prefixes and substrings.
+`vdB 142`, `RCW104`, `Abell 1656`, `ACO 1656`, and the southern forms
+`Abell S117` and `ACO S117`. Browser search normalizes Unicode, case, spaces,
+and hyphens once when the viewer starts. Results rank exact normalized
+identifiers before prefixes and substrings.
+The source row carrying `ACO 2462,3897` remains one sky object with its combined
+source alias and both `Abell` and `ACO` forms for each identifier; it is not
+duplicated or position-matched to an unrelated record.
+
+The separate A66 layer uses `Abell PN n` as its unambiguous display ID while
+retaining generic `Abell n` and the A66 variants above for observer searches.
+Its `abell-pn` group and SIMBAD object type distinguish it from the `abell`
+Abell/ACO galaxy-cluster group. Search order is intentional: A66 is composed
+before Stellarium, so `Abell 39` resolves first to `Abell PN 39`; there is no
+A66 1656, so `Abell 1656` resolves only to the ACO cluster.
 
 The public supplement exposes the same identifier variants from Stellarium's
 cross-index columns. Because it is loaded before the viewer builds its search
-index, an LDN, Barnard, LBN, Sharpless, vdB, or RCW query searches the deployed
-supplement rather than a test fixture or runtime network service.
+index, an Abell/ACO, LDN, Barnard, LBN, Sharpless, vdB, or RCW query searches
+the deployed supplement rather than a test fixture or runtime network service.
 
 At runtime, a supplement row can enrich an OpenNGC row only through a
 reciprocal one-to-one NGC/IC identifier. Position is never used to invent an
@@ -215,6 +270,29 @@ data/stellarium-dso-supplement.json
 data/stellarium-supplement-meta.json
 ```
 
+Build the separate A66 layer from the committed, hash-pinned snapshot (the
+builder performs no network access):
+
+```bash
+python tools/build_abell_pn_catalog.py
+```
+
+This writes `abell-pn-catalog.js` and `data/abell-pn-catalog.json`. Package
+consumers can access the JSON payload through the `abell-pn-data` export. The
+snapshot and derived layer remain under ODbL 1.0; see
+`licenses/SIMBAD-ODbL-1.0.md` and `THIRD_PARTY_NOTICES.md`.
+
+Build the separate HYG star layer:
+
+```bash
+python tools/build_hyg_star_catalog.py
+```
+
+This writes `hyg-star-catalog.js` and `data/hyg-star-catalog.json`. Package
+consumers can access the JSON payload through the `hyg-star-data` export. The
+derived files remain under CC BY-SA 4.0; see
+`licenses/HYG-CC-BY-SA-4.0.md` and `THIRD_PARTY_NOTICES.md`.
+
 Package consumers can access the two supplement files through the
 `stellarium-supplement-data` and `stellarium-supplement-meta` exports. Keeping
 them distinct from the OpenNGC package exports preserves source provenance and
@@ -240,8 +318,8 @@ python tools/fetch_catalog_sources.py --help
 python tools/build_dso_catalog.py --help
 ```
 
-The default Pages build deploys OpenNGC plus the separate six-group Stellarium
-supplement. A local combined build can additionally opt in to one or more
+The default Pages build deploys OpenNGC, the separate A66 layer, and the
+seven-group Stellarium supplement. A local combined build can additionally opt in to one or more
 cached VizieR groups. Do not publish that VizieR-derived output unless the
 relevant catalogue rights have been cleared for the intended distribution.
 
@@ -263,15 +341,20 @@ historical VizieR tables. Coverage includes the Stellarium row gate and
 cross-index selection, FK5/J2000, FK4 and Galactic transforms, aliases,
 area-derived shapes, missing optional fields, malformed rows, explicit and
 ambiguous cross-identifications, manual overrides, and byte-stable output.
-Chrome smoke coverage loads the deployable OpenNGC and Stellarium assets,
-asserts the seven expected source filters, and verifies that a supplement
-object can be searched, drawn, and selected directly from its canvas marker.
+Chrome smoke coverage loads the deployable OpenNGC, A66, Stellarium, and HYG
+assets, asserts the nine expected DSO source filters, and verifies that
+supplement objects and HYG stars can be searched, drawn, and selected directly
+from their canvas markers.
+Focused A66 tests additionally verify the committed snapshot/query hashes, all
+86 sequential designations, raw SIMBAD type distribution, required aliases,
+the four exact merge keys, byte-reproducible outputs, and the 21,191-object
+result of composing OpenNGC, A66, then Stellarium.
 
 ## Source and licence notes
 
 Stellarium v26.2 distributes DSO catalogue v3.23 with the GPL-licensed
 Stellarium project. Celestia Atlas modifications are limited to schema and row
-count validation, selection of rows carrying one of six cross-index families,
+count validation, selection of rows carrying one of seven cross-index families,
 identifier normalization, FK5/J2000-to-ICRS transformation, type/shape mapping,
 dark-nebula opacity handling, compact provenance retention, and deterministic
 JSON/JavaScript serialization. The
@@ -293,15 +376,20 @@ publication, catalogue identifier, transformation summary, and rights-review
 status. Cite the original publication and CDS/VizieR service DOI
 `10.26093/cds/vizier` when using locally imported records.
 
+The public A66 source is not one of those VizieR tables. It is an independently
+licensed SIMBAD TAP snapshot under ODbL 1.0. Retain the SIMBAD acknowledgement,
+snapshot/query manifest, source and generated hashes, modification statement,
+and the local licence notice when redistributing it.
+
 ## Known limitations and next steps
 
-- Public historical identifiers are limited to the six cross-index families
-  present in the pinned Stellarium catalogue. Southern Dark Clouds and
+- Public historical identifiers include the seven Stellarium cross-index
+  families plus the separate 86-object A66 layer. Southern Dark Clouds and
   Feitzinger-Stuewe are not in the public supplement.
 - The richer optional VizieR tables are not in the public bundle until their
   redistribution terms are cleared catalogue by catalogue.
-- Markers show catalogue centres and approximate extents, not nebula or cloud
-  outlines.
+- Markers and scaled ellipse footprints show catalogue centres and published
+  or explicitly approximate extents, not measured nebula or cloud contours.
 - Historical positions and sizes have source-dependent precision; transformed
   decimal coordinates do not improve the original measurement accuracy.
 - Ordinal opacity, brightness, colour, and density classes are retained, but

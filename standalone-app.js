@@ -59,24 +59,37 @@ function catalogueGroupsFor(object) {
   ]);
 }
 
-const layeredCatalog = combineCatalogLayers(
+const catalogWithAbellPlanetaryNebulae = combineCatalogLayers(
   globalThis.DSO_DATA ?? [],
-  globalThis.STELLARIUM_DSO_SUPPLEMENT_DATA ?? [],
+  globalThis.ABELL_PN_CATALOG_DATA ?? [],
   globalThis.DSO_CATALOG_META ?? globalThis.OPENNGC_CATALOG_META ?? {},
+  globalThis.ABELL_PN_CATALOG_META ?? {},
+);
+const layeredCatalog = combineCatalogLayers(
+  catalogWithAbellPlanetaryNebulae.objects,
+  globalThis.STELLARIUM_DSO_SUPPLEMENT_DATA ?? [],
+  catalogWithAbellPlanetaryNebulae.meta,
   globalThis.STELLARIUM_DSO_SUPPLEMENT_META ?? {},
 );
 globalThis.DSO_DATA = layeredCatalog.objects;
 globalThis.DSO_CATALOG_META = layeredCatalog.meta;
 
-const stars = (globalThis.STAR_DATA ?? []).map((star) => ({
-  ...star,
-  id: star.name,
-  aliases: [star.alias].filter(Boolean),
-  raDeg: star.ra * 15,
-  decDeg: star.dec,
-  frame: "ICRS",
-  type: "Star",
-}));
+const stars = [
+  ...(globalThis.STAR_DATA ?? []),
+  ...(globalThis.HYG_STAR_DATA ?? []),
+].map((star) => {
+  const name = star.name || star.id || star.uid;
+  return {
+    ...star,
+    id: star.id || name,
+    name,
+    aliases: uniqueStrings([star.aliases ?? [], star.alias]),
+    raDeg: Number.isFinite(star.raDeg) ? star.raDeg : star.ra * 15,
+    decDeg: Number.isFinite(star.decDeg) ? star.decDeg : star.dec,
+    frame: star.frame || "ICRS",
+    type: "Star",
+  };
+});
 const catalog = layeredCatalog.objects.map((object) => {
   const raDeg = Number.isFinite(object.raDeg)
     ? object.raDeg
@@ -122,6 +135,8 @@ const objectTypeLabels = new Map(
 );
 const catalogueGroupLabels = new Map([
   ["openngc", "OpenNGC"],
+  ["abell", "Abell / ACO galaxy clusters"],
+  ["abell-pn", "Abell planetary nebulae (A66)"],
   ["ldn", "LDN"],
   ["barnard", "Barnard"],
   ["lbn", "LBN"],
@@ -148,7 +163,7 @@ const state = {
   hideBelowHorizon:
     localStorage.getItem("celestia-atlas.hide-below-horizon") !== "false",
   nightMode: false,
-  starMagnitudeLimit: 5.5,
+  starMagnitudeLimit: 6.5,
   galaxyMagnitudeLimit: 30,
   deepSkyMagnitudeLimit: 30,
   deepSkyObjectTypes: availableObjectTypes.length

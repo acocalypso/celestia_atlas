@@ -100,6 +100,31 @@ test("reciprocal NGC/IC matches enrich the base identity without replacing it", 
   });
 });
 
+test("normalized primaryName values participate in exact catalogue attachments", () => {
+  const result = combineCatalogLayers(
+    [
+      {
+        uid: "openngc:ic-972",
+        primaryName: "IC 972",
+        coordinates: { raDeg: 220.9, decDeg: 29.3 },
+      },
+    ],
+    [
+      {
+        uid: "simbad:a66-37",
+        id: "Abell PN 37",
+        mergeKeys: ["ic:972"],
+        raDeg: 220.9,
+        decDeg: 29.3,
+      },
+    ],
+  );
+
+  assert.equal(result.objects.length, 1);
+  assert.equal(result.objects[0].primaryName, "IC 972");
+  assert.ok(result.objects[0].aliases.includes("Abell PN 37"));
+});
+
 test("a base-key collision is ambiguous and leaves the supplement independent", () => {
   const result = combineCatalogLayers(
     [
@@ -220,4 +245,40 @@ test("untouched base rows retain their references", () => {
   const base = { id: "NGC 1", raDeg: 0, decDeg: 0 };
   const result = combineCatalogLayers([base], []);
   assert.equal(result.objects[0], base);
+});
+
+test("sequential layers keep explicit version labels and accumulated conflicts", () => {
+  const first = combineCatalogLayers(
+    [{ id: "NGC 1", raDeg: 0, decDeg: 0 }],
+    [{ id: "Abell PN 1", mergeKeys: ["NGC 1"], raDeg: 90, decDeg: 0 }],
+    { version: "base", catalogueGroups: ["openngc"] },
+    {
+      name: "Abell planetary nebulae",
+      versionLabel: "SIMBAD A66",
+      version: "2026-07-15",
+      catalogueGroups: ["abell-pn"],
+    },
+  );
+  const second = combineCatalogLayers(
+    first.objects,
+    [],
+    first.meta,
+    {
+      name: "Stellarium supplement",
+      version: "v26.2",
+      catalogueGroups: ["ldn"],
+    },
+  );
+
+  assert.equal(
+    second.meta.version,
+    "base + SIMBAD A66 2026-07-15 + Stellarium v26.2",
+  );
+  assert.equal(second.meta.supplementAttachmentPositionConflicts, 1);
+  assert.deepEqual(second.meta.catalogueGroups, [
+    "abell-pn",
+    "ldn",
+    "openngc",
+  ]);
+  assert.equal(second.meta.supplements.length, 2);
 });

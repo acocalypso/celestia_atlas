@@ -22,6 +22,7 @@ def supplement_object(
     aliases: tuple[str, ...] = (),
     cross_identifications: tuple[str, ...] = (),
     catalogue_groups: tuple[str, ...] = ("ldn",),
+    sources: tuple[CatalogSourceRef, ...] | None = None,
 ) -> CatalogObject:
     return CatalogObject(
         uid=uid,
@@ -29,7 +30,8 @@ def supplement_object(
         aliases=aliases,
         type_code="DrkN",
         coordinates=Coordinates(10.0, -20.0, original_frame="FK5/J2000"),
-        sources=(
+        sources=sources
+        or (
             CatalogSourceRef(
                 "LDN via Stellarium",
                 primary_name,
@@ -42,6 +44,26 @@ def supplement_object(
 
 
 class StellariumSupplementBuilderTests(unittest.TestCase):
+    def test_multi_identifier_abell_row_keeps_sources_without_repeating_label(self):
+        obj = supplement_object(
+            "stellarium:89296",
+            "Abell 2462",
+            aliases=("ACO 2462", "Abell 3897", "ACO 3897"),
+            catalogue_groups=("abell",),
+            sources=(
+                CatalogSourceRef("Abell via Stellarium", "2462"),
+                CatalogSourceRef("Abell via Stellarium", "3897"),
+            ),
+        )
+
+        record = builder.compact_records((obj,))[0]
+
+        self.assertEqual(record["catalogSource"], "Abell via Stellarium")
+        self.assertEqual(
+            [source["identifier"] for source in record["sources"]],
+            ["2462", "3897"],
+        )
+
     def test_compact_records_only_exposes_unique_ngc_and_ic_merge_keys(self):
         objects = (
             supplement_object(
@@ -126,7 +148,7 @@ class StellariumSupplementBuilderTests(unittest.TestCase):
             supplement_object(
                 "stellarium:31",
                 "RCW 31",
-                catalogue_groups=("rcw", "sharpless"),
+                catalogue_groups=("abell", "rcw", "sharpless"),
             ),
         )
 
@@ -140,12 +162,16 @@ class StellariumSupplementBuilderTests(unittest.TestCase):
         self.assertEqual(meta["version"], "v26.2")
         self.assertEqual(meta["catalogVersion"], "3.23")
         self.assertEqual(meta["license"], "GPL-2.0-or-later")
-        self.assertEqual(meta["catalogueGroups"], ["ldn", "rcw", "sharpless"])
+        self.assertEqual(
+            meta["catalogueGroups"],
+            ["abell", "ldn", "rcw", "sharpless"],
+        )
         self.assertEqual(meta["objectCount"], 2)
         self.assertEqual(meta["sourceSha256"], "a" * 64)
         self.assertEqual(meta["generatedAt"], "1970-01-01T00:00:00+00:00")
         self.assertIn("v26.2", meta["source"])
         self.assertIn("v26.2", meta["licenseUrl"])
+        self.assertIn("Abell/ACO", meta["modifications"])
 
     def test_prepare_source_validates_offline_file_hash(self):
         payload = b"pinned Stellarium fixture\n"

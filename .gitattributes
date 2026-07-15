@@ -1,0 +1,3 @@
+# The committed TAP response hash is over the exact LF-delimited source bytes.
+data/sources/simbad/*.tsv text eol=lf
+data/sources/simbad/*.adql text eol=lf

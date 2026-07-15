@@ -1,5 +1,5 @@
 try{importScripts('./dso-images.js')}catch(e){}
-const CACHE='celestia-atlas-offline-v27';
+const CACHE='celestia-atlas-offline-v29';
 const CORE=[
   './',
   './index.html',
@@ -8,11 +8,15 @@ const CORE=[
   './standalone-app.js',
   './dso-images.js',
   './catalog.js',
+  './hyg-star-catalog.js',
   './dso-catalog.js',
+  './abell-pn-catalog.js',
   './stellarium-supplement.js',
   './THIRD_PARTY_NOTICES.md',
   './docs/CATALOGUES.md',
   './licenses/Stellarium-GPL-2.0.txt',
+  './licenses/HYG-CC-BY-SA-4.0.md',
+  './licenses/SIMBAD-ODbL-1.0.md',
   './vendor/astronomy-engine-2.1.19.esm.js',
   './src/index.js',
   './src/public-api.js',
@@ -46,7 +50,7 @@ const IMAGES=Array.isArray(globalThis.DSO_IMAGE_FILES)?globalThis.DSO_IMAGE_FILE
 
 self.addEventListener('install',event=>event.waitUntil((async()=>{
   const cache=await caches.open(CACHE);
-  await Promise.allSettled(CORE.map(file=>cache.add(file)));
+  await cache.addAll(CORE);
   await Promise.allSettled(IMAGES.map(file=>cache.add(file)));
   await self.skipWaiting();
 })()));

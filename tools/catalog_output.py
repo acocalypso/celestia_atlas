@@ -15,6 +15,7 @@ _LEGACY_GENERIC_DESCRIPTIONS = {
     "GPair": "A physically associated or apparent pair of galaxies listed in OpenNGC.",
     "GTrpl": "A triplet of galaxies listed in OpenNGC.",
     "GGroup": "A group of galaxies listed in OpenNGC.",
+    "GCluster": "A galaxy cluster.",
     "OCl": "An open star cluster in the Milky Way.",
     "GCl": "A dense globular star cluster.",
     "Cl+N": "A star cluster associated with surrounding nebulosity.",
@@ -101,7 +102,9 @@ def compact_object(obj: CatalogObject) -> dict[str, Any]:
 
     properties = dict(obj.properties)
     magnitude = properties.get("magnitude")
-    catalog_source = " + ".join(source.catalogue for source in obj.sources)
+    catalog_source = " + ".join(
+        dict.fromkeys(source.catalogue for source in obj.sources)
+    )
     openngc_only = obj.catalogue_groups == ("openngc",) and len(obj.sources) == 1
     runtime_property_names = {
         "opacityClass",

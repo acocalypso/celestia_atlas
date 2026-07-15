@@ -211,6 +211,84 @@ function assertViewChanged(beforeHash, afterHash, { center = false, fov = false 
     throw new Error(`Zoom did not change the field of view: ${beforeHash} -> ${afterHash}`);
 }
 
+async function assertMobileHeaderLayout(client, expectedViewport) {
+  const mobileHeader = await client.send("Runtime.evaluate", {
+    expression: `(() => {
+      const viewport = { width: window.innerWidth, height: window.innerHeight };
+      const controls = ['timeButton', 'shareButton', 'fullscreenButton'].map(id => {
+        const button = document.getElementById(id);
+        if (!button) return { id, missing: true };
+        const rect = button.getBoundingClientRect();
+        const style = getComputedStyle(button);
+        const hit = document.elementFromPoint(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2,
+        );
+        return {
+          id,
+          rect: {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            width: rect.width,
+            height: rect.height,
+          },
+          insideViewport:
+            rect.width > 0 &&
+            rect.height > 0 &&
+            rect.left >= 0 &&
+            rect.top >= 0 &&
+            rect.right <= viewport.width &&
+            rect.bottom <= viewport.height,
+          enabled:
+            !button.disabled && button.getAttribute('aria-disabled') !== 'true',
+          visible:
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            Number(style.opacity) > 0 &&
+            style.pointerEvents !== 'none',
+          reachable: Boolean(hit && button.contains(hit)),
+          wired: typeof button.onclick === 'function',
+        };
+      });
+      return { viewport, controls };
+    })()`,
+    returnByValue: true,
+  });
+  const state = mobileHeader.result.value;
+  const unreachableControls = state?.controls?.filter(
+    (control) =>
+      control.missing ||
+      !control.insideViewport ||
+      !control.enabled ||
+      !control.visible ||
+      !control.reachable ||
+      !control.wired,
+  );
+  if (
+    state?.viewport?.width !== expectedViewport.width ||
+    state?.viewport?.height !== expectedViewport.height ||
+    unreachableControls?.length
+  )
+    throw new Error(
+      `Mobile header controls are clipped or unreachable at ${expectedViewport.width}x${expectedViewport.height}: ${JSON.stringify(state)}`,
+    );
+}
+
+async function loadMobileViewport(client, sitePort, viewport) {
+  await client.send("Emulation.setDeviceMetricsOverride", {
+    ...viewport,
+    deviceScaleFactor: 2,
+    mobile: true,
+  });
+  await client.send("Page.navigate", {
+    url: `http://127.0.0.1:${sitePort}/index.html`,
+  });
+  await waitForAtlas(client);
+  await assertMobileHeaderLayout(client, viewport);
+}
+
 async function run() {
   const searchQuery = process.env.SMOKE_QUERY || "M 31";
   const expectedSourceFilters = Number(
@@ -219,6 +297,9 @@ async function run() {
   const expectPropertyConflicts =
     process.env.SMOKE_EXPECT_PROPERTY_CONFLICT === "1";
   const expectedDetailText = process.env.SMOKE_EXPECT_DETAIL_TEXT || "";
+  const expectedTitle = process.env.SMOKE_EXPECT_TITLE || "";
+  const expectedStarCount = Number(process.env.SMOKE_EXPECTED_STAR_COUNT || 0);
+  const expectedDsoCount = Number(process.env.SMOKE_EXPECTED_DSO_COUNT || 0);
   const server = await staticServer();
   const sitePort = server.address().port;
   const debugPort = await unusedPort();
@@ -258,13 +339,17 @@ async function run() {
         errors.push(`Browser log: ${params.entry.text}`);
       } else if (
         method === "Network.loadingFailed" &&
-        ["Document", "Script", "Stylesheet"].includes(params.type) &&
+        ["Document", "Script", "Stylesheet", "Image", "Fetch", "XHR", "Manifest"].includes(
+          params.type,
+        ) &&
         params.errorText !== "net::ERR_ABORTED"
       ) {
         errors.push(`Resource failed (${params.type}): ${params.errorText}`);
       } else if (
         method === "Network.responseReceived" &&
-        ["Document", "Script", "Stylesheet"].includes(params.type) &&
+        ["Document", "Script", "Stylesheet", "Image", "Fetch", "XHR", "Manifest"].includes(
+          params.type,
+        ) &&
         params.response?.status >= 400
       ) {
         errors.push(`HTTP ${params.response.status}: ${params.response.url}`);
@@ -315,6 +400,8 @@ async function run() {
           sourceFilters: document.querySelectorAll('#dsoSourceFilters input').length,
           sourceFiltersUnique: new Set(sourceValues).size === sourceValues.length,
           sourceFiltersMatchMetadata: JSON.stringify(sourceValues) === JSON.stringify(metadataGroups),
+          starCount: Number((document.querySelector('#starCount')?.textContent || '').replace(/\\D/g, '')),
+          dsoCount: Number((document.querySelector('#dsoCount')?.textContent || '').replace(/\\D/g, '')),
           canvas: Boolean(document.querySelector('.celestia-atlas-canvas')),
         };
       })()`,
@@ -328,6 +415,7 @@ async function run() {
       !interactionState?.labelledSwitchFocusable ||
       !interactionState?.detailsOpen ||
       !interactionState?.detailTitle ||
+      (expectedTitle && interactionState?.detailTitle !== expectedTitle) ||
       !interactionState?.detailAliases ||
       interactionState?.detailSources?.length < 1 ||
       new Set(interactionState?.detailSources).size !==
@@ -343,6 +431,9 @@ async function run() {
         interactionState?.sourceFilters !== expectedSourceFilters) ||
       !interactionState?.sourceFiltersUnique ||
       !interactionState?.sourceFiltersMatchMetadata ||
+      (expectedStarCount > 0 &&
+        interactionState?.starCount !== expectedStarCount) ||
+      (expectedDsoCount > 0 && interactionState?.dsoCount !== expectedDsoCount) ||
       !interactionState?.canvas
     )
       throw new Error(`Standalone interaction failed: ${JSON.stringify(interactionState)}`);
@@ -436,20 +527,17 @@ async function run() {
     await mkdir(join(ROOT, ".cache"), { recursive: true });
     await writeFile(screenshotPath, Buffer.from(screenshot.data, "base64"));
 
-    await client.send("Emulation.setDeviceMetricsOverride", {
-      width: 390,
-      height: 844,
-      deviceScaleFactor: 2,
-      mobile: true,
-    });
     await client.send("Emulation.setTouchEmulationEnabled", {
       enabled: true,
       maxTouchPoints: 5,
     });
-    await client.send("Page.navigate", {
-      url: `http://127.0.0.1:${sitePort}/index.html`,
-    });
-    await waitForAtlas(client);
+    for (const viewport of [
+      { width: 320, height: 568 },
+      { width: 844, height: 390 },
+      // Restore the canonical portrait viewport used by pinch and screenshots.
+      { width: 390, height: 844 },
+    ])
+      await loadMobileViewport(client, sitePort, viewport);
     const mobileBox = await client.send("Runtime.evaluate", {
       expression: `(() => {
         const r = document.querySelector('.celestia-atlas-canvas').getBoundingClientRect();

@@ -17,6 +17,8 @@ test("classifies galaxy families separately from other deep-sky objects", () => 
   assert.equal(isGalaxyObject({ type: "Galaxy cluster" }), true);
   assert.equal(isGalaxyObject({ type: "Planetary nebula" }), false);
   assert.equal(isGalaxyObject({ typeCode: "GPair", type: "Other" }), true);
+  assert.equal(isGalaxyObject({ typeCode: "GCluster", type: "Other" }), true);
+  assert.equal(classifyDeepSkyObject({ typeCode: "GCluster" }), "galaxy");
 });
 
 test("applies DSO type and catalogue-group allowlists", () => {

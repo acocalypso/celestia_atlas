@@ -69,3 +69,45 @@
   outline: 2px solid var(--cyan);
   outline-offset: 2px;
 }
+
+/* Allow the search field to yield space to every mobile header action. */
+.search {
+  min-width: 0;
+}
+
+@media (max-width: 850px) {
+  .topbar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    top: calc(16px + env(safe-area-inset-top, 0px));
+    right: calc(18px + env(safe-area-inset-right, 0px));
+    left: calc(18px + env(safe-area-inset-left, 0px));
+  }
+
+  .left-rail,
+  .floating-panel,
+  .details-panel {
+    top: calc(92px + env(safe-area-inset-top, 0px));
+  }
+}
+
+@media (max-width: 560px) {
+  .topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 7px;
+    top: calc(8px + env(safe-area-inset-top, 0px));
+    right: calc(9px + env(safe-area-inset-right, 0px));
+    left: calc(9px + env(safe-area-inset-left, 0px));
+    padding: 0 8px 0 10px;
+  }
+
+  .top-actions {
+    flex: 0 0 auto;
+    gap: 3px;
+  }
+
+  .left-rail,
+  .floating-panel,
+  .details-panel {
+    top: calc(70px + env(safe-area-inset-top, 0px));
+  }
+}

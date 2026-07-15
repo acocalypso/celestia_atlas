@@ -1,10 +1,11 @@
 # Celestia Atlas Offline v8
 
 Celestia Atlas source code is licensed under the MIT License. See `LICENSE`.
-The generated OpenNGC catalogue remains under CC BY-SA 4.0, and the separate
-Stellarium DSO supplement remains under GPL-2.0-or-later. These data assets do
-not inherit the MIT code licence or each other's licence. See
-`THIRD_PARTY_NOTICES.md` and `licenses/Stellarium-GPL-2.0.txt`.
+The generated OpenNGC and HYG catalogue assets each remain under CC BY-SA 4.0,
+the separate SIMBAD A66 layer remains under ODbL 1.0, and the separate
+Stellarium DSO supplement remains under GPL-2.0-or-later.
+These data assets do not inherit the MIT code licence or each other's licence.
+See `THIRD_PARTY_NOTICES.md` and the files under `licenses/`.
 
 A self-contained browser planetarium with a local Milky Way dome, offline star
 catalogue, a comprehensive OpenNGC deep-sky catalogue, local DSO photographs,
@@ -15,11 +16,20 @@ services.
 
 - The GitHub Pages build feeds the pinned OpenNGC release through a shared,
   source-independent catalogue model and creates a local browser catalogue.
-- A separately generated public supplement selects the LDN, Barnard, LBN,
-  Sharpless 2, vdB, and RCW cross-index records from Stellarium v26.2 DSO
-  catalogue v3.23. The atlas loads and searches this supplement alongside
-  OpenNGC while retaining its GPL-2.0-or-later terms and provenance.
-- Source-specific local importers provide richer records for those six groups
+- A separately generated HYG v4.1 layer adds 8,780 stars through apparent
+  visual magnitude 6.5. Its compact records preserve J2000.0 positions, visual
+  magnitude, optional B-V colour, constellation, stable HYG identity and HYG
+  provenance while avoiding duplicates of the 130 curated stars.
+- A separately generated public supplement selects the Abell/ACO, LDN,
+  Barnard, LBN, Sharpless 2, vdB, and RCW cross-index records from Stellarium
+  v26.2 DSO catalogue v3.23. The atlas loads and searches this supplement
+  alongside OpenNGC while retaining its GPL-2.0-or-later terms and provenance.
+- A separate ODbL-1.0 layer adds all 86 Abell 1966 (`A66`) planetary-nebula
+  designations from a committed SIMBAD TAP snapshot. `Abell PN 39` and its
+  `Abell 39`, `A66 39`, and `PN A66 39` aliases are distinct from the
+  Stellarium Abell/ACO galaxy-cluster namespace; only four exact, unique
+  NGC/IC identifiers attach to OpenNGC, never a positional match.
+- Source-specific local importers provide richer records for the six nebula groups
   and support Southern Dark Clouds and Feitzinger-Stuewe dark nebulae from
   VizieR. Those complete historical tables and their derived outputs are not
   publicly bundled because their current VizieR records do not state an open
@@ -30,6 +40,10 @@ services.
 - Catalogue/type controls, punctuation-tolerant ranked search, distinct dark,
   reflection, and emission-nebula markers, and full source/shape/property
   details are available in the standalone viewer and public API.
+- The sky background now draws 8,910 stars with available HYG B-V colours and
+  bright-star glow. At narrower fields, galaxies and nebulae also show
+  type-coloured ellipses scaled and rotated from their catalogue dimensions;
+  approximate shapes remain dashed instead of implying measured boundaries.
 - NGC, IC, Messier cross-identifiers, common names, coordinates, object type,
   magnitudes, angular sizes, Hubble class, redshift and radial velocity are
   preserved when available.
@@ -65,6 +79,9 @@ services.
   settled. Fine-pointer budgets remain 384/1024 with a default DPR cap of 2.
   Panorama uploads, canvas backing sizes and one-second moving-object results
   are reused until their inputs actually change.
+- During drag, wheel, and pinch interactions, the renderer temporarily limits
+  faint-star work and restores the selected magnitude limit on the settled
+  refinement frame.
 - Stars, galaxy-family objects and other deep-sky objects have independent
   limiting-magnitude filters in both the public API and standalone controls.
 - Camera orientation is independent of grid visibility. New viewers default to
@@ -79,9 +96,10 @@ services.
 ## Runtime privacy and offline behavior
 
 The deployed atlas makes no catalogue, tile, API, analytics or font requests.
-`dso-catalog.js`, `stellarium-supplement.js`, the Astronomy Engine browser
-build, the Milky Way panorama and all DSO images are ordinary local files
-cached by the service worker.
+`dso-catalog.js`, `abell-pn-catalog.js`, `stellarium-supplement.js`,
+`hyg-star-catalog.js`, the
+Astronomy Engine browser build, the Milky Way panorama and all DSO images are
+ordinary local files cached by the service worker.
 
 Online access is used only by **build tools**:
 
@@ -89,6 +107,11 @@ Online access is used only by **build tools**:
   default build. `build_openngc_catalog.py` remains a compatibility command.
 - `build_stellarium_supplement.py` downloads the pinned Stellarium v26.2 DSO
   catalogue v3.23 and emits a separate public cross-index supplement.
+- `build_abell_pn_catalog.py` reads the committed, hash-verified SIMBAD A66 TAP
+  snapshot without network access and emits a separate ODbL-1.0 layer.
+- `build_hyg_star_catalog.py` downloads and verifies the pinned HYG v4.1 CSV,
+  selects the naked-eye field through magnitude 6.5, and emits a separate star
+  layer.
 - `fetch_catalog_sources.py` can explicitly download the optional VizieR tables
   into the ignored local cache after the user acknowledges the rights review.
 - `fetch_nasa_dso_images.py` downloads selected publication images into the
@@ -149,13 +172,15 @@ Push the project to `main`. The included workflow will:
 1. Install the pinned Python and Node.js build dependencies.
 2. Download the pinned OpenNGC release and generate neutral plus legacy
    compatibility outputs from the same normalized records.
-3. Build the separate GPL-2.0-or-later Stellarium cross-index supplement for LDN,
-   Barnard, LBN, Sharpless 2, vdB, and RCW.
-4. Run the JavaScript/Python suites and Chrome interaction/error smoke tests.
-   The deployed-bundle smoke test verifies all seven source filters and checks
+3. Build the separate GPL-2.0-or-later Stellarium cross-index supplement for
+   Abell/ACO, LDN, Barnard, LBN, Sharpless 2, vdB, and RCW.
+4. Build the separate ODbL-1.0 SIMBAD A66 planetary-nebula layer.
+5. Build the separate CC BY-SA 4.0 HYG v4.1 naked-eye star layer.
+6. Run the JavaScript/Python suites and Chrome interaction/error smoke tests.
+   The deployed-bundle smoke test verifies all nine source filters and checks
    that a public supplement object can be searched, drawn, and selected.
-5. Rebuild the local DSO image index.
-6. Assemble and deploy the static Pages artifact.
+7. Rebuild the local DSO image index.
+8. Assemble and deploy the static Pages artifact.
 
 The workflow deliberately does not fetch or publish the optional VizieR
 catalogues while their redistribution status remains unresolved.
@@ -169,10 +194,13 @@ https://acocalypso.github.io/celestia_atlas/
 The committed `dso-catalog.js` is the distributable OpenNGC browser bundle.
 `stellarium-supplement.js` is a distinct GPL-2.0-or-later browser asset whose
 records are merged into the runtime search/render index when the page loads.
-The workflow rebuilds both reproducibly and exposes seven source filters:
-OpenNGC plus the six supplement groups. Optional local VizieR builds may replace
+The workflow rebuilds the layers reproducibly and exposes nine source filters:
+OpenNGC, the A66 planetary-nebula group, and the seven Stellarium supplement
+groups. Optional local VizieR builds may replace
 or extend them for evaluation, but those richer derived records must not be
 committed or published without catalogue-by-catalogue rights clearance.
+The independent `hyg-star-catalog.js` asset is rebuilt from its pinned source
+at the same time and loaded alongside the curated bright-star layer.
 
 ## Build the catalogue locally
 
@@ -193,8 +221,32 @@ python tools\build_stellarium_supplement.py --version v26.2
 ```
 
 This reads Stellarium DSO catalogue v3.23, validates the 94,899-row upstream
-input, and emits only records carrying at least one LDN, Barnard, LBN,
-Sharpless 2, vdB, or RCW cross-identifier.
+input, and emits 8,658 records carrying at least one Abell/ACO, LDN, Barnard,
+LBN, Sharpless 2, vdB, or RCW cross-identifier.
+
+Build the separately licensed Abell 1966 planetary-nebula layer entirely from
+its committed source snapshot:
+
+```bat
+python tools\build_abell_pn_catalog.py
+```
+
+The builder verifies the 1,152-row TAP response SHA-256, groups its 86 exact
+`PN A66` objects, preserves SIMBAD main IDs, object types, ICRS coordinates and
+cross-identifiers, and emits four unique NGC/IC merge keys. The snapshot,
+query, retrieval date, advertised SIMBAD release and hashes are under
+`data/sources/simbad/`.
+
+Build the separately licensed HYG naked-eye layer:
+
+```bat
+python tools\build_hyg_star_catalog.py
+```
+
+The command verifies the pinned HYG v4.1 source hash and its 119,626 rows,
+selects 8,920 non-solar records through magnitude 6.5, and excludes every HYG
+component within 2 arcminutes of a curated `STAR_DATA` position. The pinned
+build emits 8,780 non-duplicate supplemental stars.
 
 The default source is pinned to OpenNGC `v20260501`. The compatibility command
 remains available for existing automation:
@@ -217,6 +269,10 @@ data/openngc-meta.json
 stellarium-supplement.js
 data/stellarium-dso-supplement.json
 data/stellarium-supplement-meta.json
+abell-pn-catalog.js
+data/abell-pn-catalog.json
+hyg-star-catalog.js
+data/hyg-star-catalog.json
 ```
 
 `dso-catalog.json` preserves the normalized nested model and provenance.
@@ -227,6 +283,10 @@ runtime projection. Package consumers can load the neutral payload through
 schemas for compatibility.
 The separate `stellarium-supplement-data` and `stellarium-supplement-meta`
 package exports preserve the Stellarium asset and licence boundary.
+The `abell-pn-data` export preserves the SIMBAD A66 payload, provenance and
+ODbL-1.0 boundary.
+The `hyg-star-data` export preserves the HYG payload, metadata, provenance and
+its independent CC BY-SA 4.0 boundary.
 `dedup-candidates.json` records report-only spatial candidates and ambiguous
 cross-identifications for manual review; neither category is auto-merged.
 
@@ -431,7 +491,9 @@ styles.css
 standalone.css              standalone shell styling
 standalone-app.js           standalone adapter for the shared viewer API
 catalog.js                 compact bright-star + curated fallback data
+hyg-star-catalog.js        separate CC BY-SA 4.0 HYG naked-eye star layer
 dso-catalog.js             generated degree-based browser catalogue
+abell-pn-catalog.js        separate ODbL-1.0 SIMBAD A66 layer
 stellarium-supplement.js   separate GPL-2.0-or-later public supplement
 src/public-api.js           shared standalone/embedded renderer
 src/core/catalog-identifiers.js ranked tolerant identifier search
@@ -444,6 +506,8 @@ data/
 tools/build_dso_catalog.py  shared normalized catalogue builder
 tools/build_openngc_catalog.py compatibility command
 tools/build_stellarium_supplement.py separate public supplement builder
+tools/build_abell_pn_catalog.py committed-snapshot A66 builder
+tools/build_hyg_star_catalog.py pinned naked-eye star-layer builder
 tools/fetch_catalog_sources.py explicit local source acquisition
 tools/catalog_sources/     source-specific importers and source manifest
 tools/build_dso_image_index.py
@@ -458,10 +522,21 @@ OpenNGC catalogue data is by Mattia Verga and contributors and is licensed under
 CC BY-SA 4.0. Keep `THIRD_PARTY_NOTICES.md` and the in-app attribution when
 redistributing a generated catalogue.
 
-The separately packaged LDN, Barnard, LBN, Sharpless 2, vdB, and RCW
-cross-index supplement is derived from Stellarium v26.2 DSO catalogue v3.23 and
-remains under GPL-2.0-or-later. Its source, generated supplement, metadata,
-attribution, and full licence copy must remain available when it is
+The separate HYG v4.1 star asset is derived from the HYG Database by David Nash
+(Astronomy Nexus) and remains under CC BY-SA 4.0. Keep its source metadata,
+modification notice, `licenses/HYG-CC-BY-SA-4.0.md`, and attribution with the
+derived JavaScript/JSON files.
+
+The separate Abell 1966 planetary-nebula asset is derived from the committed
+SIMBAD TAP snapshot and remains under ODbL 1.0. Keep the snapshot query and
+manifest under `data/sources/simbad/`, the generated metadata, attribution,
+modification notice, and `licenses/SIMBAD-ODbL-1.0.md` with redistributed
+JavaScript/JSON files.
+
+The separately packaged Abell/ACO, LDN, Barnard, LBN, Sharpless 2, vdB, and
+RCW cross-index supplement is derived from Stellarium v26.2 DSO catalogue
+v3.23 and remains under GPL-2.0-or-later. Its source, generated supplement,
+metadata, attribution, and full licence copy must remain available when it is
 redistributed. This does not change the MIT licence for Celestia Atlas code or
 the CC BY-SA 4.0 terms for the OpenNGC asset.
 

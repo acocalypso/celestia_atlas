@@ -84,7 +84,7 @@ test("browser bundle keeps normalized coordinates and curated descriptions", asy
   assert.equal(andromeda.frame, "ICRS");
 });
 
-test("public Stellarium layer exposes searchable LDN records without mixing assets", async () => {
+test("public Stellarium layer exposes searchable LDN and Abell records without mixing assets", async () => {
   const [curatedScript, baseScript, supplementScript, supplementJson, metaJson] =
     await Promise.all([
       readFile(new URL("../catalog.js", import.meta.url), "utf8"),
@@ -96,11 +96,12 @@ test("public Stellarium layer exposes searchable LDN records without mixing asse
   const payload = JSON.parse(supplementJson);
   const metadata = JSON.parse(metaJson);
 
-  assert.equal(payload.objects.length, 3409);
-  assert.equal(payload.meta.objectCount, 3409);
+  assert.equal(payload.objects.length, 8658);
+  assert.equal(payload.meta.objectCount, 8658);
   assert.deepEqual(payload.meta, metadata);
   assert.equal(metadata.license, "GPL-2.0-or-later");
   assert.deepEqual(metadata.catalogueGroups, [
+    "abell",
     "barnard",
     "lbn",
     "ldn",
@@ -124,7 +125,7 @@ test("public Stellarium layer exposes searchable LDN records without mixing asse
     "the separately licensed asset must not rewrite the OpenNGC layer",
   );
   assert.equal(context.window.DSO_DATA.length, 12578);
-  assert.equal(context.window.STELLARIUM_DSO_SUPPLEMENT_DATA.length, 3409);
+  assert.equal(context.window.STELLARIUM_DSO_SUPPLEMENT_DATA.length, 8658);
 
   const layered = combineCatalogLayers(
     baseObjects,
@@ -132,10 +133,11 @@ test("public Stellarium layer exposes searchable LDN records without mixing asse
     baseMetadata,
     context.window.STELLARIUM_DSO_SUPPLEMENT_META,
   );
-  assert.equal(layered.objects.length, 15860);
-  assert.equal(layered.meta.objectCount, 15860);
+  assert.equal(layered.objects.length, 21109);
+  assert.equal(layered.meta.objectCount, 21109);
   assert.equal(layered.meta.supplementAttachmentPositionConflicts, 4);
   assert.deepEqual(layered.meta.catalogueGroups, [
+    "abell",
     "barnard",
     "lbn",
     "ldn",
@@ -157,4 +159,14 @@ test("public Stellarium layer exposes searchable LDN records without mixing asse
   assert.equal(results[0].properties.stellariumType, "DN");
   assert.ok(Number.isFinite(results[0].raDeg));
   assert.ok(Number.isFinite(results[0].decDeg));
+
+  const abellResults = searchCatalogIndex(
+    createCatalogSearchIndex(layered.objects),
+    "ACO S1",
+    5,
+  );
+  assert.equal(abellResults[0].id, "Abell S1");
+  assert.equal(abellResults[0].catalogSource, "Abell via Stellarium");
+  assert.equal(abellResults[0].typeCode, "GCluster");
+  assert.equal(abellResults[0].type, "Galaxy cluster");
 });

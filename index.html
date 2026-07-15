@@ -45,7 +45,7 @@
             id="searchInput"
             type="search"
             spellcheck="false"
-            placeholder="Search Sirius, M31, LDN 1, Jupiter, or coordinates"
+            placeholder="Search Sirius, M31, Abell 39, LDN 1, or coordinates"
             aria-label="Search local sky catalog"
           />
           <kbd>/</kbd>
@@ -248,7 +248,7 @@
 
         <label class="range-label" for="magLimit"
           ><span>Star magnitude limit</span
-          ><strong id="magValue">5.5</strong></label
+          ><strong id="magValue">6.5</strong></label
         >
         <input
           id="magLimit"
@@ -256,7 +256,7 @@
           min="-2"
           max="6.5"
           step="0.1"
-          value="5.5"
+          value="6.5"
         />
         <label class="range-label" for="galaxyMagLimit"
           ><span>Galaxy magnitude limit</span
@@ -626,7 +626,7 @@
         </p>
         <div class="data-stats">
           <div>
-            <strong id="starCount">—</strong><span>local bright stars</span>
+            <strong id="starCount">—</strong><span>local stars to mag 6.5</span>
           </div>
           <div>
             <strong id="dsoCount">—</strong><span>local deep-sky objects</span>
@@ -637,22 +637,22 @@
         </div>
         <h3>Data scope</h3>
         <p>
-          The public deployed build contains the OpenNGC NGC/IC catalogue and
-          a separately licensed Stellarium DSO supplement for LDN, Barnard,
-          LBN, Sharpless, vdB, and RCW identifiers. Catalogue coordinates are
-          normalized to ICRS. To keep the all-sky view readable and fast, faint
-          objects appear progressively as you zoom in, while every bundled
-          entry remains searchable offline. The Milky Way panorama is a locally
-          generated visual representation aligned to Galactic coordinates.
-          Local DSO photographs are projected at their catalogued sky positions
-          when available.
+          The public build contains OpenNGC, all 86 Abell-1966 planetary
+          nebulae, Abell/ACO galaxy clusters, the LDN, Barnard, LBN, Sharpless,
+          vdB, and RCW groups, plus a HYG star layer through visual magnitude
+          6.5. Catalogue coordinates are normalized to ICRS. Stars use their
+          available B-V colours, while galaxies and nebulae use type-specific
+          symbols and scaled catalogue footprints. Faint objects appear
+          progressively as you zoom in, while every bundled entry remains
+          searchable offline. The Milky Way panorama and available local DSO
+          images require no runtime network access.
         </p>
         <h3>Catalogue attribution</h3>
         <p>
-          OpenNGC by Mattia Verga and contributors is distributed under CC
-          BY-SA 4.0. The separate Stellarium DSO supplement is distributed
-          under GPL-2.0-or-later and retains Stellarium and
-          original-catalogue credits.
+          OpenNGC and the HYG-derived star asset are separately distributed
+          under CC BY-SA 4.0. The pinned SIMBAD A66 snapshot is distributed
+          under ODbL 1.0. The Stellarium DSO supplement is distributed under
+          GPL-2.0-or-later and retains Stellarium and original-catalogue credits.
           Richer tables imported locally from VizieR are not included in the
           public bundle; their source rights and redistribution terms require
           review. See
@@ -700,7 +700,9 @@
     </main>
     <script src="dso-images.js"></script>
     <script src="catalog.js"></script>
+    <script src="hyg-star-catalog.js"></script>
     <script src="dso-catalog.js"></script>
+    <script src="abell-pn-catalog.js"></script>
     <script src="stellarium-supplement.js"></script>
     <script type="importmap">
       {

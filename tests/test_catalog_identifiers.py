@@ -37,6 +37,19 @@ class IdentifierTests(unittest.TestCase):
         self.assert_search_equivalent("vdB 142", "VdB142", "van den Bergh 142")
         self.assert_search_equivalent("RCW 104", "RCW104")
 
+    def test_abell_and_aco_variants_include_the_southern_catalogue(self):
+        self.assert_search_equivalent("Abell 1656", "Abell1656", "ACO 1656", "ACO1656")
+        self.assert_search_equivalent(
+            "Abell S117",
+            "AbellS117",
+            "Abell S 117",
+            "ACO S117",
+            "ACOS117",
+            "ACO S 117",
+        )
+        self.assertEqual(identifier_key("ACO S0001"), "abell:s1")
+        self.assertIn("ACO S117", catalogue_aliases("abell", "S117"))
+
     def test_coordinate_designation_sign_is_not_lost(self):
         negative = identifier_key("DCld 000.0-18.9")
         positive = identifier_key("DCld 000.0+18.9")
