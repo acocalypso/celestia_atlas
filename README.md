@@ -93,6 +93,10 @@ positions, plus an optional progressive DSS2 photographic sky at narrow fields.
   horizon-aligned `horizontal` mode; use
   `viewer.setCoordinateMode("equatorial")` only for an equator-up atlas view.
   Hiding the azimuth grid does not change landscape roll or drag orientation.
+- The horizontal observer view now uses natural inside-the-sphere handedness:
+  while facing the horizon, increasing azimuth moves to the right. Stars,
+  grids, the Milky Way, survey imagery and the landscape share that projection,
+  while pointer dragging continues to move the sky with the pointer.
 - Embedded controls can read a defensive copy of the current center and zoom
   through `getView` without accessing renderer internals.
 - The NASA image downloader now accepts any catalogue object, supports large
@@ -163,6 +167,18 @@ increasing eastward (`90 degrees` east), with altitude positive above the
 geometric horizon. Observer longitude is positive east of Greenwich and is
 normalized to `[-180, 180)`. Altitude is geometric: Celestia Atlas does not
 apply atmospheric refraction, pressure, temperature or wavelength correction.
+
+The horizontal canvas is an observer-inside-the-sphere view. When looking
+toward the horizon, eastward/increasing azimuth is screen-right; the same
+handedness is applied to catalogue objects, grids, the Milky Way, photographic
+survey imagery and the landscape so those layers remain registered.
+
+Sky-position comparisons must use the same UTC time, latitude, longitude and
+field of view. The standalone viewer starts with its labelled Berlin fallback
+(`52.52 N, 13.405 E`) until coordinates are entered or **Use device location**
+is applied. Comparing that initial view with another atlas configured for a
+different city can visibly shift an object even when both catalogues contain
+the same coordinates.
 
 Times enter as UTC Unix milliseconds. Astronomy Engine approximates UT1 and
 UTC as equal and uses its own Earth-rotation, precession, nutation and delta-T

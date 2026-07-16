@@ -21,23 +21,48 @@ export function projectAngularExtent(angularExtentDeg, focalLengthPixels) {
 
 /**
  * Converts a camera position angle measured from celestial north into the
- * clockwise canvas rotation required by the current sky projection.
+ * clockwise canvas rotation that aligns the camera frame's local up axis.
  */
 export function cameraFrameScreenRotationDeg(
   projectionRotationDeg,
   cameraRotationDeg,
   rotationConvention,
+  mirrorX = false,
 ) {
   if (
     !Number.isFinite(projectionRotationDeg) ||
     !Number.isFinite(cameraRotationDeg)
   )
     throw new TypeError("Projection and camera rotations must be finite");
+  const northBearingDeg = mirrorX
+    ? projectionRotationDeg
+    : -projectionRotationDeg;
   if (rotationConvention === "clockwise-from-celestial-north")
-    return -projectionRotationDeg + cameraRotationDeg;
+    return northBearingDeg + cameraRotationDeg;
   if (rotationConvention === "counterclockwise-from-celestial-north")
-    return -projectionRotationDeg - cameraRotationDeg;
+    return northBearingDeg - cameraRotationDeg;
   throw new TypeError("Camera rotation convention is required");
+}
+
+/**
+ * Converts an astronomical position angle measured from celestial north
+ * through east into the canvas rotation that aligns a local +X major axis.
+ */
+export function celestialPositionAngleCanvasRotationDeg(
+  projectionRotationDeg,
+  positionAngleDeg,
+  mirrorX = false,
+) {
+  return (
+    cameraFrameScreenRotationDeg(
+      projectionRotationDeg,
+      positionAngleDeg,
+      mirrorX
+        ? "counterclockwise-from-celestial-north"
+        : "clockwise-from-celestial-north",
+      mirrorX,
+    ) - 90
+  );
 }
 
 export function projectEquatorial(coordinates, view, width, height) {
@@ -60,7 +85,7 @@ export function projectEquatorial(coordinates, view, width, height) {
   const rotatedY = xPlane * Math.sin(rotation) + yPlane * Math.cos(rotation);
   const focal = width / (2 * Math.tan((view.fovDeg * DEG) / 2));
   return {
-    x: width / 2 + focal * rotatedX,
+    x: width / 2 + (view.mirrorX ? -1 : 1) * focal * rotatedX,
     y: height / 2 - focal * rotatedY,
   };
 }
@@ -82,21 +107,30 @@ export function alignViewToHorizon(view, observer, timestampUtcMs) {
     timestampUtcMs,
     view.center.frame,
   );
-  const point = projectEquatorial(reference, view, 2, 2);
+  const point = projectEquatorial(
+    reference,
+    { ...view, rotationDeg: 0, mirrorX: true },
+    2,
+    2,
+  );
   let x = point.x - 1;
   let y = 1 - point.y;
   if (!towardZenith) {
     x = -x;
     y = -y;
   }
-  return { ...view, rotationDeg: Math.atan2(x, y) * RAD };
+  return {
+    ...view,
+    mirrorX: true,
+    rotationDeg: -Math.atan2(x, y) * RAD,
+  };
 }
 
 export function unprojectEquatorial(x, y, view, width, height) {
   const centerRa = view.center.raDeg * DEG;
   const centerDec = view.center.decDeg * DEG;
   const focal = width / (2 * Math.tan((view.fovDeg * DEG) / 2));
-  const rotatedX = (x - width / 2) / focal;
+  const rotatedX = (view.mirrorX ? -1 : 1) * (x - width / 2) / focal;
   const rotatedY = (height / 2 - y) / focal;
   const rotation = (view.rotationDeg ?? 0) * DEG;
   const xPlane = rotatedX * Math.cos(rotation) + rotatedY * Math.sin(rotation);

@@ -10,6 +10,7 @@ import {
 import {
   alignViewToHorizon,
   cameraFrameScreenRotationDeg,
+  celestialPositionAngleCanvasRotationDeg,
   projectAngularExtent,
   projectEquatorial,
 } from "./core/projection.js";
@@ -882,6 +883,7 @@ export function createCelestiaAtlasViewer(options) {
     y,
     scale,
     projectionRotationDeg,
+    projectionMirrorX,
     visualKind,
     approximateShape,
   ) => {
@@ -916,10 +918,10 @@ export function createCelestiaAtlasViewer(options) {
     if (!fill || !stroke) return;
     const positionAngleDeg =
       object.shape?.positionAngleDeg ?? object.positionAngle ?? 0;
-    const rotationDeg = cameraFrameScreenRotationDeg(
+    const rotationDeg = celestialPositionAngleCanvasRotationDeg(
       projectionRotationDeg,
       positionAngleDeg,
-      "clockwise-from-celestial-north",
+      projectionMirrorX,
     );
     context.save();
     context.translate(x, y);
@@ -1035,6 +1037,7 @@ export function createCelestiaAtlasViewer(options) {
       view.center.decDeg.toFixed(4),
       view.fovDeg.toFixed(3),
       (projectionView.rotationDeg ?? 0).toFixed(4),
+      Boolean(projectionView.mirrorX),
       observer.latitudeDeg,
       observer.longitudeDeg,
       Math.floor(landscapeTime / 60000),
@@ -1083,6 +1086,7 @@ export function createCelestiaAtlasViewer(options) {
       view.center.decDeg.toFixed(4),
       view.fovDeg.toFixed(3),
       (projectionView.rotationDeg ?? 0).toFixed(4),
+      Boolean(projectionView.mirrorX),
       display.hideBelowHorizon,
       observer.latitudeDeg,
       observer.longitudeDeg,
@@ -1259,6 +1263,7 @@ export function createCelestiaAtlasViewer(options) {
       // A tenth of a degree moves an edge pixel by less than one pixel while
       // avoiding self-cancellation from continuous sidereal sub-pixel drift.
       (projectionView.rotationDeg ?? 0).toFixed(1),
+      Boolean(projectionView.mirrorX),
       coordinateMode,
       display.hideBelowHorizon,
       observer.latitudeDeg,
@@ -1780,6 +1785,7 @@ export function createCelestiaAtlasViewer(options) {
           y,
           scale,
           projectionView.rotationDeg ?? 0,
+          Boolean(projectionView.mirrorX),
           catalogVisualKinds[catalogIndex],
           Boolean(catalogApproximateShapeFlags[catalogIndex]),
         );
@@ -1991,6 +1997,7 @@ export function createCelestiaAtlasViewer(options) {
         projectionView.rotationDeg ?? 0,
         fieldOfView.rotationDeg,
         fieldOfView.rotationConvention,
+        Boolean(projectionView.mirrorX),
       );
       context.rotate((screenRotationDeg * Math.PI) / 180);
       context.strokeStyle = "#64e39c";
@@ -2151,7 +2158,13 @@ export function createCelestiaAtlasViewer(options) {
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
     const next = horizontalToEquatorial(
-      panHorizontalView(drag.horizontalCenter, dx, dy, view.fovDeg, height),
+      panHorizontalView(
+        drag.horizontalCenter,
+        coordinateMode === "horizontal" ? dx : -dx,
+        dy,
+        view.fovDeg,
+        height,
+      ),
       observer,
       drag.timestampUtcMs,
       drag.center.frame,

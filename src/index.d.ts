@@ -457,12 +457,22 @@ export function cameraFrameScreenRotationDeg(
   projectionRotationDeg: number,
   cameraRotationDeg: number,
   rotationConvention: FieldOfViewOverlay["rotationConvention"],
+  mirrorX?: boolean,
+): number;
+/**
+ * Canvas rotation for a local +X major axis whose astronomical position
+ * angle is measured from celestial north through east.
+ */
+export function celestialPositionAngleCanvasRotationDeg(
+  projectionRotationDeg: number,
+  positionAngleDeg: number,
+  mirrorX?: boolean,
 ): number;
 export function alignViewToHorizon(
   view: ViewState,
   observer: Observer,
   timestampUtcMs: number,
-): ViewState & { rotationDeg: number };
+): ViewState & { rotationDeg: number; mirrorX: true };
 export function isGalaxyObject(object: unknown): boolean;
 export type DeepSkyVisualKind =
   | "galaxy"

@@ -133,7 +133,7 @@ test("pans along the local horizon independently of grid visibility", () => {
     70,
     700,
   );
-  assert.equal(leftRight.azimuthDeg, 4);
+  assert.equal(leftRight.azimuthDeg, 0);
   assert.equal(leftRight.altitudeDeg, 25);
 
   const upDown = panHorizontalView(

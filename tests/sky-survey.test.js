@@ -577,6 +577,18 @@ test("rasterizes loaded tiles with the exact portrait/landscape view rotation", 
         rotationDeg: -22,
       },
     },
+    {
+      canvasWidth: 1000,
+      canvasHeight: 600,
+      outputWidth: 47,
+      order: 3,
+      view: {
+        center: { raDeg: 310.3575, decDeg: 45.2803, frame: "ICRS" },
+        fovDeg: 66.8,
+        rotationDeg: -41.4,
+        mirrorX: true,
+      },
+    },
   ];
   for (const geometry of cases) {
     const expected = expectedMappings({ survey, ...geometry });

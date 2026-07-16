@@ -33,6 +33,10 @@ const MIME = new Map([
 
 const delay = (milliseconds) =>
   new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
+const trace = (message) => {
+  if (process.env.SMOKE_TRACE !== "1") return;
+  process.stderr.write(`[browser-smoke] ${message}\n`);
+};
 
 async function waitForChildExit(child, timeoutMilliseconds) {
   if (child.exitCode !== null || child.signalCode !== null) return true;
@@ -112,6 +116,18 @@ async function staticServer(port = 0) {
     server.listen(port, "127.0.0.1", resolveListen);
   });
   return server;
+}
+
+async function closeStaticServer(server) {
+  if (!server?.listening) return;
+  await new Promise((resolveClose) => {
+    server.close(resolveClose);
+    // Chrome can retain an HTTP keep-alive socket after a dynamic module
+    // import. Close those sockets explicitly so the strict offline reload and
+    // final cleanup cannot wait for the platform keep-alive timeout.
+    server.closeIdleConnections?.();
+    server.closeAllConnections?.();
+  });
 }
 
 async function devtoolsTarget(port) {
@@ -292,6 +308,21 @@ async function currentHash(client) {
   return result.result?.value ?? "";
 }
 
+async function currentHorizontalCenter(client) {
+  const result = await client.send("Runtime.evaluate", {
+    expression: `(async () => {
+      const viewer = globalThis.__CELESTIA_ATLAS_VIEWER__;
+      const state = viewer?.getState();
+      if (!state) return null;
+      const { equatorialToHorizontal } = await import('./src/index.js');
+      return equatorialToHorizontal(state.view.center, state.observer, state.utcMs);
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  return result.result?.value ?? null;
+}
+
 function assertViewChanged(beforeHash, afterHash, { center = false, fov = false } = {}) {
   const before = viewFromHash(beforeHash);
   const after = viewFromHash(afterHash);
@@ -398,13 +429,21 @@ async function run() {
   const expectedStarCount = Number(process.env.SMOKE_EXPECTED_STAR_COUNT || 0);
   const expectedDsoCount = Number(process.env.SMOKE_EXPECTED_DSO_COUNT || 0);
   let server = await staticServer();
+  trace("static server ready");
   const sitePort = server.address().port;
   const debugPort = await unusedPort();
+  trace("debug port reserved");
   const profile = await mkdtemp(join(tmpdir(), "celestia-atlas-chrome-"));
+  trace("Chrome profile created");
+  const executable = chromeExecutable();
+  trace(`launching Chrome from ${executable}`);
   const chrome = spawn(
-    chromeExecutable(),
+    executable,
     [
       "--headless=new",
+      // Required in constrained CI/agent environments where Chrome's GPU
+      // sandbox cannot initialize; the profile and origin are both ephemeral.
+      "--no-sandbox",
       "--disable-gpu",
       "--disable-extensions",
       "--no-first-run",
@@ -416,6 +455,7 @@ async function run() {
     ],
     { stdio: ["ignore", "ignore", "pipe"], windowsHide: true },
   );
+  trace("Chrome process spawned");
   let chromeStderr = "";
   chrome.stderr.on("data", (chunk) => {
     chromeStderr += String(chunk);
@@ -426,6 +466,7 @@ async function run() {
   let client;
   try {
     const target = await devtoolsTarget(debugPort);
+    trace("Chrome DevTools ready");
     client = cdpClient(target.webSocketDebuggerUrl, (method, params) => {
       if (
         offlineReloadStarted &&
@@ -495,6 +536,7 @@ async function run() {
     });
 
     await waitForAtlas(client);
+    trace("Atlas ready");
 
     const interaction = await client.send("Runtime.evaluate", {
       expression: `(() => {
@@ -634,6 +676,7 @@ async function run() {
       });
       await waitForSkySurvey(client, { settled: true });
     }
+    trace("initial survey checks complete");
 
     const box = await client.send("Runtime.evaluate", {
       expression: `(() => {
@@ -653,6 +696,7 @@ async function run() {
       interactionState.detailTitle,
     );
     const beforeDragHash = await currentHash(client);
+    const beforeDragHorizontal = await currentHorizontalCenter(client);
     await client.send("Input.dispatchMouseEvent", {
       type: "mousePressed",
       x,
@@ -676,7 +720,22 @@ async function run() {
     });
     await delay(350);
     const afterDragHash = await currentHash(client);
+    const afterDragHorizontal = await currentHorizontalCenter(client);
     assertViewChanged(beforeDragHash, afterDragHash, { center: true });
+    const horizontalDragDelta =
+      ((afterDragHorizontal?.azimuthDeg -
+        beforeDragHorizontal?.azimuthDeg +
+        540) %
+        360) -
+      180;
+    if (
+      !Number.isFinite(horizontalDragDelta) ||
+      horizontalDragDelta >= -0.01
+    )
+      throw new Error(
+        `Rightward drag did not move the horizontal camera centre toward decreasing azimuth: ${JSON.stringify({ beforeDragHorizontal, afterDragHorizontal, horizontalDragDelta })}`,
+      );
+    trace("desktop drag direction verified");
     let beforeWheelHash = afterDragHash;
     if (liveSurvey) {
       const eagle = await focusSearchResult(client, "M 16");
@@ -730,6 +789,7 @@ async function run() {
     }
 
     await waitForServiceWorkerControl(client);
+    trace("service worker controls page");
     await client.send("Network.setCacheDisabled", { cacheDisabled: true });
     await client.send("Network.emulateNetworkConditions", {
       offline: true,
@@ -771,7 +831,8 @@ async function run() {
 
     // Remove the origin server entirely so a successful reload cannot be
     // mistaken for Chrome's HTTP cache or a network-first service-worker hit.
-    await new Promise((resolveClose) => server.close(resolveClose));
+    await closeStaticServer(server);
+    trace("origin server stopped");
     offlineReloadStarted = true;
     await reloadAndWaitForAtlas(client);
     const offlineReloadSurvey = await waitForSkySurvey(client, { idle: true });
@@ -801,6 +862,7 @@ async function run() {
       throw new Error(
         `Service-worker-controlled offline reload did not restore the app shell and cached survey: ${JSON.stringify({ documentFromServiceWorker: offlineDocumentFromServiceWorker, page: offlineReloadState.result.value, survey: offlineReloadSurvey })}`,
       );
+    trace("strict offline reload verified");
     if (liveSurvey) {
       await client.send("Runtime.evaluate", {
         expression: `(() => {
@@ -820,6 +882,7 @@ async function run() {
       );
     }
     server = await staticServer(sitePort);
+    trace("origin server restored");
     offlineReloadStarted = false;
     await client.send("Network.emulateNetworkConditions", {
       offline: false,
@@ -844,6 +907,85 @@ async function run() {
     await mkdir(join(ROOT, ".cache"), { recursive: true });
     await writeFile(screenshotPath, Buffer.from(screenshot.data, "base64"));
 
+    const orientationFixture = await client.send("Runtime.evaluate", {
+      expression: `(async () => {
+        const viewer = globalThis.__CELESTIA_ATLAS_VIEWER__;
+        const {
+          alignViewToHorizon,
+          horizontalToEquatorial,
+          projectEquatorial,
+        } = await import('./src/index.js');
+        const observer = {
+          latitudeDeg: 49.4771,
+          longitudeDeg: 10.9887,
+          elevationM: 300,
+        };
+        const timestampUtcMs = Date.UTC(2026, 6, 15, 19, 11, 33);
+        const center = horizontalToEquatorial(
+          { azimuthDeg: 90, altitudeDeg: 30 },
+          observer,
+          timestampUtcMs,
+          'ICRS',
+        );
+        const view = { center, fovDeg: 66.8 };
+        viewer.setCoordinateMode('horizontal');
+        viewer.setObserver(observer);
+        viewer.setTime(timestampUtcMs);
+        viewer.setTimeRate(0);
+        viewer.setDisplayOptions({
+          horizon: true,
+          hideBelowHorizon: true,
+          labels: true,
+          milkyWay: true,
+          skySurvey: false,
+        });
+        viewer.setView(view);
+        const projectionView = alignViewToHorizon(
+          view,
+          observer,
+          timestampUtcMs,
+        );
+        const canvas = document.querySelector('.celestia-atlas-canvas');
+        const point = (name) => {
+          const target = viewer.search(name)?.[0];
+          const coordinates = target?.coordinates || target;
+          return projectEquatorial(
+            coordinates,
+            projectionView,
+            canvas.clientWidth,
+            canvas.clientHeight,
+          );
+        };
+        return { deneb: point('Deneb'), altair: point('Altair') };
+      })()`,
+      awaitPromise: true,
+      returnByValue: true,
+    });
+    const orientation = orientationFixture.result?.value;
+    if (
+      !Number.isFinite(orientation?.deneb?.x) ||
+      !Number.isFinite(orientation?.altair?.x) ||
+      orientation.deneb.x >= orientation.altair.x
+    )
+      throw new Error(
+        `The east-facing browser projection did not place Deneb left of Altair: ${JSON.stringify(orientation)}`,
+      );
+    await delay(800);
+    const orientationScreenshot = await client.send(
+      "Page.captureScreenshot",
+      { format: "png", captureBeyondViewport: false },
+    );
+    const orientationScreenshotPath = join(
+      ROOT,
+      ".cache",
+      "browser-smoke-orientation.png",
+    );
+    await writeFile(
+      orientationScreenshotPath,
+      Buffer.from(orientationScreenshot.data, "base64"),
+    );
+    trace("east-facing Deneb/Milky Way orientation verified");
+
     await client.send("Emulation.setTouchEmulationEnabled", {
       enabled: true,
       maxTouchPoints: 5,
@@ -855,6 +997,7 @@ async function run() {
       { width: 390, height: 844 },
     ])
       await loadMobileViewport(client, sitePort, viewport);
+    trace("mobile header viewports verified");
     const mobileSurveyTarget = await client.send("Runtime.evaluate", {
       expression: `(() => {
         const viewer = globalThis.__CELESTIA_ATLAS_VIEWER__;
@@ -912,14 +1055,16 @@ async function run() {
       mobileScreenshotPath,
       Buffer.from(mobileScreenshot.data, "base64"),
     );
+    trace("mobile pinch and screenshot complete");
 
     if (errors.length) {
       throw new Error(`Browser smoke test found ${errors.length} error(s):\n${errors.join("\n")}`);
     }
     process.stdout.write(
-      `Browser smoke test passed (desktop drag/wheel, mobile pinch); screenshots: ${screenshotPath}, ${mobileScreenshotPath}\n`,
+      `Browser smoke test passed (desktop drag/wheel, mobile pinch); screenshots: ${screenshotPath}, ${orientationScreenshotPath}, ${mobileScreenshotPath}\n`,
     );
   } finally {
+    trace("cleanup started");
     client?.close();
     if (chrome.exitCode === null && chrome.signalCode === null)
       chrome.kill("SIGTERM");
@@ -927,13 +1072,14 @@ async function run() {
       chrome.kill("SIGKILL");
       await waitForChildExit(chrome, 5000);
     }
-    await new Promise((resolveClose) => server.close(resolveClose));
+    await closeStaticServer(server);
     await rm(profile, {
       recursive: true,
       force: true,
       maxRetries: 10,
       retryDelay: 100,
     });
+    trace("cleanup complete");
     if (chrome.exitCode && chromeStderr)
       process.stderr.write(chromeStderr.slice(-4000));
   }

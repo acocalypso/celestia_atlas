@@ -376,7 +376,9 @@ export function panHorizontalView(
     throw new TypeError("Horizontal panning requires finite view geometry");
   const degreesPerPixel = fovDeg / Math.max(280, viewportHeight);
   return {
-    azimuthDeg: normalizeDegrees(center.azimuthDeg + deltaX * degreesPerPixel),
+    // Direct manipulation: moving the pointer right keeps the sky moving
+    // right, so the camera centre moves toward decreasing azimuth.
+    azimuthDeg: normalizeDegrees(center.azimuthDeg - deltaX * degreesPerPixel),
     altitudeDeg: Math.max(
       -89.5,
       Math.min(89.5, center.altitudeDeg + deltaY * degreesPerPixel),

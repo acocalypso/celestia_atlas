@@ -2,6 +2,7 @@ import {
   createEquatorialToHorizontalVectorTransform,
   horizonAltitudeAtAzimuth,
   normalizeDegrees,
+  transformEquatorialVectorFrame,
   validateEquatorialCoordinates,
 } from "./coordinates.js";
 
@@ -186,10 +187,15 @@ export function createEquatorialRayGeometry({
   const rotation = (view.rotationDeg ?? 0) * DEG;
   const cosRotation = Math.cos(rotation);
   const sinRotation = Math.sin(rotation);
-  const screenX = ((0.5 / rasterWidth) * canvasWidth - canvasWidth / 2) / focal;
+  const screenHandedness = view.mirrorX ? -1 : 1;
+  const screenX =
+    (screenHandedness *
+      ((0.5 / rasterWidth) * canvasWidth - canvasWidth / 2)) /
+    focal;
   const screenY =
     (canvasHeight / 2 - (0.5 / rasterHeight) * canvasHeight) / focal;
-  const screenXStep = canvasWidth / rasterWidth / focal;
+  const screenXStep =
+    (screenHandedness * canvasWidth) / rasterWidth / focal;
   const screenYStep = -canvasHeight / rasterHeight / focal;
   const planeX = screenX * cosRotation + screenY * sinRotation;
   const planeY = -screenX * sinRotation + screenY * cosRotation;
@@ -244,12 +250,22 @@ function createHorizontalRayGeometry(options) {
   );
 }
 
-function equatorialRayGeometryToGalactic(equatorial) {
-  const transform = ({ x, y, z }) => ({
-    x: -0.0548755604 * x - 0.8734370902 * y - 0.4838350155 * z,
-    y: 0.4941094279 * x - 0.44482963 * y + 0.7469822445 * z,
-    z: -0.867666149 * x - 0.1980763734 * y + 0.4559837762 * z,
-  });
+function equatorialRayGeometryToGalactic(equatorial, inputFrame) {
+  const transform = (vector) => {
+    // The standard Galactic rotation is defined from FK5/J2000 axes. Views
+    // may instead be expressed in ICRS, so apply the same frame bias used by
+    // the sky-survey mapper before rotating into Galactic coordinates.
+    const { x, y, z } = transformEquatorialVectorFrame(
+      vector,
+      inputFrame,
+      "J2000",
+    );
+    return {
+      x: -0.0548755604 * x - 0.8734370902 * y - 0.4838350155 * z,
+      y: 0.4941094279 * x - 0.44482963 * y + 0.7469822445 * z,
+      z: -0.867666149 * x - 0.1980763734 * y + 0.4559837762 * z,
+    };
+  };
   return {
     first: transform(equatorial.first),
     across: transform(equatorial.across),
@@ -463,7 +479,10 @@ export function rasterizeMilkyWayPanorama({
     rasterWidth: width,
     rasterHeight: height,
   });
-  const galacticRay = equatorialRayGeometryToGalactic(equatorialRay);
+  const galacticRay = equatorialRayGeometryToGalactic(
+    equatorialRay,
+    view.center.frame,
+  );
   const horizontalRay = hideBelowHorizon
     ? equatorialRayGeometryToHorizontal(
         equatorialRay,

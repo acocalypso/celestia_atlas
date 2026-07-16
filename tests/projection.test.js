@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   alignViewToHorizon,
   cameraFrameScreenRotationDeg,
+  celestialPositionAngleCanvasRotationDeg,
   projectAngularExtent,
   projectEquatorial,
   unprojectEquatorial,
@@ -174,6 +175,111 @@ test("anchors camera axes to projected celestial north and east", () => {
   }
 });
 
+test("mirrors camera position angles with the observer-sky projection", () => {
+  const width = 1000;
+  const height = 600;
+  const center = { raDeg: 120, decDeg: 30, frame: "ICRS" };
+  for (const rotationDeg of [0, 37, -112]) {
+    const mirroredView = {
+      center,
+      fovDeg: 60,
+      rotationDeg,
+      mirrorX: true,
+    };
+    const north = projectEquatorial(
+      equatorialOffset(center, 1, 0),
+      mirroredView,
+      width,
+      height,
+    );
+    const east = projectEquatorial(
+      equatorialOffset(center, 1, 90),
+      mirroredView,
+      width,
+      height,
+    );
+    const west = projectEquatorial(
+      equatorialOffset(center, 1, -90),
+      mirroredView,
+      width,
+      height,
+    );
+    assertAngleClose(
+      cameraFrameScreenRotationDeg(
+        rotationDeg,
+        0,
+        "clockwise-from-celestial-north",
+        true,
+      ),
+      screenBearingDeg(north, width, height),
+    );
+    assertAngleClose(
+      cameraFrameScreenRotationDeg(
+        rotationDeg,
+        90,
+        "clockwise-from-celestial-north",
+        true,
+      ),
+      screenBearingDeg(west, width, height),
+    );
+    assertAngleClose(
+      cameraFrameScreenRotationDeg(
+        rotationDeg,
+        90,
+        "counterclockwise-from-celestial-north",
+        true,
+      ),
+      screenBearingDeg(east, width, height),
+    );
+  }
+});
+
+test("aligns catalogue major axes to north-through-east position angles", () => {
+  const width = 1000;
+  const height = 600;
+  const center = { raDeg: 120, decDeg: 30, frame: "ICRS" };
+  for (const mirrorX of [false, true]) {
+    for (const rotationDeg of [0, 37, -112]) {
+      const projectionView = {
+        center,
+        fovDeg: 60,
+        rotationDeg,
+        mirrorX,
+      };
+      const north = projectEquatorial(
+        equatorialOffset(center, 1, 0),
+        projectionView,
+        width,
+        height,
+      );
+      const east = projectEquatorial(
+        equatorialOffset(center, 1, 90),
+        projectionView,
+        width,
+        height,
+      );
+      // A canvas rotation acts on a footprint whose major axis is local +X;
+      // local +X has a screen bearing 90 degrees beyond that rotation.
+      assertAngleClose(
+        celestialPositionAngleCanvasRotationDeg(
+          rotationDeg,
+          0,
+          mirrorX,
+        ) + 90,
+        screenBearingDeg(north, width, height),
+      );
+      assertAngleClose(
+        celestialPositionAngleCanvasRotationDeg(
+          rotationDeg,
+          90,
+          mirrorX,
+        ) + 90,
+        screenBearingDeg(east, width, height),
+      );
+    }
+  }
+});
+
 test("keeps the Berlin horizontal camera frame on celestial north", () => {
   const observer = {
     latitudeDeg: 52.52,
@@ -206,6 +312,7 @@ test("keeps the Berlin horizontal camera frame on celestial north", () => {
       aligned.rotationDeg,
       0,
       "clockwise-from-celestial-north",
+      true,
     ),
     northBearingDeg,
   );
@@ -214,6 +321,7 @@ test("keeps the Berlin horizontal camera frame on celestial north", () => {
       aligned.rotationDeg,
       30,
       "clockwise-from-celestial-north",
+      true,
     ),
     northBearingDeg + 30,
   );
@@ -265,18 +373,20 @@ test("round trips portrait and landscape projection points", () => {
     [600, 1000, 37],
     [1000, 600, -112],
   ]) {
-    const target = { raDeg: 2, decDeg: 45, frame: "ICRS" };
-    const rotatedView = { ...view, rotationDeg };
-    const point = projectEquatorial(target, rotatedView, width, height);
-    const result = unprojectEquatorial(
-      point.x,
-      point.y,
-      rotatedView,
-      width,
-      height,
-    );
-    assert.ok(Math.abs(result.raDeg - target.raDeg) < 1e-9);
-    assert.ok(Math.abs(result.decDeg - target.decDeg) < 1e-9);
+    for (const mirrorX of [false, true]) {
+      const target = { raDeg: 2, decDeg: 45, frame: "ICRS" };
+      const rotatedView = { ...view, rotationDeg, mirrorX };
+      const point = projectEquatorial(target, rotatedView, width, height);
+      const result = unprojectEquatorial(
+        point.x,
+        point.y,
+        rotatedView,
+        width,
+        height,
+      );
+      assert.ok(Math.abs(result.raDeg - target.raDeg) < 1e-9);
+      assert.ok(Math.abs(result.decDeg - target.decDeg) < 1e-9);
+    }
   }
 });
 
@@ -385,6 +495,67 @@ test("aligns local altitude vertically and azimuth horizontally", () => {
     assert.ok(Math.abs(upward.x - 400) < 1e-6);
     assert.ok(upward.y < 300);
     assert.ok(Math.abs(across.y - 300) < 1e-3);
-    assert.ok(Math.abs(across.x - 400) > 0.001);
+    assert.ok(across.x > 400);
   }
+});
+
+test("uses natural observer-sky handedness around the eastern horizon", () => {
+  const observer = {
+    latitudeDeg: 49.4771,
+    longitudeDeg: 10.9887,
+    elevationM: 300,
+  };
+  const timestampUtcMs = Date.UTC(2026, 6, 15, 19, 11, 33);
+  const horizontal = { azimuthDeg: 90, altitudeDeg: 30 };
+  const center = horizontalToEquatorial(
+    horizontal,
+    observer,
+    timestampUtcMs,
+    "ICRS",
+  );
+  const aligned = alignViewToHorizon(
+    { center, fovDeg: 66.8 },
+    observer,
+    timestampUtcMs,
+  );
+  const northOfEast = projectEquatorial(
+    horizontalToEquatorial(
+      { azimuthDeg: 80, altitudeDeg: 30 },
+      observer,
+      timestampUtcMs,
+      "ICRS",
+    ),
+    aligned,
+    1000,
+    600,
+  );
+  const southOfEast = projectEquatorial(
+    horizontalToEquatorial(
+      { azimuthDeg: 100, altitudeDeg: 30 },
+      observer,
+      timestampUtcMs,
+      "ICRS",
+    ),
+    aligned,
+    1000,
+    600,
+  );
+
+  assert.ok(northOfEast.x < 500);
+  assert.ok(southOfEast.x > 500);
+  assert.ok(Math.abs(northOfEast.y - southOfEast.y) < 1e-6);
+
+  const deneb = projectEquatorial(
+    { raDeg: 310.3575, decDeg: 45.2803, frame: "ICRS" },
+    aligned,
+    1000,
+    600,
+  );
+  const altair = projectEquatorial(
+    { raDeg: 297.696, decDeg: 8.8683, frame: "ICRS" },
+    aligned,
+    1000,
+    600,
+  );
+  assert.ok(deneb.x < altair.x);
 });

@@ -131,7 +131,7 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(publicApi, /skySurveyBlendOpacity\(view\.fovDeg\)/);
   assert.match(
     publicApi,
-    /\(projectionView\.rotationDeg \?\? 0\)\.toFixed\(1\),\s*coordinateMode/,
+    /\(projectionView\.rotationDeg \?\? 0\)\.toFixed\(1\),\s*Boolean\(projectionView\.mirrorX\),\s*coordinateMode/,
   );
   assert.match(publicApi, /rasterizeSkySurveyAsync/);
   assert.match(

@@ -8,6 +8,7 @@ import {
   horizontalToHealpixPixel,
   landscapeRasterWidth,
   rasterizeHealpixLandscape,
+  transformEquatorialVectorFrame,
   unprojectEquatorial,
 } from "../src/index.js";
 import { rasterizeMilkyWayPanorama } from "../src/core/landscape.js";
@@ -54,9 +55,19 @@ function referenceMilkyWayRaster({
       const ra = equatorial.raDeg * DEG;
       const dec = equatorial.decDeg * DEG;
       const cosDec = Math.cos(dec);
-      const equatorialX = cosDec * Math.cos(ra);
-      const equatorialY = cosDec * Math.sin(ra);
-      const equatorialZ = Math.sin(dec);
+      const {
+        x: equatorialX,
+        y: equatorialY,
+        z: equatorialZ,
+      } = transformEquatorialVectorFrame(
+        {
+          x: cosDec * Math.cos(ra),
+          y: cosDec * Math.sin(ra),
+          z: Math.sin(dec),
+        },
+        equatorial.frame,
+        "J2000",
+      );
       const galacticX =
         -0.0548755604 * equatorialX -
         0.8734370902 * equatorialY -
@@ -108,6 +119,25 @@ function createCoordinatePanorama(width = 73, height = 37) {
     }
   }
   return { width, height, data };
+}
+
+function equatorialCoordinatesToVector({ raDeg, decDeg }) {
+  const ra = raDeg * DEG;
+  const dec = decDeg * DEG;
+  const cosDec = Math.cos(dec);
+  return {
+    x: cosDec * Math.cos(ra),
+    y: cosDec * Math.sin(ra),
+    z: Math.sin(dec),
+  };
+}
+
+function vectorToEquatorialCoordinates({ x, y, z }, frame) {
+  return {
+    raDeg: ((Math.atan2(y, x) * RAD) % 360 + 360) % 360,
+    decDeg: Math.atan2(z, Math.hypot(x, y)) * RAD,
+    frame,
+  };
 }
 
 test("uses device-aware landscape resolution with an interaction budget", () => {
@@ -238,6 +268,17 @@ test("matches the Milky Way reference raster in portrait and landscape views", (
         rotationDeg: -31,
       },
     },
+    {
+      canvasWidth: 1000,
+      canvasHeight: 600,
+      outputWidth: 41,
+      view: {
+        center: { raDeg: 310.3575, decDeg: 45.2803, frame: "ICRS" },
+        fovDeg: 66.8,
+        rotationDeg: -41.4,
+        mirrorX: true,
+      },
+    },
   ];
 
   for (const geometry of cases) {
@@ -255,6 +296,36 @@ test("matches the Milky Way reference raster in portrait and landscape views", (
     assert.equal(actual.height, expected.height);
     assert.deepEqual(actual.data, expected.data);
   }
+});
+
+test("rasterizes equivalent ICRS and J2000 Milky Way directions identically", () => {
+  const panorama = createCoordinatePanorama(360, 180);
+  // Place the physical direction just above a panorama pixel boundary. The
+  // FK5/ICRS frame bias crosses that boundary if an ICRS ray is incorrectly
+  // treated as J2000, making this sensitive to even the small real offset.
+  const j2000Center = galacticToEquatorial(72.000004, 19.3);
+  const icrsCenter = vectorToEquatorialCoordinates(
+    transformEquatorialVectorFrame(
+      equatorialCoordinatesToVector(j2000Center),
+      "J2000",
+      "ICRS",
+    ),
+    "ICRS",
+  );
+  const rasterize = (center) =>
+    rasterizeMilkyWayPanorama({
+      panorama,
+      view: { center, fovDeg: 30 },
+      observer: { latitudeDeg: 0, longitudeDeg: 0, elevationM: 0 },
+      timestampUtcMs: Date.UTC(2026, 6, 12),
+      canvasWidth: 1,
+      canvasHeight: 1,
+      outputWidth: 1,
+      hideBelowHorizon: false,
+      horizon: [],
+    });
+
+  assert.deepEqual(rasterize(icrsCenter), rasterize(j2000Center));
 });
 
 test("maps Galactic longitude rightward and Galactic north upward", () => {

@@ -32,6 +32,14 @@
 - Anchored camera and mosaic position angles to projected celestial north, so
   horizon-aligned panning no longer makes framing overlays rotate with screen
   up.
+- Corrected the horizontal observer projection to natural inside-the-sphere
+  handedness, with increasing azimuth screen-right while facing the horizon.
+  Stars, grids, catalogue footprints, the Milky Way, DSS imagery and the
+  landscape now share that orientation, while horizontal dragging still moves
+  the sky with the pointer.
+- Kept the Milky Way exactly registered across ICRS and J2000 views, corrected
+  catalogue ellipse major axes to their north-through-east position angles,
+  and added an east-facing Deneb/Altair browser regression screenshot.
 - Corrected the Milky Way panorama's Galactic-longitude orientation so its
   north-to-south horizon crossing is no longer mirrored. Galactic north remains
   at the top of the source panorama.
