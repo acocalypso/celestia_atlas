@@ -210,7 +210,7 @@ export function createCelestiaAtlasViewer(options) {
   let skySurveySourceToken = 1;
   let skySurveyRasterCache = {
     key: "",
-    viewKey: "",
+    alignmentKey: "",
     renderKey: "",
     raster: null,
   };
@@ -574,7 +574,7 @@ export function createCelestiaAtlasViewer(options) {
     cancelSkySurveyRasterJob();
     skySurveyRasterCache = {
       key: "",
-      viewKey: "",
+      alignmentKey: "",
       renderKey: "",
       raster: null,
     };
@@ -1333,7 +1333,7 @@ export function createCelestiaAtlasViewer(options) {
     // preview. The visible field advances as one coherent resolution level.
     const renderOrder = targetOrderComplete ? targetOrder : previewOrder;
 
-    const rasterViewKey = [
+    const rasterAlignmentKey = [
       width,
       height,
       projectionView.center.raDeg.toFixed(5),
@@ -1347,9 +1347,13 @@ export function createCelestiaAtlasViewer(options) {
       display.hideBelowHorizon,
       observer.latitudeDeg,
       observer.longitudeDeg,
-      Math.floor(timestampUtcMs / 60000),
       skySurvey.key,
       skySurveySourceToken,
+      outputWidth,
+    ].join(":");
+    const rasterViewKey = [
+      rasterAlignmentKey,
+      Math.floor(timestampUtcMs / 60000),
       targetOrder,
       renderOrder,
     ].join(":");
@@ -1455,7 +1459,7 @@ export function createCelestiaAtlasViewer(options) {
               );
               skySurveyRasterCache = {
                 key: rasterKey,
-                viewKey: rasterViewKey,
+                alignmentKey: rasterAlignmentKey,
                 renderKey: rasterKey,
                 raster,
               };
@@ -1474,7 +1478,7 @@ export function createCelestiaAtlasViewer(options) {
         // this exact view. Keep it visible while the higher-resolution pass
         // yields between chunks instead of flashing back to the plain sky.
         if (
-          skySurveyRasterCache.viewKey === rasterViewKey &&
+          skySurveyRasterCache.alignmentKey === rasterAlignmentKey &&
           presentSkySurveyRaster(
             skySurveyRasterCache.raster,
             skySurveyRasterCache.renderKey,
@@ -1526,7 +1530,7 @@ export function createCelestiaAtlasViewer(options) {
       );
       skySurveyRasterCache = {
         key: rasterKey,
-        viewKey: rasterViewKey,
+        alignmentKey: rasterAlignmentKey,
         renderKey: rasterKey,
         raster,
       };
