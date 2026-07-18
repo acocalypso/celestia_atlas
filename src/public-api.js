@@ -225,6 +225,7 @@ export function createCelestiaAtlasViewer(options) {
   let skySurveyActiveLoads = 0;
   let skySurveyWantedSignature = "";
   let skySurveyWantedRequests = new Set();
+  let skySurveyVisibleTileKeysByOrder = new Map();
   let skySurveyDecodedBytes = 0;
   let skySurveyRuntime = {
     active: false,
@@ -600,6 +601,7 @@ export function createCelestiaAtlasViewer(options) {
     skySurveyCacheProbeMisses.clear();
     skySurveyWantedSignature = "";
     skySurveyWantedRequests = new Set();
+    skySurveyVisibleTileKeysByOrder = new Map();
     if (clearTiles) clearSkySurveyTiles();
     resetSkySurveyRaster();
     skySurveyRuntime = {
@@ -677,10 +679,20 @@ export function createCelestiaAtlasViewer(options) {
           skySurveyFailures.delete(request.tileKey);
           skySurveyCacheProbeMisses.delete(request.tileKey);
           trimSkySurveyTiles();
-          // Keep the correctly aligned current raster on screen while the new
-          // tile is incorporated. Clearing it here caused a visible blank and
-          // refill cycle for every tile that completed during navigation.
-          refineSkySurveyRaster();
+          const visibleOrderKeys =
+            skySurveyVisibleTileKeysByOrder.get(request.order);
+          const visibleOrderComplete =
+            visibleOrderKeys?.size > 0 &&
+            [...visibleOrderKeys].every((key) => skySurveyTiles.has(key));
+          if (
+            !skySurveyRasterCache.raster?.usedOrders.length ||
+            visibleOrderComplete
+          ) {
+            // Publish only the first usable preview and complete visible
+            // resolution levels. Prefetched or partially completed detail
+            // must not repaint the settled field tile by tile.
+            refineSkySurveyRaster();
+          }
           skySurveyRuntime.lastError = null;
         })
         .catch((error) => {
@@ -754,6 +766,7 @@ export function createCelestiaAtlasViewer(options) {
           requestKey,
           tileKey,
           cacheOnly: Boolean(plan.cacheOnly),
+          order: plan.order,
           sourceToken,
           tileWidth: skySurvey.tileWidth,
           url: skySurveyTileUrl(skySurvey, plan.order, tileIndex),
@@ -1201,6 +1214,20 @@ export function createCelestiaAtlasViewer(options) {
           horizon,
         }),
       );
+    const visibleTileIndicesByOrder = new Map(
+      [...tileIndicesByOrder].map(([order, tileIndices]) => [
+        order,
+        [...tileIndices],
+      ]),
+    );
+    skySurveyVisibleTileKeysByOrder = new Map(
+      [...visibleTileIndicesByOrder].map(([order, tileIndices]) => [
+        order,
+        new Set(
+          tileIndices.map((tileIndex) => skySurveyTileKey(order, tileIndex)),
+        ),
+      ]),
+    );
     if (!interactive) {
       // Warm a narrow ring around the settled viewport. This prevents a normal
       // pan from exposing an undecoded edge tile, while the existing LRU,
@@ -1294,6 +1321,17 @@ export function createCelestiaAtlasViewer(options) {
       return false;
     }
 
+    const targetVisibleTileIndices =
+      visibleTileIndicesByOrder.get(targetOrder) ?? [];
+    const targetOrderComplete =
+      targetVisibleTileIndices.length > 0 &&
+      targetVisibleTileIndices.every((tileIndex) =>
+        skySurveyTiles.has(skySurveyTileKey(targetOrder, tileIndex)),
+      );
+    // Do not progressively mix isolated high-resolution tiles into a complete
+    // preview. The visible field advances as one coherent resolution level.
+    const renderOrder = targetOrderComplete ? targetOrder : previewOrder;
+
     const rasterViewKey = [
       width,
       height,
@@ -1312,11 +1350,12 @@ export function createCelestiaAtlasViewer(options) {
       skySurvey.key,
       skySurveySourceToken,
       targetOrder,
+      renderOrder,
     ].join(":");
     const rasterKey = `${rasterViewKey}:${outputWidth}`;
     const rasterOptions = {
       survey: skySurvey,
-      order: targetOrder,
+      order: renderOrder,
       tiles: skySurveyTiles,
       view: projectionView,
       observer,
@@ -1384,11 +1423,11 @@ export function createCelestiaAtlasViewer(options) {
               if (raster.missingTileIndices.length) {
                 const missingPlans = [];
                 for (
-                  let order = targetOrder;
+                  let order = renderOrder;
                   order >= skySurvey.minOrder;
                   order -= 1
                 ) {
-                  const divisor = 4 ** (targetOrder - order);
+                  const divisor = 4 ** (renderOrder - order);
                   missingPlans.push({
                     order,
                     tileIndices: [
@@ -1461,11 +1500,11 @@ export function createCelestiaAtlasViewer(options) {
       if (raster.missingTileIndices.length) {
         const missingPlans = [];
         for (
-          let order = targetOrder;
+          let order = renderOrder;
           order >= skySurvey.minOrder;
           order -= 1
         ) {
-          const divisor = 4 ** (targetOrder - order);
+          const divisor = 4 ** (renderOrder - order);
           missingPlans.push({
             order,
             tileIndices: [
