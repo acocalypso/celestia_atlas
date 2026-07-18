@@ -1201,6 +1201,34 @@ export function createCelestiaAtlasViewer(options) {
           horizon,
         }),
       );
+    if (!interactive) {
+      // Warm a narrow ring around the settled viewport. This prevents a normal
+      // pan from exposing an undecoded edge tile, while the existing LRU,
+      // decoded-byte budget and mobile concurrency still bound the cost.
+      const prefetchView = {
+        ...projectionView,
+        fovDeg: Math.min(MAX_FOV_DEG, projectionView.fovDeg * 1.3),
+      };
+      for (const order of new Set([previewOrder, targetOrder])) {
+        const prefetched = discoverVisibleSkySurveyTiles({
+          survey: skySurvey,
+          order,
+          view: prefetchView,
+          canvasWidth: width,
+          canvasHeight: height,
+          outputWidth,
+          sampleStep: 8,
+          observer,
+          timestampUtcMs,
+          hideBelowHorizon: display.hideBelowHorizon,
+          horizon,
+        });
+        tileIndicesByOrder.set(
+          order,
+          [...new Set([...tileIndicesByOrder.get(order), ...prefetched])],
+        );
+      }
+    }
     const primaryLoadOrders = offline
       ? Array.from(
           { length: targetOrder - skySurvey.minOrder + 1 },
