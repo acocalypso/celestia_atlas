@@ -206,6 +206,13 @@ test("mobile renderer keeps expensive work inside bounded frame contracts", asyn
   assert.match(publicApi, /if \(canvas\.height !== backingHeight\)/);
   assert.match(publicApi, /landscapeUploadKey !== landscapeRasterCache\.key/);
   assert.match(publicApi, /milkyWayUploadKey !== milkyWayRasterCache\.key/);
+  assert.match(publicApi, /const refineSkySurveyRaster = \(\) =>/);
+  assert.match(publicApi, /skySurveyRasterCache\.viewKey === rasterViewKey/);
+  assert.match(publicApi, /presentSkySurveyRaster\(/);
+  assert.doesNotMatch(
+    publicApi,
+    /abortSkySurveyRequests\([\s\S]{0,160}!wanted\.has\(request\.requestKey\)/,
+  );
   assert.match(publicApi, /currentSolarSystemObjects/);
   assert.match(publicApi, /interactionViewChangePending = true/);
   assert.match(publicApi, /const dsoLabelBudget/);

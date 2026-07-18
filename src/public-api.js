@@ -208,7 +208,12 @@ export function createCelestiaAtlasViewer(options) {
           skySurveyDecodedByteBudget,
         );
   let skySurveySourceToken = 1;
-  let skySurveyRasterCache = { key: "", raster: null };
+  let skySurveyRasterCache = {
+    key: "",
+    viewKey: "",
+    renderKey: "",
+    raster: null,
+  };
   let skySurveyUploadKey = "";
   let skySurveyRasterJob = null;
   const skySurveyTiles = new Map();
@@ -566,8 +571,17 @@ export function createCelestiaAtlasViewer(options) {
   };
   const resetSkySurveyRaster = () => {
     cancelSkySurveyRasterJob();
-    skySurveyRasterCache = { key: "", raster: null };
+    skySurveyRasterCache = {
+      key: "",
+      viewKey: "",
+      renderKey: "",
+      raster: null,
+    };
     skySurveyUploadKey = "";
+  };
+  const refineSkySurveyRaster = () => {
+    cancelSkySurveyRasterJob();
+    skySurveyRasterCache.key = "";
   };
   const abortSkySurveyRequests = (predicate = () => true) => {
     for (const { controller, request } of skySurveyActiveRequests.values())
@@ -645,16 +659,14 @@ export function createCelestiaAtlasViewer(options) {
         shouldPersist: () =>
           !destroyed &&
           !paused &&
-          request.sourceToken === skySurveySourceToken &&
-          skySurveyWantedRequests.has(request.requestKey),
+          request.sourceToken === skySurveySourceToken,
       })
         .then((tile) => {
           if (
             destroyed ||
             paused ||
             request.sourceToken !== skySurveySourceToken ||
-            !skySurvey ||
-            !skySurveyWantedRequests.has(request.requestKey)
+            !skySurvey
           )
             return;
           skySurveyDecodedBytes -=
@@ -665,7 +677,10 @@ export function createCelestiaAtlasViewer(options) {
           skySurveyFailures.delete(request.tileKey);
           skySurveyCacheProbeMisses.delete(request.tileKey);
           trimSkySurveyTiles();
-          resetSkySurveyRaster();
+          // Keep the correctly aligned current raster on screen while the new
+          // tile is incorporated. Clearing it here caused a visible blank and
+          // refill cycle for every tile that completed during navigation.
+          refineSkySurveyRaster();
           skySurveyRuntime.lastError = null;
         })
         .catch((error) => {
@@ -717,11 +732,9 @@ export function createCelestiaAtlasViewer(options) {
         if (!keep) skySurveyPending.delete(request.requestKey);
         return keep;
       });
-      abortSkySurveyRequests(
-        (request) =>
-          request.sourceToken === sourceToken &&
-          !wanted.has(request.requestKey),
-      );
+      // In-flight image downloads are intentionally allowed to finish. They
+      // are bounded by the concurrency limit and become useful LRU entries,
+      // avoiding cancel/reload churn when the view crosses a tile boundary.
     }
     const now = performance.now();
     for (const plan of plans) {
@@ -1253,10 +1266,9 @@ export function createCelestiaAtlasViewer(options) {
       return false;
     }
 
-    const rasterKey = [
+    const rasterViewKey = [
       width,
       height,
-      outputWidth,
       projectionView.center.raDeg.toFixed(5),
       projectionView.center.decDeg.toFixed(5),
       view.fovDeg.toFixed(4),
@@ -1273,6 +1285,7 @@ export function createCelestiaAtlasViewer(options) {
       skySurveySourceToken,
       targetOrder,
     ].join(":");
+    const rasterKey = `${rasterViewKey}:${outputWidth}`;
     const rasterOptions = {
       survey: skySurvey,
       order: targetOrder,
@@ -1286,6 +1299,36 @@ export function createCelestiaAtlasViewer(options) {
       fallbackMinOrder: skySurvey.minOrder,
       hideBelowHorizon: display.hideBelowHorizon,
       horizon,
+    };
+    const presentSkySurveyRaster = (raster, renderKey) => {
+      if (!raster?.usedOrders.length) return false;
+      const renderedOrder = Math.max(...raster.usedOrders);
+      for (const tileKey of raster.usedTileKeys) touchSkySurveyTile(tileKey);
+      if (skySurveyUploadKey !== renderKey) {
+        uploadRaster(skySurveyCanvas, skySurveyContext, raster);
+        skySurveyUploadKey = renderKey;
+      }
+      context.save();
+      context.globalAlpha = opacity;
+      context.imageSmoothingEnabled = true;
+      context.drawImage(skySurveyCanvas, 0, 0, width, height);
+      context.restore();
+      skySurveyRuntime = {
+        ...skySurveyRuntime,
+        active: true,
+        opacity,
+        targetOrder,
+        renderedOrder,
+        loadedTiles: skySurveyTiles.size,
+        pendingTiles: skySurveyPending.size,
+        failedTiles: skySurveyFailures.size,
+      };
+      canvas.dataset.skySurveyActive = "true";
+      canvas.dataset.skySurveyOrder = String(renderedOrder);
+      canvas.dataset.skySurveyTargetOrder = String(targetOrder);
+      canvas.dataset.skySurveyLoadedTiles = String(skySurveyTiles.size);
+      updateSurveyCredit(true);
+      return true;
     };
     if (skySurveyRasterCache.key !== rasterKey) {
       if (!interactive) {
@@ -1342,7 +1385,12 @@ export function createCelestiaAtlasViewer(options) {
               canvas.dataset.skySurveyRasterMissingTiles = String(
                 raster.missingTileIndices.length,
               );
-              skySurveyRasterCache = { key: rasterKey, raster };
+              skySurveyRasterCache = {
+                key: rasterKey,
+                viewKey: rasterViewKey,
+                renderKey: rasterKey,
+                raster,
+              };
               skySurveyRasterJob = null;
               invalidate();
             })
@@ -1354,6 +1402,17 @@ export function createCelestiaAtlasViewer(options) {
                   "Photographic survey could not be rendered; using the offline sky background.";
             });
         }
+        // The interaction pass already produced a low-resolution raster for
+        // this exact view. Keep it visible while the higher-resolution pass
+        // yields between chunks instead of flashing back to the plain sky.
+        if (
+          skySurveyRasterCache.viewKey === rasterViewKey &&
+          presentSkySurveyRaster(
+            skySurveyRasterCache.raster,
+            skySurveyRasterCache.renderKey,
+          )
+        )
+          return true;
         skySurveyRuntime = {
           ...skySurveyRuntime,
           active: false,
@@ -1397,7 +1456,12 @@ export function createCelestiaAtlasViewer(options) {
       canvas.dataset.skySurveyRasterMissingTiles = String(
         raster.missingTileIndices.length,
       );
-      skySurveyRasterCache = { key: rasterKey, raster };
+      skySurveyRasterCache = {
+        key: rasterKey,
+        viewKey: rasterViewKey,
+        renderKey: rasterKey,
+        raster,
+      };
     }
     const raster = skySurveyRasterCache.raster;
     if (!raster.usedOrders.length) {
@@ -1417,33 +1481,7 @@ export function createCelestiaAtlasViewer(options) {
       updateSurveyCredit(false);
       return false;
     }
-    const renderedOrder = Math.max(...raster.usedOrders);
-    for (const tileKey of raster.usedTileKeys) touchSkySurveyTile(tileKey);
-    if (skySurveyUploadKey !== skySurveyRasterCache.key) {
-      uploadRaster(skySurveyCanvas, skySurveyContext, raster);
-      skySurveyUploadKey = skySurveyRasterCache.key;
-    }
-    context.save();
-    context.globalAlpha = opacity;
-    context.imageSmoothingEnabled = true;
-    context.drawImage(skySurveyCanvas, 0, 0, width, height);
-    context.restore();
-    skySurveyRuntime = {
-      ...skySurveyRuntime,
-      active: true,
-      opacity,
-      targetOrder,
-      renderedOrder,
-      loadedTiles: skySurveyTiles.size,
-      pendingTiles: skySurveyPending.size,
-      failedTiles: skySurveyFailures.size,
-    };
-    canvas.dataset.skySurveyActive = "true";
-    canvas.dataset.skySurveyOrder = String(renderedOrder);
-    canvas.dataset.skySurveyTargetOrder = String(targetOrder);
-    canvas.dataset.skySurveyLoadedTiles = String(skySurveyTiles.size);
-    updateSurveyCredit(true);
-    return true;
+    return presentSkySurveyRaster(raster, skySurveyRasterCache.renderKey);
   };
   void loadMilkyWay(milkyWayPanoramaUrl);
 
