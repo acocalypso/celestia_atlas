@@ -1349,7 +1349,6 @@ export function createCelestiaAtlasViewer(options) {
       observer.longitudeDeg,
       skySurvey.key,
       skySurveySourceToken,
-      outputWidth,
     ].join(":");
     const rasterViewKey = [
       rasterAlignmentKey,
