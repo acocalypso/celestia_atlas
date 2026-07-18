@@ -212,6 +212,7 @@ test("mobile renderer keeps expensive work inside bounded frame contracts", asyn
   assert.match(publicApi, /projectionView\.fovDeg \* 1\.3/);
   assert.match(publicApi, /sampleStep: 8/);
   assert.match(publicApi, /const visibleOrderComplete =/);
+  assert.match(publicApi, /visibleOrderKeys\?\.has\(request\.tileKey\)/);
   assert.match(
     publicApi,
     /const renderOrder = targetOrderComplete \? targetOrder : previewOrder/,

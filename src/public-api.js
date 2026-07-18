@@ -682,6 +682,7 @@ export function createCelestiaAtlasViewer(options) {
           const visibleOrderKeys =
             skySurveyVisibleTileKeysByOrder.get(request.order);
           const visibleOrderComplete =
+            visibleOrderKeys?.has(request.tileKey) &&
             visibleOrderKeys?.size > 0 &&
             [...visibleOrderKeys].every((key) => skySurveyTiles.has(key));
           if (
