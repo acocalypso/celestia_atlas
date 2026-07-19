@@ -1,12 +1,12 @@
 try{importScripts('./dso-images.js')}catch(e){}
-const CACHE='celestia-atlas-offline-v30';
+const CACHE='celestia-atlas-offline-v31';
 // Keep the survey schema independent from routine app-shell cache releases.
 const SURVEY_CACHE='celestia-atlas-survey-v1';
-const SURVEY_CACHE_LIMIT=96;
+const SURVEY_CACHE_LIMIT=512;
 const ATLAS_CACHE_PREFIXES=['celestia-atlas-offline-','celestia-atlas-survey-'];
 const DSS_SURVEY_ORIGIN='https://stpubdata.s3.us-east-1.amazonaws.com';
 const DSS_SURVEY_PATH='/mast/skybackgrounds/DSSColor/';
-const HIPS_TILE_PATH=/\/Norder\d+\/Dir\d+\/Npix\d+\.(?:jpe?g|png|webp)$/i;
+const HIPS_IMAGE_PATH=/\/Norder\d+\/(?:Allsky|Dir\d+\/Npix\d+)\.(?:jpe?g|png|webp)$/i;
 const CORE=[
   './',
   './index.html',
@@ -98,19 +98,19 @@ async function cacheFirst(request){
 function isDssSurveyTile(url){
   return url.origin===DSS_SURVEY_ORIGIN&&
     url.pathname.startsWith(DSS_SURVEY_PATH)&&
-    HIPS_TILE_PATH.test(url.pathname);
+    HIPS_IMAGE_PATH.test(url.pathname);
 }
 
 function isPackagedLandscapeTile(url){
   return url.origin===self.location.origin&&
     url.pathname.includes('/assets/landscapes/')&&
-    HIPS_TILE_PATH.test(url.pathname);
+    HIPS_IMAGE_PATH.test(url.pathname);
 }
 
 function isSurveyTile(url){
   return isDssSurveyTile(url)||(
     url.origin===self.location.origin&&
-    HIPS_TILE_PATH.test(url.pathname)&&
+    HIPS_IMAGE_PATH.test(url.pathname)&&
     !isPackagedLandscapeTile(url)
   );
 }
@@ -131,8 +131,6 @@ async function fetchAndCacheSurveyTile(request){
   if(!response||!response.ok)return response;
   try{
     const cache=await caches.open(SURVEY_CACHE);
-    // Reinsert refreshed tiles so eviction approximates least-recently-used order.
-    await cache.delete(request);
     await cache.put(request,response.clone());
     await trimSurveyCache(cache);
   }catch(error){
@@ -142,9 +140,6 @@ async function fetchAndCacheSurveyTile(request){
 }
 
 function surveyTileRequest(event){
-  // Start revalidation immediately. The rejection handler keeps offline misses quiet.
-  const networkUpdate=fetchAndCacheSurveyTile(event.request);
-  event.waitUntil(networkUpdate.then(()=>undefined,()=>undefined));
   event.respondWith((async()=>{
     let cached;
     try{
@@ -154,7 +149,7 @@ function surveyTileRequest(event){
       // Cache access is optional; continue with the network response.
     }
     if(cached)return cached;
-    return (await networkUpdate)||Response.error();
+    return (await fetchAndCacheSurveyTile(event.request))||Response.error();
   })());
 }
 

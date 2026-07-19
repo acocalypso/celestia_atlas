@@ -30,10 +30,12 @@ import {
 } from "./core/landscape.js";
 import {
   discoverVisibleSkySurveyTiles,
+  fitSkySurveyOrderToTileBudget,
   rasterizeSkySurvey,
   rasterizeSkySurveyAsync,
   selectSkySurveyOrder,
   skySurveyBlendOpacity,
+  skySurveyAllskyTileKey,
   skySurveyTileKey,
   skySurveyTileUrl,
   validateSkySurveyConfig,
@@ -69,7 +71,9 @@ const DEFAULT_MILKY_WAY_URL = new URL(
 // This schema version is intentionally independent from the app-shell cache.
 // Core deployments must not evict valid viewed survey fields on every release.
 const SKY_SURVEY_PERSISTENT_CACHE = "celestia-atlas-survey-v1";
-const SKY_SURVEY_PERSISTENT_CACHE_LIMIT = 96;
+const SKY_SURVEY_PERSISTENT_CACHE_LIMIT = 512;
+const SKY_SURVEY_ALLSKY_ORDER = 3;
+const SKY_SURVEY_RETENTION_ROTATION_DEG = 0.5;
 export const DEFAULT_DSS_SKY_SURVEY_SOURCE = Object.freeze({
   key: "dss2-color",
   label: "DSS2 Color",
@@ -108,6 +112,35 @@ function normalizeSkySurveySource(
   });
 }
 
+function supportsSkySurveyAllsky(source) {
+  return Boolean(
+    source &&
+    source.minOrder <= SKY_SURVEY_ALLSKY_ORDER &&
+    source.maxOrder >= SKY_SURVEY_ALLSKY_ORDER,
+  );
+}
+
+function locallyReachableSurveyUrl(value) {
+  try {
+    const url = new URL(value, globalThis.location?.href);
+    const hostname = url.hostname.toLowerCase();
+    return (
+      hostname === "localhost" ||
+      hostname.endsWith(".local") ||
+      /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname) ||
+      hostname.includes(":")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function wrappedAngleDifferenceDeg(left, right) {
+  if (!Number.isFinite(left) || !Number.isFinite(right))
+    return Number.POSITIVE_INFINITY;
+  return Math.abs(((((left - right + 180) % 360) + 360) % 360) - 180);
+}
+
 function starColorFromBv(value) {
   if (!Number.isFinite(value)) return "rgb(237 245 255)";
   const bv = Math.max(
@@ -129,8 +162,7 @@ export function createCelestiaAtlasViewer(options) {
   const coarsePointer = Boolean(
     globalThis.matchMedia?.("(pointer: coarse)")?.matches,
   );
-  const skySurveyDecodedByteBudget =
-    (coarsePointer ? 24 : 64) * 1024 * 1024;
+  const skySurveyDecodedByteBudget = (coarsePointer ? 64 : 128) * 1024 * 1024;
   const {
     container,
     catalog = [],
@@ -173,21 +205,32 @@ export function createCelestiaAtlasViewer(options) {
   surveyCredit.hidden = true;
   surveyCredit.style.cssText =
     "position:absolute;right:max(.45rem,env(safe-area-inset-right,0px));bottom:max(.4rem,env(safe-area-inset-bottom,0px));z-index:2;display:none;max-width:min(34rem,calc(100% - 1rem));padding:.2rem .38rem;border:1px solid rgba(150,190,225,.24);border-radius:.35rem;background:rgba(3,9,17,.76);color:#a9bdd2;font:500 9px/1.25 system-ui,sans-serif;text-align:right;text-decoration:none;white-space:normal;backdrop-filter:blur(5px)";
-  surveyCredit.setAttribute("aria-label", "Photographic sky survey attribution");
+  surveyCredit.setAttribute(
+    "aria-label",
+    "Photographic sky survey attribution",
+  );
   container.append(surveyCredit);
 
   let destroyed = false;
   let paused = true;
   let renderingContextLost = false;
   let observer = validateObserver(
-    options.observer ?? { latitudeDeg: 0, longitudeDeg: 0, elevationM: 0 },
+    options.observer ?? {
+      latitudeDeg: 0,
+      longitudeDeg: 0,
+      elevationM: 0,
+    },
   );
   let utcMs = Number.isFinite(options.utcMs) ? options.utcMs : Date.now();
   let clockSetAt = performance.now();
   let timeRate = 1;
-  let view = { center: { raDeg: 0, decDeg: 0, frame: "ICRS" }, fovDeg: 70 };
+  let view = {
+    center: { raDeg: 0, decDeg: 0, frame: "ICRS" },
+    fovDeg: 70,
+  };
   let coordinateMode = "horizontal";
   let mount = null;
+  let renderedMount = null;
   let mountFollow = false;
   let fieldOfView = null;
   let horizon = [];
@@ -203,20 +246,28 @@ export function createCelestiaAtlasViewer(options) {
   let skySurvey =
     skySurveySource === null
       ? null
-      : normalizeSkySurveySource(
-          skySurveySource,
-          skySurveyDecodedByteBudget,
-        );
+      : normalizeSkySurveySource(skySurveySource, skySurveyDecodedByteBudget);
   let skySurveySourceToken = 1;
   let skySurveyRasterCache = {
     key: "",
     alignmentKey: "",
+    rotationDeg: null,
     renderKey: "",
     raster: null,
   };
   let skySurveyUploadKey = "";
   let skySurveyRasterJob = null;
   const skySurveyTiles = new Map();
+  let skySurveyAllskyTiles = new Map();
+  let skySurveyAllskyDecodedBytes = 0;
+  let skySurveyAllskyStatus = supportsSkySurveyAllsky(skySurvey)
+    ? "loading"
+    : "unavailable";
+  let skySurveyProtectedTileKeys = new Set();
+  let skySurveyVisiblePlanCache = {
+    key: "",
+    tileIndicesByOrder: new Map(),
+  };
   const skySurveyPending = new Set();
   const skySurveyFailures = new Map();
   const skySurveyCacheProbeMisses = new Map();
@@ -237,9 +288,11 @@ export function createCelestiaAtlasViewer(options) {
     failedTiles: 0,
     lastError: null,
   };
-  const skySurveyCacheLimit = coarsePointer ? 24 : 64;
   const skySurveyLoadConcurrency = coarsePointer ? 2 : 4;
   let skySurveyPersistentTrim = Promise.resolve();
+  let skySurveyPersistentTrimTimer = null;
+  const loadedSkySurveyResourceCount = () =>
+    skySurveyTiles.size + (skySurveyAllskyTiles.size ? 1 : 0);
   let display = {
     grid: true,
     azimuthalGrid: false,
@@ -315,8 +368,7 @@ export function createCelestiaAtlasViewer(options) {
     if (left.uid != null && right.uid != null) return left.uid === right.uid;
     return left.id != null && right.id != null && left.id === right.id;
   };
-  const isSelectedObject = (object) =>
-    hasSameObjectIdentity(selected, object);
+  const isSelectedObject = (object) => hasSameObjectIdentity(selected, object);
   const starsByName = new Map();
   for (const star of stars) {
     starsByName.set(String(star.name).toLocaleLowerCase(), star);
@@ -372,11 +424,31 @@ export function createCelestiaAtlasViewer(options) {
   };
   const currentUtcMs = () =>
     utcMs + (performance.now() - clockSetAt) * timeRate;
+  const coordinatesVisuallyEqual = (left, right, epsilonDeg = 1e-5) => {
+    if (!left || !right || left.frame !== right.frame) return false;
+    const raDelta = Math.abs(left.raDeg - right.raDeg) % 360;
+    return (
+      Math.min(raDelta, 360 - raDelta) <= epsilonDeg &&
+      Math.abs(left.decDeg - right.decDeg) <= epsilonDeg
+    );
+  };
+  const scheduleQualityRefinement = () => {
+    lowQualityUntil = performance.now() + 180;
+    if (qualityRefinementTimer !== null) clearTimeout(qualityRefinementTimer);
+    qualityRefinementTimer = setTimeout(() => {
+      qualityRefinementTimer = null;
+      lowQualityUntil = performance.now();
+      invalidate();
+    }, 220);
+  };
   const currentComets = () => {
     const timestamp = currentUtcMs();
     const key = `${Math.floor(timestamp / 60000)}:${observer.latitudeDeg}:${observer.longitudeDeg}:${observer.elevationM}`;
     if (cometCache.key !== key)
-      cometCache = { key, objects: getCometObjects(timestamp, observer) };
+      cometCache = {
+        key,
+        objects: getCometObjects(timestamp, observer),
+      };
     return cometCache.objects;
   };
   const currentSolarSystemObjects = (timestamp) => {
@@ -427,7 +499,8 @@ export function createCelestiaAtlasViewer(options) {
   };
   const cachedSkySurveyResponse = async (url) => {
     try {
-      const response = await globalThis.caches?.match(url);
+      const cache = await globalThis.caches?.open(SKY_SURVEY_PERSISTENT_CACHE);
+      const response = await cache?.match(url);
       return response?.ok ? response : null;
     } catch {
       return null;
@@ -435,9 +508,7 @@ export function createCelestiaAtlasViewer(options) {
   };
   const persistedSkySurveyResponse = async (url) => {
     try {
-      const cache = await globalThis.caches?.open(
-        SKY_SURVEY_PERSISTENT_CACHE,
-      );
+      const cache = await globalThis.caches?.open(SKY_SURVEY_PERSISTENT_CACHE);
       const response = await cache?.match(url);
       return response?.ok ? response : null;
     } catch {
@@ -446,19 +517,16 @@ export function createCelestiaAtlasViewer(options) {
   };
   const deleteCachedSkySurveyResponse = async (url) => {
     try {
-      const cache = await globalThis.caches?.open(
-        SKY_SURVEY_PERSISTENT_CACHE,
-      );
+      const cache = await globalThis.caches?.open(SKY_SURVEY_PERSISTENT_CACHE);
       await cache?.delete(url);
     } catch {
       // A corrupt entry can still be bypassed when cache storage is unavailable.
     }
   };
-  const persistSkySurveyResponse = async (url, response) => {
-    if (!globalThis.caches) return;
-    try {
-      const cache = await globalThis.caches.open(SKY_SURVEY_PERSISTENT_CACHE);
-      await cache.put(url, response);
+  const scheduleSkySurveyPersistentTrim = (cache) => {
+    if (skySurveyPersistentTrimTimer !== null) return;
+    skySurveyPersistentTrimTimer = setTimeout(() => {
+      skySurveyPersistentTrimTimer = null;
       skySurveyPersistentTrim = skySurveyPersistentTrim
         .catch(() => {})
         .then(async () => {
@@ -469,7 +537,14 @@ export function createCelestiaAtlasViewer(options) {
               keys.slice(0, excess).map((request) => cache.delete(request)),
             );
         });
-      await skySurveyPersistentTrim;
+    }, 1000);
+  };
+  const persistSkySurveyResponse = async (url, response) => {
+    if (!globalThis.caches) return;
+    try {
+      const cache = await globalThis.caches.open(SKY_SURVEY_PERSISTENT_CACHE);
+      await cache.put(url, response);
+      scheduleSkySurveyPersistentTrim(cache);
     } catch {
       // Quota and private-mode failures leave the live in-memory tile usable.
     }
@@ -499,13 +574,27 @@ export function createCelestiaAtlasViewer(options) {
     url,
     { signal, expectedWidth, shouldPersist, cacheOnly = false },
   ) => {
+    const decodeAndValidate = async (response) => {
+      const tile = await decodeSkySurveyResponse(response);
+      if (expectedWidth === null) {
+        if (
+          !tile ||
+          !Number.isInteger(tile.width) ||
+          tile.width < 1 ||
+          !Number.isInteger(tile.height) ||
+          tile.height < 1 ||
+          !tile.data ||
+          tile.data.length < tile.width * tile.height * 4
+        )
+          throw new TypeError("Sky survey image contains invalid RGBA pixels");
+        return tile;
+      }
+      return validateSkySurveyPixels(tile, expectedWidth);
+    };
     const cached = await cachedSkySurveyResponse(url);
     if (cached) {
       try {
-        const tile = validateSkySurveyPixels(
-          await decodeSkySurveyResponse(cached),
-          expectedWidth,
-        );
+        const tile = await decodeAndValidate(cached);
         if (signal.aborted) throw new DOMException("Aborted", "AbortError");
         return tile;
       } catch (error) {
@@ -518,28 +607,28 @@ export function createCelestiaAtlasViewer(options) {
       error.name = "CacheMissError";
       throw error;
     }
-    if (navigator.onLine === false)
+    if (navigator.onLine === false && !locallyReachableSurveyUrl(url))
       throw new Error("Sky survey tile is not available in the offline cache");
     const response = await fetch(url, {
-      cache: "default",
+      cache: "force-cache",
       credentials: "omit",
       mode: "cors",
       signal,
     });
-    if (!response.ok)
-      throw new Error(`Unable to load sky survey tile: ${url}`);
+    if (!response.ok) throw new Error(`Unable to load sky survey tile: ${url}`);
     const persistentResponse = response.clone();
-    const tile = validateSkySurveyPixels(
-      await decodeSkySurveyResponse(response),
-      expectedWidth,
-    );
+    const tile = await decodeAndValidate(response);
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
     if (shouldPersist()) {
       // The standalone service worker uses this same cache. Avoid a second put
       // and serialized trim when it already persisted the network response.
-      const alreadyPersisted = await persistedSkySurveyResponse(url);
-      if (!alreadyPersisted)
-        await persistSkySurveyResponse(url, persistentResponse);
+      void persistedSkySurveyResponse(url)
+        .then((alreadyPersisted) => {
+          if (!alreadyPersisted)
+            return persistSkySurveyResponse(url, persistentResponse);
+          return undefined;
+        })
+        .catch(() => {});
     }
     return tile;
   };
@@ -575,6 +664,7 @@ export function createCelestiaAtlasViewer(options) {
     skySurveyRasterCache = {
       key: "",
       alignmentKey: "",
+      rotationDeg: null,
       renderKey: "",
       raster: null,
     };
@@ -602,14 +692,26 @@ export function createCelestiaAtlasViewer(options) {
     skySurveyWantedSignature = "";
     skySurveyWantedRequests = new Set();
     skySurveyVisibleTileKeysByOrder = new Map();
-    if (clearTiles) clearSkySurveyTiles();
+    skySurveyProtectedTileKeys = new Set();
+    skySurveyVisiblePlanCache = {
+      key: "",
+      tileIndicesByOrder: new Map(),
+    };
+    if (clearTiles) {
+      clearSkySurveyTiles();
+      skySurveyAllskyTiles = new Map();
+      skySurveyAllskyDecodedBytes = 0;
+      skySurveyAllskyStatus = supportsSkySurveyAllsky(skySurvey)
+        ? "loading"
+        : "unavailable";
+    }
     resetSkySurveyRaster();
     skySurveyRuntime = {
       active: false,
       opacity: 0,
       targetOrder: null,
       renderedOrder: null,
-      loadedTiles: skySurveyTiles.size,
+      loadedTiles: loadedSkySurveyResourceCount(),
       pendingTiles: 0,
       failedTiles: 0,
       lastError: null,
@@ -626,10 +728,12 @@ export function createCelestiaAtlasViewer(options) {
   const trimSkySurveyTiles = () => {
     while (
       skySurveyTiles.size > 1 &&
-      (skySurveyTiles.size > skySurveyCacheLimit ||
-        skySurveyDecodedBytes > skySurveyDecodedByteBudget)
+      skySurveyDecodedBytes + skySurveyAllskyDecodedBytes >
+        skySurveyDecodedByteBudget
     ) {
-      const oldestKey = skySurveyTiles.keys().next().value;
+      const oldestKey = [...skySurveyTiles.keys()].find(
+        (key) => !skySurveyProtectedTileKeys.has(key),
+      );
       if (oldestKey === undefined) break;
       skySurveyDecodedBytes -=
         skySurveyTiles.get(oldestKey)?.data?.byteLength ?? 0;
@@ -654,21 +758,21 @@ export function createCelestiaAtlasViewer(options) {
         controller,
         request,
       });
+      let shouldInvalidate = false;
       void loadSkySurveyPixels(request.url, {
         signal: controller.signal,
         expectedWidth: request.tileWidth,
         cacheOnly: request.cacheOnly,
         shouldPersist: () =>
-          !destroyed &&
-          !paused &&
-          request.sourceToken === skySurveySourceToken,
+          !destroyed && !paused && request.sourceToken === skySurveySourceToken,
       })
         .then((tile) => {
           if (
             destroyed ||
             paused ||
             request.sourceToken !== skySurveySourceToken ||
-            !skySurvey
+            !skySurvey ||
+            !skySurveyWantedRequests.has(request.requestKey)
           )
             return;
           skySurveyDecodedBytes -=
@@ -679,25 +783,33 @@ export function createCelestiaAtlasViewer(options) {
           skySurveyFailures.delete(request.tileKey);
           skySurveyCacheProbeMisses.delete(request.tileKey);
           trimSkySurveyTiles();
-          const visibleOrderKeys =
-            skySurveyVisibleTileKeysByOrder.get(request.order);
+          const visibleOrderKeys = skySurveyVisibleTileKeysByOrder.get(
+            request.order,
+          );
           const visibleOrderComplete =
             visibleOrderKeys?.has(request.tileKey) &&
             visibleOrderKeys?.size > 0 &&
             [...visibleOrderKeys].every((key) => skySurveyTiles.has(key));
-          if (
-            !skySurveyRasterCache.raster?.usedOrders.length ||
-            visibleOrderComplete
-          ) {
+          const needsFirstRaster =
+            skySurveyAllskyStatus === "unavailable" &&
+            !skySurveyRasterCache.raster?.usedOrders?.length;
+          if (visibleOrderComplete || needsFirstRaster) {
             // Publish only the first usable preview and complete visible
             // resolution levels. Prefetched or partially completed detail
             // must not repaint the settled field tile by tile.
             refineSkySurveyRaster();
+            if (needsFirstRaster) scheduleQualityRefinement();
+            shouldInvalidate = true;
           }
           skySurveyRuntime.lastError = null;
         })
         .catch((error) => {
-          if (destroyed || request.sourceToken !== skySurveySourceToken) return;
+          if (
+            destroyed ||
+            request.sourceToken !== skySurveySourceToken ||
+            !skySurveyWantedRequests.has(request.requestKey)
+          )
+            return;
           if (error?.name === "AbortError" || paused) return;
           if (error?.name === "CacheMissError") {
             skySurveyCacheProbeMisses.set(
@@ -715,15 +827,16 @@ export function createCelestiaAtlasViewer(options) {
             skySurveyFailures.delete(skySurveyFailures.keys().next().value);
           skySurveyRuntime.lastError =
             "Photographic survey unavailable; using the offline sky background.";
+          shouldInvalidate = true;
         })
         .finally(() => {
           skySurveyActiveRequests.delete(request.requestKey);
           skySurveyPending.delete(request.requestKey);
           skySurveyActiveLoads = Math.max(0, skySurveyActiveLoads - 1);
-          skySurveyRuntime.loadedTiles = skySurveyTiles.size;
+          skySurveyRuntime.loadedTiles = loadedSkySurveyResourceCount();
           skySurveyRuntime.pendingTiles = skySurveyPending.size;
           skySurveyRuntime.failedTiles = skySurveyFailures.size;
-          invalidate();
+          if (shouldInvalidate) invalidate();
           processSkySurveyQueue();
         });
     }
@@ -745,9 +858,9 @@ export function createCelestiaAtlasViewer(options) {
         if (!keep) skySurveyPending.delete(request.requestKey);
         return keep;
       });
-      // In-flight image downloads are intentionally allowed to finish. They
-      // are bounded by the concurrency limit and become useful LRU entries,
-      // avoiding cancel/reload churn when the view crosses a tile boundary.
+      // In-flight image downloads are intentionally allowed to finish so the
+      // browser and persistent cache can retain them. A completion from an old
+      // field is not admitted to decoded memory or allowed to repaint.
     }
     const now = performance.now();
     for (const plan of plans) {
@@ -983,9 +1096,7 @@ export function createCelestiaAtlasViewer(options) {
     const interactive = performance.now() < lowQualityUntil;
     const baseWidth = rasterOutputWidth(width, dpr);
     if (interactive) return Math.min(baseWidth, coarsePointer ? 64 : 128);
-    const maxPixels = coarsePointer
-      ? 240000
-      : 450000;
+    const maxPixels = coarsePointer ? 240000 : 450000;
     return Math.max(
       1,
       Math.min(
@@ -1063,7 +1174,7 @@ export function createCelestiaAtlasViewer(options) {
       view.center.raDeg.toFixed(4),
       view.center.decDeg.toFixed(4),
       view.fovDeg.toFixed(3),
-      (projectionView.rotationDeg ?? 0).toFixed(4),
+      (projectionView.rotationDeg ?? 0).toFixed(1),
       Boolean(projectionView.mirrorX),
       observer.latitudeDeg,
       observer.longitudeDeg,
@@ -1112,7 +1223,7 @@ export function createCelestiaAtlasViewer(options) {
       view.center.raDeg.toFixed(4),
       view.center.decDeg.toFixed(4),
       view.fovDeg.toFixed(3),
-      (projectionView.rotationDeg ?? 0).toFixed(4),
+      (projectionView.rotationDeg ?? 0).toFixed(1),
       Boolean(projectionView.mirrorX),
       display.hideBelowHorizon,
       observer.latitudeDeg,
@@ -1157,9 +1268,7 @@ export function createCelestiaAtlasViewer(options) {
     dpr,
   ) => {
     const opacity =
-      display.skySurvey && skySurvey
-        ? skySurveyBlendOpacity(view.fovDeg)
-        : 0;
+      display.skySurvey && skySurvey ? skySurveyBlendOpacity(view.fovDeg) : 0;
     if (!opacity || !skySurveyContext) {
       cancelSkySurveyRasterJob();
       queueSkySurveyTiles([]);
@@ -1169,7 +1278,7 @@ export function createCelestiaAtlasViewer(options) {
         opacity: 0,
         targetOrder: null,
         renderedOrder: null,
-        loadedTiles: skySurveyTiles.size,
+        loadedTiles: loadedSkySurveyResourceCount(),
         pendingTiles: skySurveyPending.size,
         failedTiles: skySurveyFailures.size,
       };
@@ -1187,36 +1296,110 @@ export function createCelestiaAtlasViewer(options) {
       false,
       coarsePointer,
     );
-    let targetOrder = selectSkySurveyOrder(
+    let preferredOrder = selectSkySurveyOrder(
       skySurvey,
       view.fovDeg,
       selectionWidth,
     );
     if (navigator.connection?.saveData)
-      targetOrder = Math.min(targetOrder, Math.max(skySurvey.minOrder, 6));
-    const previewOrder = Math.max(skySurvey.minOrder, targetOrder - 1);
-    const interactive = performance.now() < lowQualityUntil;
-    const offline = navigator.onLine === false;
-    const tileIndicesByOrder = new Map();
-    for (const order of new Set([previewOrder, targetOrder]))
-      tileIndicesByOrder.set(
-        order,
-        discoverVisibleSkySurveyTiles({
-          survey: skySurvey,
-          order,
-          view: projectionView,
-          canvasWidth: width,
-          canvasHeight: height,
-          outputWidth,
-          sampleStep: interactive ? 8 : 4,
-          observer,
-          timestampUtcMs,
-          hideBelowHorizon: display.hideBelowHorizon,
-          horizon,
-        }),
+      preferredOrder = Math.min(
+        preferredOrder,
+        Math.max(skySurvey.minOrder, 6),
       );
-    const visibleTileIndicesByOrder = new Map(
-      [...tileIndicesByOrder].map(([order, tileIndices]) => [
+    const interactive = performance.now() < lowQualityUntil;
+    const offline =
+      navigator.onLine === false && !locallyReachableSurveyUrl(skySurvey.url);
+    const visiblePlanKey = [
+      width,
+      height,
+      outputWidth,
+      projectionView.center.raDeg.toFixed(5),
+      projectionView.center.decDeg.toFixed(5),
+      view.fovDeg.toFixed(4),
+      (projectionView.rotationDeg ?? 0).toFixed(1),
+      Boolean(projectionView.mirrorX),
+      coordinateMode,
+      display.hideBelowHorizon,
+      observer.latitudeDeg,
+      observer.longitudeDeg,
+      Math.floor(timestampUtcMs / 60000),
+      skySurvey.key,
+      skySurveySourceToken,
+    ].join(":");
+    if (skySurveyVisiblePlanCache.key !== visiblePlanKey)
+      skySurveyVisiblePlanCache = {
+        key: visiblePlanKey,
+        tileIndicesByOrder: new Map(),
+      };
+    const visibleTileIndices = (order) => {
+      if (!skySurveyVisiblePlanCache.tileIndicesByOrder.has(order))
+        skySurveyVisiblePlanCache.tileIndicesByOrder.set(
+          order,
+          discoverVisibleSkySurveyTiles({
+            survey: skySurvey,
+            order,
+            view: projectionView,
+            canvasWidth: width,
+            canvasHeight: height,
+            outputWidth,
+            // Completion and rasterization must use the same exact sampling
+            // grid. A coarse barrier can miss a boundary tile and publish a
+            // supposedly complete raster with a transparent strip.
+            sampleStep: 1,
+            observer,
+            timestampUtcMs,
+            hideBelowHorizon: display.hideBelowHorizon,
+            horizon,
+          }),
+        );
+      return skySurveyVisiblePlanCache.tileIndicesByOrder.get(order);
+    };
+    const detailByteBudget = Math.max(
+      skySurvey.tileWidth * skySurvey.tileWidth * 4,
+      skySurveyDecodedByteBudget - skySurveyAllskyDecodedBytes,
+    );
+    const maxDecodedTiles = Math.max(
+      1,
+      Math.floor(
+        (detailByteBudget / (skySurvey.tileWidth * skySurvey.tileWidth * 4)) *
+          0.9,
+      ),
+    );
+    let includeRegularPreview = !(
+      skySurveyAllskyStatus !== "unavailable" &&
+      preferredOrder >= SKY_SURVEY_ALLSKY_ORDER
+    );
+    let fittedOrders = fitSkySurveyOrderToTileBudget(
+      skySurvey,
+      preferredOrder,
+      maxDecodedTiles,
+      (order) => visibleTileIndices(order).length,
+      { includePreview: includeRegularPreview },
+    );
+    if (
+      !includeRegularPreview &&
+      fittedOrders.targetOrder < SKY_SURVEY_ALLSKY_ORDER
+    ) {
+      includeRegularPreview = true;
+      fittedOrders = fitSkySurveyOrderToTileBudget(
+        skySurvey,
+        preferredOrder,
+        maxDecodedTiles,
+        (order) => visibleTileIndices(order).length,
+      );
+    }
+    const { targetOrder, previewOrder } = fittedOrders;
+    const allskyReady =
+      skySurveyAllskyStatus === "ready" &&
+      targetOrder >= SKY_SURVEY_ALLSKY_ORDER;
+    const visibleTileIndicesByOrder = new Map();
+    const regularVisibleOrders = includeRegularPreview
+      ? new Set([previewOrder, targetOrder])
+      : new Set([targetOrder]);
+    for (const order of regularVisibleOrders)
+      visibleTileIndicesByOrder.set(order, visibleTileIndices(order));
+    const tileIndicesByOrder = new Map(
+      [...visibleTileIndicesByOrder].map(([order, tileIndices]) => [
         order,
         [...tileIndices],
       ]),
@@ -1229,16 +1412,35 @@ export function createCelestiaAtlasViewer(options) {
         ),
       ]),
     );
+    skySurveyProtectedTileKeys = new Set([
+      ...[...skySurveyVisibleTileKeysByOrder.values()].flatMap((keys) => [
+        ...keys,
+      ]),
+      ...(skySurveyRasterCache.raster?.usedTileKeys ?? []).filter((key) =>
+        /^\d+:\d+$/.test(key),
+      ),
+    ]);
+    trimSkySurveyTiles();
+    const prefetchPlans = [];
     if (!interactive) {
-      // Warm a narrow ring around the settled viewport. This prevents a normal
-      // pan from exposing an undecoded edge tile, while the existing LRU,
-      // decoded-byte budget and mobile concurrency still bound the cost.
+      // Prefetch may consume only memory not needed by the exact visible set
+      // or committed front raster. It is always queued after visible work.
+      let remainingPrefetchTiles = Math.max(
+        0,
+        Math.floor(
+          detailByteBudget / (skySurvey.tileWidth * skySurvey.tileWidth * 4),
+        ) -
+          new Set([...skySurveyTiles.keys(), ...skySurveyProtectedTileKeys])
+            .size,
+      );
       const prefetchView = {
         ...projectionView,
         fovDeg: Math.min(MAX_FOV_DEG, projectionView.fovDeg * 1.3),
       };
-      for (const order of new Set([previewOrder, targetOrder])) {
-        const prefetched = discoverVisibleSkySurveyTiles({
+      for (const order of regularVisibleOrders) {
+        if (!remainingPrefetchTiles) break;
+        const visibleKeys = skySurveyVisibleTileKeysByOrder.get(order);
+        const extras = discoverVisibleSkySurveyTiles({
           survey: skySurvey,
           order,
           view: prefetchView,
@@ -1250,30 +1452,53 @@ export function createCelestiaAtlasViewer(options) {
           timestampUtcMs,
           hideBelowHorizon: display.hideBelowHorizon,
           horizon,
-        });
-        tileIndicesByOrder.set(
-          order,
-          [...new Set([...tileIndicesByOrder.get(order), ...prefetched])],
-        );
+        })
+          .filter((tileIndex) => {
+            const key = skySurveyTileKey(order, tileIndex);
+            return !visibleKeys.has(key) && !skySurveyTiles.has(key);
+          })
+          .slice(0, remainingPrefetchTiles);
+        remainingPrefetchTiles -= extras.length;
+        if (extras.length)
+          prefetchPlans.push({
+            order,
+            tileIndices: extras,
+            cacheOnly: offline,
+          });
       }
     }
-    const primaryLoadOrders = offline
-      ? Array.from(
-          { length: targetOrder - skySurvey.minOrder + 1 },
-          (_, index) => targetOrder - index,
-        )
+    const primaryLoadOrders = includeRegularPreview
+      ? offline
+        ? [
+            ...new Set([
+              previewOrder,
+              targetOrder,
+              ...Array.from(
+                {
+                  length: targetOrder - skySurvey.minOrder + 1,
+                },
+                (_, index) => targetOrder - index,
+              ),
+            ]),
+          ]
+        : interactive
+          ? [previewOrder]
+          : [...new Set([previewOrder, targetOrder])]
       : interactive
-        ? [previewOrder]
-        : [...new Set([previewOrder, targetOrder])];
+        ? []
+        : [targetOrder];
     // Probe lower cached parents even when navigator.onLine remains true. A
     // captive portal, isolated LAN, or failed survey host can otherwise leave
     // viewed fallback imagery unreachable despite a healthy local connection.
-    const cachedAncestorOrders = offline
-      ? []
-      : Array.from(
-          { length: Math.max(0, targetOrder - skySurvey.minOrder - 1) },
-          (_, index) => targetOrder - index - 2,
-        );
+    const cachedAncestorOrders =
+      offline || !includeRegularPreview
+        ? []
+        : Array.from(
+            {
+              length: Math.max(0, targetOrder - skySurvey.minOrder - 1),
+            },
+            (_, index) => targetOrder - index - 2,
+          );
     const targetTileIndices = tileIndicesByOrder.get(targetOrder);
     for (const order of new Set([
       ...primaryLoadOrders,
@@ -1281,37 +1506,36 @@ export function createCelestiaAtlasViewer(options) {
     ])) {
       if (tileIndicesByOrder.has(order)) continue;
       const divisor = 4 ** (targetOrder - order);
-      tileIndicesByOrder.set(
-        order,
-        [
-          ...new Set(
-            targetTileIndices.map((tileIndex) =>
-              Math.floor(tileIndex / divisor),
-            ),
-          ),
-        ],
-      );
+      tileIndicesByOrder.set(order, [
+        ...new Set(
+          targetTileIndices.map((tileIndex) => Math.floor(tileIndex / divisor)),
+        ),
+      ]);
     }
-    const cachedAncestorPlans = cachedAncestorOrders.map((order) => ({
-      order,
-      tileIndices: tileIndicesByOrder.get(order),
-      cacheOnly: true,
-    }));
     const primaryLoadPlans = primaryLoadOrders.map((order) => ({
       order,
       tileIndices: tileIndicesByOrder.get(order),
       cacheOnly: offline,
     }));
-    const loadPlans = [...cachedAncestorPlans, ...primaryLoadPlans];
+    const cachedAncestorPlans = cachedAncestorOrders.map((order) => ({
+      order,
+      tileIndices: tileIndicesByOrder.get(order),
+      cacheOnly: true,
+    }));
+    const loadPlans = [
+      ...primaryLoadPlans,
+      ...cachedAncestorPlans,
+      ...prefetchPlans,
+    ];
     queueSkySurveyTiles(loadPlans);
-    if (!skySurveyTiles.size) {
+    if (!skySurveyTiles.size && !allskyReady) {
       skySurveyRuntime = {
         ...skySurveyRuntime,
         active: false,
         opacity: 0,
         targetOrder,
         renderedOrder: null,
-        loadedTiles: 0,
+        loadedTiles: loadedSkySurveyResourceCount(),
         pendingTiles: skySurveyPending.size,
         failedTiles: skySurveyFailures.size,
       };
@@ -1322,45 +1546,75 @@ export function createCelestiaAtlasViewer(options) {
       return false;
     }
 
-    const targetVisibleTileIndices =
-      visibleTileIndicesByOrder.get(targetOrder) ?? [];
-    const targetOrderComplete =
-      targetVisibleTileIndices.length > 0 &&
-      targetVisibleTileIndices.every((tileIndex) =>
-        skySurveyTiles.has(skySurveyTileKey(targetOrder, tileIndex)),
+    const orderIsComplete = (order) => {
+      const tileIndices = visibleTileIndicesByOrder.get(order) ?? [];
+      return (
+        tileIndices.length > 0 &&
+        tileIndices.every((tileIndex) =>
+          skySurveyTiles.has(skySurveyTileKey(order, tileIndex)),
+        )
       );
-    // Do not progressively mix isolated high-resolution tiles into a complete
-    // preview. The visible field advances as one coherent resolution level.
-    const renderOrder = targetOrderComplete ? targetOrder : previewOrder;
+    };
+    const targetOrderComplete = orderIsComplete(targetOrder);
+    const previewOrderComplete =
+      includeRegularPreview && orderIsComplete(previewOrder);
+    const renderOrder =
+      targetOrderComplete || allskyReady ? targetOrder : previewOrder;
+    const rasterQuality = targetOrderComplete
+      ? "target"
+      : allskyReady
+        ? "allsky"
+        : previewOrderComplete
+          ? "preview"
+          : "partial";
+    const rasterTiles =
+      rasterQuality === "allsky"
+        ? new Map(skySurveyAllskyTiles)
+        : new Map([...skySurveyAllskyTiles, ...skySurveyTiles]);
 
-    const rasterAlignmentKey = [
+    const rasterRotationDeg = projectionView.rotationDeg ?? 0;
+    const rasterRetentionKey = [
       width,
       height,
       projectionView.center.raDeg.toFixed(5),
       projectionView.center.decDeg.toFixed(5),
       view.fovDeg.toFixed(4),
-      // A tenth of a degree moves an edge pixel by less than one pixel while
-      // avoiding self-cancellation from continuous sidereal sub-pixel drift.
-      (projectionView.rotationDeg ?? 0).toFixed(1),
       Boolean(projectionView.mirrorX),
       coordinateMode,
       display.hideBelowHorizon,
       observer.latitudeDeg,
       observer.longitudeDeg,
+      observer.elevationM,
       skySurvey.key,
       skySurveySourceToken,
+    ].join(":");
+    const rasterAlignmentKey = [
+      rasterRetentionKey,
+      // A tenth of a degree moves an edge pixel by less than one pixel while
+      // avoiding self-cancellation from continuous sidereal sub-pixel drift.
+      rasterRotationDeg.toFixed(1),
     ].join(":");
     const rasterViewKey = [
       rasterAlignmentKey,
       Math.floor(timestampUtcMs / 60000),
       targetOrder,
       renderOrder,
+      rasterQuality,
     ].join(":");
     const rasterKey = `${rasterViewKey}:${outputWidth}`;
+    const rasterJobFamilyKey = [
+      rasterRetentionKey,
+      outputWidth,
+      targetOrder,
+      renderOrder,
+      rasterQuality,
+    ].join(":");
     const rasterOptions = {
       survey: skySurvey,
       order: renderOrder,
-      tiles: skySurveyTiles,
+      // Async rasterization yields between row chunks. A snapshot prevents
+      // tile arrivals or LRU eviction from tearing one published frame.
+      tiles: rasterTiles,
       view: projectionView,
       observer,
       timestampUtcMs,
@@ -1390,94 +1644,116 @@ export function createCelestiaAtlasViewer(options) {
         opacity,
         targetOrder,
         renderedOrder,
-        loadedTiles: skySurveyTiles.size,
+        loadedTiles: loadedSkySurveyResourceCount(),
         pendingTiles: skySurveyPending.size,
         failedTiles: skySurveyFailures.size,
       };
       canvas.dataset.skySurveyActive = "true";
       canvas.dataset.skySurveyOrder = String(renderedOrder);
       canvas.dataset.skySurveyTargetOrder = String(targetOrder);
-      canvas.dataset.skySurveyLoadedTiles = String(skySurveyTiles.size);
+      canvas.dataset.skySurveyLoadedTiles = String(
+        loadedSkySurveyResourceCount(),
+      );
       updateSurveyCredit(true);
       return true;
     };
+    const retainedRasterCompatible =
+      skySurveyRasterCache.alignmentKey === rasterRetentionKey &&
+      wrappedAngleDifferenceDeg(
+        skySurveyRasterCache.rotationDeg,
+        rasterRotationDeg,
+      ) <= SKY_SURVEY_RETENTION_ROTATION_DEG;
     if (skySurveyRasterCache.key !== rasterKey) {
       if (!interactive) {
         if (skySurveyRasterJob?.key !== rasterKey) {
-          cancelSkySurveyRasterJob();
-          const job = { key: rasterKey, cancelled: false };
-          skySurveyRasterJob = job;
-          void rasterizeSkySurveyAsync({
-            ...rasterOptions,
-            rowsPerChunk: coarsePointer ? 6 : 8,
-            isCancelled: () =>
-              job.cancelled ||
-              destroyed ||
-              paused ||
-              skySurveyRasterJob !== job,
-          })
-            .then((raster) => {
-              if (
+          const compatibleRunningJob =
+            skySurveyRasterJob?.familyKey === rasterJobFamilyKey &&
+            wrappedAngleDifferenceDeg(
+              skySurveyRasterJob.rotationDeg,
+              rasterRotationDeg,
+            ) <= SKY_SURVEY_RETENTION_ROTATION_DEG;
+          if (!compatibleRunningJob) {
+            cancelSkySurveyRasterJob();
+            const job = {
+              key: rasterKey,
+              familyKey: rasterJobFamilyKey,
+              rotationDeg: rasterRotationDeg,
+              cancelled: false,
+            };
+            skySurveyRasterJob = job;
+            void rasterizeSkySurveyAsync({
+              ...rasterOptions,
+              rowsPerChunk: coarsePointer ? 6 : 8,
+              isCancelled: () =>
                 job.cancelled ||
                 destroyed ||
                 paused ||
-                skySurveyRasterJob !== job
-              )
-                return;
-              if (raster.missingTileIndices.length) {
-                const missingPlans = [];
-                for (
-                  let order = renderOrder;
-                  order >= skySurvey.minOrder;
-                  order -= 1
-                ) {
-                  const divisor = 4 ** (renderOrder - order);
-                  missingPlans.push({
-                    order,
-                    tileIndices: [
-                      ...new Set(
-                        raster.missingTileIndices.map((tileIndex) =>
-                          Math.floor(tileIndex / divisor),
-                        ),
-                      ),
-                    ],
-                    // Online requests refine the target and preview orders;
-                    // still lower parents are cache-only fallback probes.
-                    cacheOnly: offline || order < previewOrder,
-                  });
-                }
-                queueSkySurveyTiles([
-                  ...loadPlans,
-                  ...missingPlans,
-                ]);
-              }
-              canvas.dataset.skySurveyRasterUsedOrders =
-                raster.usedOrders.join(",");
-              canvas.dataset.skySurveyRasterMissingTiles = String(
-                raster.missingTileIndices.length,
-              );
-              skySurveyRasterCache = {
-                key: rasterKey,
-                alignmentKey: rasterAlignmentKey,
-                renderKey: rasterKey,
-                raster,
-              };
-              skySurveyRasterJob = null;
-              invalidate();
+                skySurveyRasterJob !== job,
             })
-            .catch((error) => {
-              if (skySurveyRasterJob !== job) return;
-              skySurveyRasterJob = null;
-              if (error?.name !== "AbortError")
-                skySurveyRuntime.lastError =
-                  "Photographic survey could not be rendered; using the offline sky background.";
-            });
+              .then((raster) => {
+                if (
+                  job.cancelled ||
+                  destroyed ||
+                  paused ||
+                  skySurveyRasterJob !== job
+                )
+                  return;
+                if (
+                  rasterQuality !== "allsky" &&
+                  raster.missingTileIndices.length
+                ) {
+                  const missingPlans = [];
+                  for (
+                    let order = renderOrder;
+                    order >= skySurvey.minOrder;
+                    order -= 1
+                  ) {
+                    const divisor = 4 ** (renderOrder - order);
+                    missingPlans.push({
+                      order,
+                      tileIndices: [
+                        ...new Set(
+                          raster.missingTileIndices.map((tileIndex) =>
+                            Math.floor(tileIndex / divisor),
+                          ),
+                        ),
+                      ],
+                      // Online requests refine the target and preview orders;
+                      // still lower parents are cache-only fallback probes.
+                      cacheOnly: offline || order < previewOrder,
+                    });
+                  }
+                  queueSkySurveyTiles([...loadPlans, ...missingPlans]);
+                }
+                canvas.dataset.skySurveyRasterUsedOrders =
+                  raster.usedOrders.join(",");
+                canvas.dataset.skySurveyRasterMissingTiles = String(
+                  raster.missingTileIndices.length,
+                );
+                skySurveyRasterCache = {
+                  key: rasterKey,
+                  alignmentKey: rasterRetentionKey,
+                  rotationDeg: rasterRotationDeg,
+                  renderKey: rasterKey,
+                  raster,
+                };
+                skySurveyRasterJob = null;
+                invalidate();
+              })
+              .catch((error) => {
+                if (skySurveyRasterJob !== job) return;
+                skySurveyRasterJob = null;
+                if (error?.name !== "AbortError")
+                  skySurveyRuntime.lastError =
+                    "Photographic survey could not be rendered; using the offline sky background.";
+              });
+          }
         }
         // The interaction pass already produced a low-resolution raster for
         // this exact view. Keep it visible while the higher-resolution pass
         // yields between chunks instead of flashing back to the plain sky.
         if (
-          skySurveyRasterCache.alignmentKey === rasterAlignmentKey &&
+          retainedRasterCompatible &&
           presentSkySurveyRaster(
             skySurveyRasterCache.raster,
             skySurveyRasterCache.renderKey,
@@ -1490,7 +1766,7 @@ export function createCelestiaAtlasViewer(options) {
           opacity: 0,
           targetOrder,
           renderedOrder: null,
-          loadedTiles: skySurveyTiles.size,
+          loadedTiles: loadedSkySurveyResourceCount(),
           pendingTiles: skySurveyPending.size,
           failedTiles: skySurveyFailures.size,
         };
@@ -1500,14 +1776,13 @@ export function createCelestiaAtlasViewer(options) {
         updateSurveyCredit(false);
         return false;
       }
+      // A stale settled job must never overwrite the last synchronous frame
+      // while the user is actively changing the view.
+      cancelSkySurveyRasterJob();
       const raster = rasterizeSkySurvey(rasterOptions);
-      if (raster.missingTileIndices.length) {
+      if (rasterQuality !== "allsky" && raster.missingTileIndices.length) {
         const missingPlans = [];
-        for (
-          let order = renderOrder;
-          order >= skySurvey.minOrder;
-          order -= 1
-        ) {
+        for (let order = renderOrder; order >= skySurvey.minOrder; order -= 1) {
           const divisor = 4 ** (renderOrder - order);
           missingPlans.push({
             order,
@@ -1529,7 +1804,8 @@ export function createCelestiaAtlasViewer(options) {
       );
       skySurveyRasterCache = {
         key: rasterKey,
-        alignmentKey: rasterAlignmentKey,
+        alignmentKey: rasterRetentionKey,
+        rotationDeg: rasterRotationDeg,
         renderKey: rasterKey,
         raster,
       };
@@ -1542,7 +1818,7 @@ export function createCelestiaAtlasViewer(options) {
         opacity: 0,
         targetOrder,
         renderedOrder: null,
-        loadedTiles: skySurveyTiles.size,
+        loadedTiles: loadedSkySurveyResourceCount(),
         pendingTiles: skySurveyPending.size,
         failedTiles: skySurveyFailures.size,
       };
@@ -1554,7 +1830,69 @@ export function createCelestiaAtlasViewer(options) {
     }
     return presentSkySurveyRaster(raster, skySurveyRasterCache.renderKey);
   };
+  const loadSkySurveyAllsky = async (source, sourceToken) => {
+    // A standard order-3 Allsky mosaic is a complete immutable base frame,
+    // not a replacement for detail tiles. It guarantees coverage while a new
+    // field is loading and removes the need for a second regular preview set.
+    if (!supportsSkySurveyAllsky(source)) return;
+    skySurveyAllskyStatus = "loading";
+    const allskyUrl = `${source.url}/Norder${SKY_SURVEY_ALLSKY_ORDER}/Allsky.${source.format}`;
+    try {
+      const controller = new AbortController();
+      const allsky = await loadSkySurveyPixels(allskyUrl, {
+        signal: controller.signal,
+        expectedWidth: null,
+        shouldPersist: () => !destroyed && sourceToken === skySurveySourceToken,
+      });
+      if (destroyed || sourceToken !== skySurveySourceToken) return;
+      const columns = 27;
+      const previewWidth = allsky.width / columns;
+      const tileCount = 12 * 4 ** SKY_SURVEY_ALLSKY_ORDER;
+      const rows = Math.ceil(tileCount / columns);
+      if (
+        !Number.isInteger(previewWidth) ||
+        previewWidth < 2 ||
+        !Number.isInteger(Math.log2(previewWidth)) ||
+        source.tileWidth % previewWidth !== 0 ||
+        allsky.height < rows * previewWidth
+      )
+        throw new TypeError("Invalid HiPS Allsky preview geometry");
+      const tiles = new Map();
+      for (let tileIndex = 0; tileIndex < tileCount; tileIndex += 1) {
+        const cacheKey = skySurveyAllskyTileKey(
+          SKY_SURVEY_ALLSKY_ORDER,
+          tileIndex,
+        );
+        tiles.set(cacheKey, {
+          width: previewWidth,
+          height: previewWidth,
+          data: allsky.data,
+          dataWidth: allsky.width,
+          offsetX: (tileIndex % columns) * previewWidth,
+          offsetY: Math.floor(tileIndex / columns) * previewWidth,
+          cacheKey,
+        });
+      }
+      skySurveyAllskyTiles = tiles;
+      skySurveyAllskyDecodedBytes = allsky.data.byteLength;
+      skySurveyAllskyStatus = "ready";
+      refineSkySurveyRaster();
+      scheduleQualityRefinement();
+      invalidate();
+    } catch {
+      // Allsky is an optional continuity layer for third-party HiPS sources.
+      // Exact tiles remain available when a source does not publish it.
+      if (destroyed || sourceToken !== skySurveySourceToken) return;
+      skySurveyAllskyTiles = new Map();
+      skySurveyAllskyDecodedBytes = 0;
+      skySurveyAllskyStatus = "unavailable";
+      refineSkySurveyRaster();
+      scheduleQualityRefinement();
+      invalidate();
+    }
+  };
   void loadMilkyWay(milkyWayPanoramaUrl);
+  void loadSkySurveyAllsky(skySurvey, skySurveySourceToken);
 
   const loadLandscape = async (source, token) => {
     const baseUrl = source.url.replace(/\/+$/, "");
@@ -1719,7 +2057,10 @@ export function createCelestiaAtlasViewer(options) {
           const targetX = width * 0.78;
           const point = Array.from({ length: 24 }, (_, index) => {
             const coordinate = horizontalToEquatorial(
-              { azimuthDeg: index * 15, altitudeDeg: altitude },
+              {
+                azimuthDeg: index * 15,
+                altitudeDeg: altitude,
+              },
               observer,
               referenceUtcMs,
               view.center.frame,
@@ -1858,7 +2199,11 @@ export function createCelestiaAtlasViewer(options) {
       context.beginPath();
       context.arc(point.x, point.y, radius, 0, Math.PI * 2);
       context.fill();
-      hitTargets.push({ x: point.x, y: point.y, object: star });
+      hitTargets.push({
+        x: point.x,
+        y: point.y,
+        object: star,
+      });
       const hasDisplayName =
         star.named === true || !String(star.uid ?? "").startsWith("hyg:");
       if (
@@ -1909,7 +2254,12 @@ export function createCelestiaAtlasViewer(options) {
         );
         hitTargets.push({ x, y, object });
         if (display.labels && (isSelected || view.fovDeg < 20))
-          dsoLabelCandidates.push({ object, x, y, isSelected });
+          dsoLabelCandidates.push({
+            object,
+            x,
+            y,
+            isSelected,
+          });
       }
     }
     if (dsoLabelCandidates.length) {
@@ -1935,9 +2285,7 @@ export function createCelestiaAtlasViewer(options) {
         coarsePointer ? 36 : 72,
         Math.max(
           12,
-          Math.floor(
-            (width * height) / (coarsePointer ? 22000 : 18000),
-          ),
+          Math.floor((width * height) / (coarsePointer ? 22000 : 18000)),
         ),
       );
       const placedDsoLabelBoxes = [];
@@ -2163,6 +2511,13 @@ export function createCelestiaAtlasViewer(options) {
       }
       context.stroke();
     }
+    renderedMount = mount
+      ? {
+          connected: mount.connected,
+          stale: mount.stale,
+          coordinates: { ...mount.coordinates },
+        }
+      : null;
     if (interactionViewChangePending) {
       interactionViewChangePending = false;
       onViewChange?.(structuredClone(view));
@@ -2177,11 +2532,20 @@ export function createCelestiaAtlasViewer(options) {
     skySurveyFailures.clear();
     skySurveyRuntime.failedTiles = 0;
     skySurveyRuntime.lastError = null;
-    resetSkySurveyRaster();
+    refineSkySurveyRaster();
+    if (
+      skySurveyAllskyStatus === "unavailable" &&
+      supportsSkySurveyAllsky(skySurvey)
+    )
+      void loadSkySurveyAllsky(skySurvey, skySurveySourceToken);
+    scheduleQualityRefinement();
     invalidate();
   };
   globalThis.addEventListener?.("online", handleOnline);
-  const resizeObserver = new ResizeObserver(invalidate);
+  const resizeObserver = new ResizeObserver(() => {
+    scheduleQualityRefinement();
+    invalidate();
+  });
   resizeObserver.observe(container);
   const handleContextLost = (event) => {
     event.preventDefault();
@@ -2192,6 +2556,7 @@ export function createCelestiaAtlasViewer(options) {
   };
   const handleContextRestored = () => {
     renderingContextLost = false;
+    scheduleQualityRefinement();
     invalidate();
   };
 
@@ -2296,7 +2661,7 @@ export function createCelestiaAtlasViewer(options) {
       } catch {
         // Pointer capture may already be gone after cancellation.
       }
-      lowQualityUntil = performance.now();
+      scheduleQualityRefinement();
       invalidate();
       return;
     }
@@ -2334,7 +2699,7 @@ export function createCelestiaAtlasViewer(options) {
         invalidate();
       }
     }
-    lowQualityUntil = performance.now();
+    scheduleQualityRefinement();
     invalidate();
   };
   const wheel = (event) => {
@@ -2347,13 +2712,7 @@ export function createCelestiaAtlasViewer(options) {
         Math.min(MAX_FOV_DEG, view.fovDeg * Math.exp(event.deltaY * 0.001)),
       ),
     };
-    lowQualityUntil = performance.now() + 180;
-    if (qualityRefinementTimer !== null) clearTimeout(qualityRefinementTimer);
-    qualityRefinementTimer = setTimeout(() => {
-      qualityRefinementTimer = null;
-      lowQualityUntil = performance.now();
-      invalidate();
-    }, 220);
+    scheduleQualityRefinement();
     interactionViewChangePending = true;
     invalidate();
   };
@@ -2362,7 +2721,9 @@ export function createCelestiaAtlasViewer(options) {
   canvas.addEventListener("pointerup", finishPointer);
   canvas.addEventListener("pointercancel", finishPointer);
   canvas.addEventListener("lostpointercapture", finishPointer);
-  canvas.addEventListener("wheel", wheel, { passive: false });
+  canvas.addEventListener("wheel", wheel, {
+    passive: false,
+  });
   canvas.addEventListener("contextlost", handleContextLost);
   canvas.addEventListener("contextrestored", handleContextRestored);
 
@@ -2370,8 +2731,13 @@ export function createCelestiaAtlasViewer(options) {
     resume() {
       assertAlive();
       paused = false;
-      if (clockTimer === null) clockTimer = setInterval(invalidate, 60000);
+      if (clockTimer === null)
+        clockTimer = setInterval(() => {
+          scheduleQualityRefinement();
+          invalidate();
+        }, 60000);
       processSkySurveyQueue();
+      scheduleQualityRefinement();
       invalidate();
     },
     pause() {
@@ -2399,6 +2765,7 @@ export function createCelestiaAtlasViewer(options) {
     },
     resize() {
       assertAlive();
+      scheduleQualityRefinement();
       invalidate();
     },
     setCoordinateMode(value) {
@@ -2408,11 +2775,13 @@ export function createCelestiaAtlasViewer(options) {
           'Coordinate mode must be "horizontal" or "equatorial"',
         );
       coordinateMode = value;
+      scheduleQualityRefinement();
       invalidate();
     },
     setObserver(value) {
       assertAlive();
       observer = validateObserver(value);
+      scheduleQualityRefinement();
       invalidate();
     },
     setTime(value) {
@@ -2421,6 +2790,7 @@ export function createCelestiaAtlasViewer(options) {
         throw new TypeError("UTC time must be milliseconds");
       utcMs = value;
       clockSetAt = performance.now();
+      scheduleQualityRefinement();
       invalidate();
     },
     setTimeRate(value) {
@@ -2430,6 +2800,7 @@ export function createCelestiaAtlasViewer(options) {
       utcMs = currentUtcMs();
       clockSetAt = performance.now();
       timeRate = value;
+      scheduleQualityRefinement();
       invalidate();
     },
     getTime() {
@@ -2449,37 +2820,70 @@ export function createCelestiaAtlasViewer(options) {
         value.fovDeg > 180
       )
         throw new RangeError("fovDeg must be in (0, 180]");
-      view = { center, fovDeg: Math.min(MAX_FOV_DEG, value.fovDeg) };
+      view = {
+        center,
+        fovDeg: Math.min(MAX_FOV_DEG, value.fovDeg),
+      };
       onViewChange?.(structuredClone(view));
+      scheduleQualityRefinement();
       invalidate();
     },
     setMountPosition(value) {
       assertAlive();
-      if (value === null) mount = null;
-      else {
-        if (
-          typeof value.connected !== "boolean" ||
-          typeof value.stale !== "boolean" ||
-          !Number.isFinite(value.timestampUtcMs)
-        )
-          throw new TypeError("Invalid mount position");
-        mount = {
-          ...value,
-          coordinates: validateEquatorialCoordinates(value.coordinates),
-        };
-        if (mountFollow && mount.connected) {
-          view = { ...view, center: mount.coordinates };
-          onViewChange?.(structuredClone(view));
-        }
+      if (value === null) {
+        if (mount === null) return;
+        mount = null;
+        invalidate();
+        return;
       }
-      invalidate();
+      if (
+        typeof value.connected !== "boolean" ||
+        typeof value.stale !== "boolean" ||
+        !Number.isFinite(value.timestampUtcMs)
+      )
+        throw new TypeError("Invalid mount position");
+      const nextMount = {
+        ...value,
+        coordinates: validateEquatorialCoordinates(value.coordinates),
+      };
+      const mountVisualEpsilonDeg = Math.max(
+        1e-5,
+        (view.fovDeg / Math.max(1, canvas.clientWidth)) * 0.25,
+      );
+      const markerChanged =
+        !renderedMount ||
+        renderedMount.connected !== nextMount.connected ||
+        renderedMount.stale !== nextMount.stale ||
+        !coordinatesVisuallyEqual(
+          renderedMount.coordinates,
+          nextMount.coordinates,
+          mountVisualEpsilonDeg,
+        );
+      const centerChanged =
+        mountFollow &&
+        nextMount.connected &&
+        !coordinatesVisuallyEqual(
+          view.center,
+          nextMount.coordinates,
+          mountVisualEpsilonDeg,
+        );
+      mount = nextMount;
+      if (centerChanged) {
+        view = { ...view, center: mount.coordinates };
+        onViewChange?.(structuredClone(view));
+        scheduleQualityRefinement();
+      }
+      if (markerChanged || centerChanged) invalidate();
     },
     setMountFollow(value) {
       assertAlive();
-      mountFollow = Boolean(value);
+      const nextFollow = Boolean(value);
+      if (mountFollow === nextFollow) return;
+      mountFollow = nextFollow;
       if (mountFollow && mount?.connected) {
         view = { ...view, center: mount.coordinates };
         onViewChange?.(structuredClone(view));
+        scheduleQualityRefinement();
       }
       invalidate();
     },
@@ -2488,6 +2892,7 @@ export function createCelestiaAtlasViewer(options) {
       if (!mount?.connected) return false;
       view = { ...view, center: mount.coordinates };
       onViewChange?.(structuredClone(view));
+      scheduleQualityRefinement();
       invalidate();
       return true;
     },
@@ -2547,9 +2952,14 @@ export function createCelestiaAtlasViewer(options) {
         };
       });
       horizon.sort((left, right) => left.azimuthDeg - right.azimuthDeg);
+      skySurveyVisiblePlanCache = {
+        key: "",
+        tileIndicesByOrder: new Map(),
+      };
       milkyWayRasterCache = { key: "", raster: null };
       milkyWayUploadKey = "";
       resetSkySurveyRaster();
+      scheduleQualityRefinement();
       invalidate();
     },
     setSkySurvey(value) {
@@ -2581,6 +2991,7 @@ export function createCelestiaAtlasViewer(options) {
         return;
       skySurvey = source;
       resetSkySurveyRuntime({ clearTiles: true });
+      void loadSkySurveyAllsky(skySurvey, skySurveySourceToken);
       invalidate();
     },
     async setLandscape(value) {
@@ -2601,7 +3012,10 @@ export function createCelestiaAtlasViewer(options) {
         !value.key.trim()
       )
         throw new TypeError("Landscape requires non-empty url and key values");
-      const source = { url: value.url.trim(), key: value.key.trim() };
+      const source = {
+        url: value.url.trim(),
+        key: value.key.trim(),
+      };
       if (
         landscape?.source.url === source.url &&
         landscape?.source.key === source.key
@@ -2681,6 +3095,7 @@ export function createCelestiaAtlasViewer(options) {
                 ),
               );
       display = { ...display, ...nextDisplay };
+      scheduleQualityRefinement();
       invalidate();
     },
     focusTarget(
@@ -2697,6 +3112,7 @@ export function createCelestiaAtlasViewer(options) {
       };
       selected = objectIdentity(target) ? { ...target } : null;
       onViewChange?.(structuredClone(view));
+      scheduleQualityRefinement();
       invalidate();
     },
     select(value) {
@@ -2763,12 +3179,16 @@ export function createCelestiaAtlasViewer(options) {
       skySurveyQueue = [];
       skySurveyPending.clear();
       clearSkySurveyTiles();
+      skySurveyAllskyTiles = new Map();
+      skySurveyAllskyDecodedBytes = 0;
       landscape = null;
       landscapeRasterCache = { key: "", raster: null };
       landscapeUploadKey = "";
       if (frameId !== null) cancelAnimationFrame(frameId);
       if (clockTimer !== null) clearInterval(clockTimer);
       if (qualityRefinementTimer !== null) clearTimeout(qualityRefinementTimer);
+      if (skySurveyPersistentTrimTimer !== null)
+        clearTimeout(skySurveyPersistentTrimTimer);
       resizeObserver.disconnect();
       canvas.removeEventListener("pointerdown", pointerDown);
       canvas.removeEventListener("pointermove", pointerMove);
@@ -2787,6 +3207,7 @@ export function createCelestiaAtlasViewer(options) {
       frameId = null;
       clockTimer = null;
       qualityRefinementTimer = null;
+      skySurveyPersistentTrimTimer = null;
     },
   });
 }

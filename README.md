@@ -113,12 +113,14 @@ the service worker. They continue working without a connection.
 The optional `DSS photographic sky` layer is the sole runtime astronomy
 request. It is idle at fields of view of 20 degrees or wider, then requests only
 the visible `CDS/P/DSS2/color` HiPS JPEG tiles from the configured source. The
-viewer and service worker share a separate cache of up to 96 viewed DSS tiles
-when browser Cache Storage is available; decoded memory caches are capped by
-both count and byte budgets (24 MiB on coarse-pointer devices and 64 MiB on
-desktop). Cached fields remain photographic offline. An unseen offline field
-uses available cached lower-order parent tiles and otherwise falls back
-transparently to the bundled Milky Way instead of blocking the renderer.
+viewer and service worker share a separate cache of up to 512 viewed DSS tiles
+when browser Cache Storage is available. Decoded survey memory is byte-bounded
+at 64 MiB on coarse-pointer devices and 128 MiB on desktop. A standard order-3
+Allsky mosaic supplies an immutable full-sky continuity frame; exact detail is
+published only when its complete visible tile set is ready. Cached fields remain
+photographic offline. An unseen offline field uses the cached Allsky image or
+available lower-order parent tiles and otherwise falls back transparently to the
+bundled Milky Way instead of blocking the renderer.
 No remote survey request delays viewer startup, catalogue search, or navigation.
 
 The complete survey contains millions of tiles and is neither precached nor

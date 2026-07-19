@@ -87,7 +87,9 @@ async function staticServer(port = 0) {
   const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? "/", "http://localhost");
-      const requested = decodeURIComponent(url.pathname === "/" ? "/index.html" : url.pathname);
+      const requested = decodeURIComponent(
+        url.pathname === "/" ? "/index.html" : url.pathname,
+      );
       const servedPath = requested.replace(
         /^\/__survey__\//,
         "/assets/landscapes/guereins/",
@@ -104,7 +106,8 @@ async function staticServer(port = 0) {
       const content = await readFile(path);
       response.writeHead(200, {
         "cache-control": "no-store",
-        "content-type": MIME.get(extname(path).toLowerCase()) ?? "application/octet-stream",
+        "content-type":
+          MIME.get(extname(path).toLowerCase()) ?? "application/octet-stream",
       });
       response.end(content);
     } catch (error) {
@@ -150,8 +153,12 @@ function cdpClient(webSocketUrl, onEvent) {
   let nextId = 1;
   const pending = new Map();
   const opened = new Promise((resolveOpen, reject) => {
-    socket.addEventListener("open", resolveOpen, { once: true });
-    socket.addEventListener("error", reject, { once: true });
+    socket.addEventListener("open", resolveOpen, {
+      once: true,
+    });
+    socket.addEventListener("error", reject, {
+      once: true,
+    });
   });
   socket.addEventListener("message", ({ data }) => {
     const message = JSON.parse(String(data));
@@ -239,7 +246,9 @@ async function reloadAndWaitForAtlas(client) {
     });
     if (result.result?.value) return;
     if (attempt === 149)
-      throw new Error("Atlas did not boot after the service-worker offline reload");
+      throw new Error(
+        "Atlas did not boot after the service-worker offline reload",
+      );
     await delay(100);
   }
 }
@@ -286,9 +295,112 @@ async function waitForSkySurvey(
     )
       return state;
     if (attempt === 119)
-      throw new Error(`Sky survey did not become visible: ${JSON.stringify(state)}`);
+      throw new Error(
+        `Sky survey did not become visible: ${JSON.stringify(state)}`,
+      );
     await delay(100);
   }
+}
+
+async function startSkySurveyContinuityProbe(client) {
+  const result = await client.send("Runtime.evaluate", {
+    expression: `(() => {
+      globalThis.__CELESTIA_ATLAS_SURVEY_PROBE__?.stop?.();
+      const canvas = document.querySelector('.celestia-atlas-canvas');
+      if (!canvas) return { started: false, reason: 'missing canvas' };
+      const startedAt = performance.now();
+      const state = {
+        startedAt,
+        samples: 0,
+        inactiveSamples: [],
+        minimumLoadedTiles: Infinity,
+      };
+      const sample = reason => {
+        const loadedTiles = Number(canvas.dataset.skySurveyLoadedTiles || 0);
+        state.samples += 1;
+        if (Number.isFinite(loadedTiles))
+          state.minimumLoadedTiles = Math.min(state.minimumLoadedTiles, loadedTiles);
+        if (
+          canvas.dataset.skySurveyActive !== 'true' &&
+          state.inactiveSamples.length < 20
+        )
+          state.inactiveSamples.push({
+            atMs: Math.round((performance.now() - startedAt) * 10) / 10,
+            reason,
+            loadedTiles,
+            order: canvas.dataset.skySurveyOrder || null,
+            targetOrder: canvas.dataset.skySurveyTargetOrder || null,
+            missingTiles: canvas.dataset.skySurveyRasterMissingTiles || null,
+          });
+      };
+      const observer = new MutationObserver(() => sample('mutation'));
+      observer.observe(canvas, {
+        attributes: true,
+        attributeFilter: [
+          'data-sky-survey-active',
+          'data-sky-survey-loaded-tiles',
+          'data-sky-survey-order',
+          'data-sky-survey-target-order',
+          'data-sky-survey-raster-missing-tiles',
+        ],
+      });
+      const timer = setInterval(() => sample('timer'), 16);
+      const stop = () => {
+        clearInterval(timer);
+        observer.disconnect();
+        sample('stop');
+      };
+      globalThis.__CELESTIA_ATLAS_SURVEY_PROBE__ = { state, stop };
+      sample('start');
+      return { started: true };
+    })()`,
+    returnByValue: true,
+  });
+  if (!result.result.value?.started)
+    throw new Error(
+      `Could not start sky-survey continuity probe: ${JSON.stringify(result.result.value)}`,
+    );
+}
+
+async function stopSkySurveyContinuityProbe(client) {
+  const result = await client.send("Runtime.evaluate", {
+    expression: `(() => {
+      const probe = globalThis.__CELESTIA_ATLAS_SURVEY_PROBE__;
+      if (!probe) return null;
+      probe.stop();
+      const resources = performance
+        .getEntriesByType('resource')
+        .filter(entry =>
+          entry.startTime >= probe.state.startedAt &&
+          entry.name.includes('/__survey__/')
+        )
+        .map(entry => entry.name);
+      const state = {
+        ...probe.state,
+        minimumLoadedTiles: Number.isFinite(probe.state.minimumLoadedTiles)
+          ? probe.state.minimumLoadedTiles
+          : null,
+        resources,
+      };
+      delete globalThis.__CELESTIA_ATLAS_SURVEY_PROBE__;
+      return state;
+    })()`,
+    returnByValue: true,
+  });
+  return result.result.value;
+}
+
+function assertSkySurveyContinuity(state, label, { warm = false } = {}) {
+  if (
+    !state ||
+    state.samples < 1 ||
+    state.minimumLoadedTiles < 1 ||
+    state.inactiveSamples.length > 0 ||
+    (warm && state.resources.length > 0)
+  )
+    throw new Error(
+      `${label} blanked or reloaded the photographic survey: ${JSON.stringify(state)}`,
+    );
 }
 
 function viewFromHash(hash) {
@@ -323,19 +435,29 @@ async function currentHorizontalCenter(client) {
   return result.result?.value ?? null;
 }
 
-function assertViewChanged(beforeHash, afterHash, { center = false, fov = false } = {}) {
+function assertViewChanged(
+  beforeHash,
+  afterHash,
+  { center = false, fov = false } = {},
+) {
   const before = viewFromHash(beforeHash);
   const after = viewFromHash(afterHash);
-  if (![...Object.values(before), ...Object.values(after)].every(Number.isFinite))
+  if (
+    ![...Object.values(before), ...Object.values(after)].every(Number.isFinite)
+  )
     throw new Error(`Invalid view hashes: ${beforeHash} -> ${afterHash}`);
   if (
     center &&
     Math.abs(before.raDeg - after.raDeg) < 1e-5 &&
     Math.abs(before.decDeg - after.decDeg) < 1e-5
   )
-    throw new Error(`Drag did not change the view centre: ${beforeHash} -> ${afterHash}`);
+    throw new Error(
+      `Drag did not change the view centre: ${beforeHash} -> ${afterHash}`,
+    );
   if (fov && Math.abs(before.fovDeg - after.fovDeg) < 1e-3)
-    throw new Error(`Zoom did not change the field of view: ${beforeHash} -> ${afterHash}`);
+    throw new Error(
+      `Zoom did not change the field of view: ${beforeHash} -> ${afterHash}`,
+    );
 }
 
 async function assertMobileHeaderLayout(client, expectedViewport) {
@@ -453,7 +575,10 @@ async function run() {
       "--window-size=1280,900",
       "about:blank",
     ],
-    { stdio: ["ignore", "ignore", "pipe"], windowsHide: true },
+    {
+      stdio: ["ignore", "ignore", "pipe"],
+      windowsHide: true,
+    },
   );
   trace("Chrome process spawned");
   let chromeStderr = "";
@@ -477,21 +602,34 @@ async function run() {
       )
         offlineDocumentFromServiceWorker = true;
       if (method === "Runtime.exceptionThrown") {
-        errors.push(`Uncaught exception: ${params.exceptionDetails?.text ?? "unknown"}`);
+        errors.push(
+          `Uncaught exception: ${params.exceptionDetails?.text ?? "unknown"}`,
+        );
       } else if (
         method === "Runtime.consoleAPICalled" &&
         ["error", "assert"].includes(params.type)
       ) {
-        errors.push(`console.${params.type}: ${params.args.map(remoteValue).join(" ")}`);
-      } else if (method === "Log.entryAdded" && params.entry?.level === "error") {
+        errors.push(
+          `console.${params.type}: ${params.args.map(remoteValue).join(" ")}`,
+        );
+      } else if (
+        method === "Log.entryAdded" &&
+        params.entry?.level === "error"
+      ) {
         errors.push(
           `Browser log${params.entry.url ? ` (${params.entry.url})` : ""}: ${params.entry.text}`,
         );
       } else if (
         method === "Network.loadingFailed" &&
-        ["Document", "Script", "Stylesheet", "Image", "Fetch", "XHR", "Manifest"].includes(
-          params.type,
-        ) &&
+        [
+          "Document",
+          "Script",
+          "Stylesheet",
+          "Image",
+          "Fetch",
+          "XHR",
+          "Manifest",
+        ].includes(params.type) &&
         params.errorText !== "net::ERR_ABORTED"
       ) {
         errors.push(
@@ -499,9 +637,15 @@ async function run() {
         );
       } else if (
         method === "Network.responseReceived" &&
-        ["Document", "Script", "Stylesheet", "Image", "Fetch", "XHR", "Manifest"].includes(
-          params.type,
-        ) &&
+        [
+          "Document",
+          "Script",
+          "Stylesheet",
+          "Image",
+          "Fetch",
+          "XHR",
+          "Manifest",
+        ].includes(params.type) &&
         params.response?.status >= 400
       ) {
         errors.push(`HTTP ${params.response.status}: ${params.response.url}`);
@@ -608,10 +752,13 @@ async function run() {
       !interactionState?.sourceFiltersMatchMetadata ||
       (expectedStarCount > 0 &&
         interactionState?.starCount !== expectedStarCount) ||
-      (expectedDsoCount > 0 && interactionState?.dsoCount !== expectedDsoCount) ||
+      (expectedDsoCount > 0 &&
+        interactionState?.dsoCount !== expectedDsoCount) ||
       !interactionState?.canvas
     )
-      throw new Error(`Standalone interaction failed: ${JSON.stringify(interactionState)}`);
+      throw new Error(
+        `Standalone interaction failed: ${JSON.stringify(interactionState)}`,
+      );
 
     const initialSurveyState = await waitForSkySurvey(client);
     if (
@@ -636,6 +783,54 @@ async function run() {
       });
       if (!(persistentSurvey.result.value > 0))
         throw new Error("The viewer did not persist its loaded survey tiles");
+
+      const rotationTarget = await client.send("Runtime.evaluate", {
+        expression: `(() => {
+          const viewer = globalThis.__CELESTIA_ATLAS_VIEWER__;
+          const target = viewer?.search('NGC 6953')?.[0];
+          if (target) viewer.focusTarget(target, 10);
+          return { found: Boolean(target), id: target?.id || null };
+        })()`,
+        returnByValue: true,
+      });
+      if (!rotationTarget.result.value?.found)
+        throw new Error(
+          "NGC 6953 was unavailable for the rotation continuity test",
+        );
+      await delay(500);
+      await waitForSkySurvey(client, { idle: true });
+      await startSkySurveyContinuityProbe(client);
+      await client.send("Runtime.evaluate", {
+        expression: `globalThis.__CELESTIA_ATLAS_ROTATION_PROBE_TIMER__ = setInterval(
+          () => globalThis.__CELESTIA_ATLAS_VIEWER__?.setFieldOfView(null),
+          100
+        )`,
+      });
+      await delay(11000);
+      await client.send("Runtime.evaluate", {
+        expression: `clearInterval(globalThis.__CELESTIA_ATLAS_ROTATION_PROBE_TIMER__);
+          delete globalThis.__CELESTIA_ATLAS_ROTATION_PROBE_TIMER__`,
+      });
+      const rotationSurveyContinuity =
+        await stopSkySurveyContinuityProbe(client);
+      assertSkySurveyContinuity(
+        rotationSurveyContinuity,
+        "Settled horizontal rotation",
+      );
+      trace(
+        `settled rotation survey continuity verified: ${JSON.stringify(rotationSurveyContinuity)}`,
+      );
+      await client.send("Runtime.evaluate", {
+        expression: `(() => {
+          const viewer = globalThis.__CELESTIA_ATLAS_VIEWER__;
+          const target = viewer?.search(${JSON.stringify(searchQuery)})?.[0];
+          if (target) {
+            viewer.focusTarget(target);
+            viewer.select(target);
+          }
+        })()`,
+      });
+      await delay(500);
 
       await client.send("Runtime.evaluate", {
         expression: `(() => {
@@ -697,6 +892,7 @@ async function run() {
     );
     const beforeDragHash = await currentHash(client);
     const beforeDragHorizontal = await currentHorizontalCenter(client);
+    await startSkySurveyContinuityProbe(client);
     await client.send("Input.dispatchMouseEvent", {
       type: "mousePressed",
       x,
@@ -718,24 +914,69 @@ async function run() {
       button: "left",
       clickCount: 1,
     });
-    await delay(350);
+    await delay(1500);
+    const dragSurveyContinuity = await stopSkySurveyContinuityProbe(client);
+    assertSkySurveyContinuity(dragSurveyContinuity, "Desktop drag release");
     const afterDragHash = await currentHash(client);
     const afterDragHorizontal = await currentHorizontalCenter(client);
-    assertViewChanged(beforeDragHash, afterDragHash, { center: true });
+    assertViewChanged(beforeDragHash, afterDragHash, {
+      center: true,
+    });
     const horizontalDragDelta =
       ((afterDragHorizontal?.azimuthDeg -
         beforeDragHorizontal?.azimuthDeg +
         540) %
         360) -
       180;
-    if (
-      !Number.isFinite(horizontalDragDelta) ||
-      horizontalDragDelta >= -0.01
-    )
+    if (!Number.isFinite(horizontalDragDelta) || horizontalDragDelta >= -0.01)
       throw new Error(
         `Rightward drag did not move the horizontal camera centre toward decreasing azimuth: ${JSON.stringify({ beforeDragHorizontal, afterDragHorizontal, horizontalDragDelta })}`,
       );
-    trace("desktop drag direction verified");
+    await waitForSkySurvey(client, { idle: true });
+    await startSkySurveyContinuityProbe(client);
+    await client.send("Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      x: x + 90,
+      y,
+      button: "left",
+      clickCount: 1,
+    });
+    await client.send("Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x,
+      y,
+      button: "left",
+      buttons: 1,
+    });
+    await client.send("Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      x,
+      y,
+      button: "left",
+      clickCount: 1,
+    });
+    await delay(1500);
+    const warmDragSurveyContinuity = await stopSkySurveyContinuityProbe(client);
+    assertSkySurveyContinuity(
+      warmDragSurveyContinuity,
+      "Warm reverse drag release",
+      { warm: true },
+    );
+    trace(
+      `survey continuity metrics ${JSON.stringify({
+        drag: {
+          inactiveSamples: dragSurveyContinuity.inactiveSamples.length,
+          minimumLoadedTiles: dragSurveyContinuity.minimumLoadedTiles,
+          requests: dragSurveyContinuity.resources.length,
+        },
+        warmReverseDrag: {
+          inactiveSamples: warmDragSurveyContinuity.inactiveSamples.length,
+          minimumLoadedTiles: warmDragSurveyContinuity.minimumLoadedTiles,
+          requests: warmDragSurveyContinuity.resources.length,
+        },
+      })}`,
+    );
+    trace("desktop drag direction and survey continuity verified");
     let beforeWheelHash = afterDragHash;
     if (liveSurvey) {
       const eagle = await focusSearchResult(client, "M 16");
@@ -775,13 +1016,17 @@ async function run() {
     await delay(liveSurvey ? 1500 : 700);
     if (liveSurvey) await waitForSkySurvey(client, { settled: true });
     const afterWheelHash = await currentHash(client);
-    assertViewChanged(beforeWheelHash, afterWheelHash, { fov: true });
+    assertViewChanged(beforeWheelHash, afterWheelHash, {
+      fov: true,
+    });
     if (liveSurvey) {
       const liveSurveyScreenshot = await client.send("Page.captureScreenshot", {
         format: "png",
         captureBeyondViewport: false,
       });
-      await mkdir(join(ROOT, ".cache"), { recursive: true });
+      await mkdir(join(ROOT, ".cache"), {
+        recursive: true,
+      });
       await writeFile(
         join(ROOT, ".cache", "browser-smoke-live-survey.png"),
         Buffer.from(liveSurveyScreenshot.data, "base64"),
@@ -790,7 +1035,9 @@ async function run() {
 
     await waitForServiceWorkerControl(client);
     trace("service worker controls page");
-    await client.send("Network.setCacheDisabled", { cacheDisabled: true });
+    await client.send("Network.setCacheDisabled", {
+      cacheDisabled: true,
+    });
     await client.send("Network.emulateNetworkConditions", {
       offline: true,
       latency: 0,
@@ -890,7 +1137,9 @@ async function run() {
       downloadThroughput: -1,
       uploadThroughput: -1,
     });
-    await client.send("Network.setCacheDisabled", { cacheDisabled: false });
+    await client.send("Network.setCacheDisabled", {
+      cacheDisabled: false,
+    });
     await delay(500);
     await client.send("Runtime.evaluate", {
       expression: "window.dispatchEvent(new Event('online'))",
@@ -971,10 +1220,10 @@ async function run() {
         `The east-facing browser projection did not place Deneb left of Altair: ${JSON.stringify(orientation)}`,
       );
     await delay(800);
-    const orientationScreenshot = await client.send(
-      "Page.captureScreenshot",
-      { format: "png", captureBeyondViewport: false },
-    );
+    const orientationScreenshot = await client.send("Page.captureScreenshot", {
+      format: "png",
+      captureBeyondViewport: false,
+    });
     const orientationScreenshotPath = join(
       ROOT,
       ".cache",
@@ -1045,12 +1294,18 @@ async function run() {
     });
     await delay(700);
     const afterPinchHash = await currentHash(client);
-    assertViewChanged(beforePinchHash, afterPinchHash, { fov: true });
+    assertViewChanged(beforePinchHash, afterPinchHash, {
+      fov: true,
+    });
     const mobileScreenshot = await client.send("Page.captureScreenshot", {
       format: "png",
       captureBeyondViewport: false,
     });
-    const mobileScreenshotPath = join(ROOT, ".cache", "browser-smoke-mobile.png");
+    const mobileScreenshotPath = join(
+      ROOT,
+      ".cache",
+      "browser-smoke-mobile.png",
+    );
     await writeFile(
       mobileScreenshotPath,
       Buffer.from(mobileScreenshot.data, "base64"),
@@ -1058,7 +1313,9 @@ async function run() {
     trace("mobile pinch and screenshot complete");
 
     if (errors.length) {
-      throw new Error(`Browser smoke test found ${errors.length} error(s):\n${errors.join("\n")}`);
+      throw new Error(
+        `Browser smoke test found ${errors.length} error(s):\n${errors.join("\n")}`,
+      );
     }
     process.stdout.write(
       `Browser smoke test passed (desktop drag/wheel, mobile pinch); screenshots: ${screenshotPath}, ${orientationScreenshotPath}, ${mobileScreenshotPath}\n`,
@@ -1222,7 +1479,10 @@ async function assertCentredMarkerHitTest(client, x, y, expectedTitle) {
     })`,
     returnByValue: true,
   });
-  if (!result.result.value?.open || result.result.value?.title !== expectedTitle)
+  if (
+    !result.result.value?.open ||
+    result.result.value?.title !== expectedTitle
+  )
     throw new Error(
       `Selected catalogue object was not rendered and hit-testable at the view centre: ${JSON.stringify(result.result.value)}`,
     );

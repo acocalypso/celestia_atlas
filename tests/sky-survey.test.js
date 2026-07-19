@@ -4,10 +4,12 @@ import assert from "node:assert/strict";
 import {
   discoverVisibleSkySurveyTiles,
   equatorialToHipsTile,
+  fitSkySurveyOrderToTileBudget,
   rasterizeSkySurvey,
   rasterizeSkySurveyAsync,
   selectSkySurveyOrder,
   skySurveyBlendOpacity,
+  skySurveyAllskyTileKey,
   skySurveyPixelAngularSizeDeg,
   skySurveyTileKey,
   skySurveyTilePath,
@@ -95,7 +97,7 @@ function coordinatesToVector({ raDeg, decDeg }) {
 
 function vectorToCoordinates({ x, y, z }, frame) {
   return {
-    raDeg: ((Math.atan2(y, x) * RAD) % 360 + 360) % 360,
+    raDeg: (((Math.atan2(y, x) * RAD) % 360) + 360) % 360,
     decDeg: Math.atan2(z, Math.hypot(x, y)) * RAD,
     frame,
   };
@@ -149,7 +151,13 @@ test("validates and normalizes image HiPS configuration", () => {
   );
   assert.throws(() => validateSkySurveyConfig({}), /key/);
   assert.throws(
-    () => validateSkySurveyConfig({ key: "x", url: "/x", maxOrder: 3, tileWidth: 3 }),
+    () =>
+      validateSkySurveyConfig({
+        key: "x",
+        url: "/x",
+        maxOrder: 3,
+        tileWidth: 3,
+      }),
     /power of two/,
   );
   assert.throws(
@@ -163,15 +171,33 @@ test("validates and normalizes image HiPS configuration", () => {
     /between 2 and 2048/,
   );
   assert.throws(
-    () => validateSkySurveyConfig({ key: "x", url: "/x", minOrder: 4, maxOrder: 3 }),
+    () =>
+      validateSkySurveyConfig({
+        key: "x",
+        url: "/x",
+        minOrder: 4,
+        maxOrder: 3,
+      }),
     /cannot exceed/,
   );
   assert.throws(
-    () => validateSkySurveyConfig({ key: "x", url: "/x", maxOrder: 3, frame: "ecliptic" }),
+    () =>
+      validateSkySurveyConfig({
+        key: "x",
+        url: "/x",
+        maxOrder: 3,
+        frame: "ecliptic",
+      }),
     /frame/,
   );
   assert.throws(
-    () => validateSkySurveyConfig({ key: "x", url: "/x", maxOrder: 3, format: "fits" }),
+    () =>
+      validateSkySurveyConfig({
+        key: "x",
+        url: "/x",
+        maxOrder: 3,
+        format: "fits",
+      }),
     /format/,
   );
 });
@@ -216,17 +242,68 @@ test("selects the first HiPS order fine enough for a gnomonic view pixel", () =>
   const exactBoundaryFov =
     2 * Math.atan((width * Math.tan(orderFourPixelDeg * DEG)) / 2) * RAD;
   assert.equal(selectSkySurveyOrder(survey, exactBoundaryFov, width), 4);
-  assert.equal(
-    selectSkySurveyOrder(survey, exactBoundaryFov * 0.99, width),
-    5,
-  );
-  assert.equal(
-    selectSkySurveyOrder(survey, exactBoundaryFov * 2.01, width),
-    3,
-  );
+  assert.equal(selectSkySurveyOrder(survey, exactBoundaryFov * 0.99, width), 5);
+  assert.equal(selectSkySurveyOrder(survey, exactBoundaryFov * 2.01, width), 3);
   assert.equal(selectSkySurveyOrder(survey, 130, 64), 1);
   assert.equal(selectSkySurveyOrder(survey, 0.001, 4096), 7);
-  assert.throws(() => selectSkySurveyOrder(survey, 180, width), /field of view/);
+  assert.throws(
+    () => selectSkySurveyOrder(survey, 180, width),
+    /field of view/,
+  );
+});
+
+test("reduces survey detail until the complete field fits decoded memory", () => {
+  const survey = fixtureSurvey({
+    minOrder: 3,
+    maxOrder: 4,
+    tileWidth: 512,
+  });
+  const portraitCounts = new Map([
+    [3, 16],
+    [4, 46],
+  ]);
+  assert.deepEqual(
+    fitSkySurveyOrderToTileBudget(survey, 4, 43, (order) =>
+      portraitCounts.get(order),
+    ),
+    {
+      targetOrder: 3,
+      previewOrder: 3,
+      requiredTileCount: 16,
+    },
+  );
+  assert.deepEqual(
+    fitSkySurveyOrderToTileBudget(survey, 4, 64, (order) =>
+      portraitCounts.get(order),
+    ),
+    {
+      targetOrder: 4,
+      previewOrder: 3,
+      requiredTileCount: 62,
+    },
+  );
+  assert.deepEqual(
+    fitSkySurveyOrderToTileBudget(
+      survey,
+      4,
+      46,
+      (order) => portraitCounts.get(order),
+      { includePreview: false },
+    ),
+    {
+      targetOrder: 4,
+      previewOrder: 3,
+      requiredTileCount: 46,
+    },
+  );
+  assert.deepEqual(
+    fitSkySurveyOrderToTileBudget(survey, 3, 8, () => 16),
+    {
+      targetOrder: 3,
+      previewOrder: 3,
+      requiredTileCount: 16,
+    },
+  );
 });
 
 test("smoothly fades survey imagery in between wide and detailed fields", () => {
@@ -272,7 +349,10 @@ test("maps ICRS directions to standard NESTED HiPS tiles and uv-swapped image ax
 });
 
 test("maps ICRS through the FK5 frame bias into Galactic HiPS fixtures", () => {
-  const survey = fixtureSurvey({ frame: "GALACTIC", tileWidth: 4 });
+  const survey = fixtureSurvey({
+    frame: "GALACTIC",
+    tileWidth: 4,
+  });
   // Astropy 7.2 / astropy-healpix 2.0.0 ICRS->Galactic NESTED order-5
   // fixtures. A 4px tile leaves tile order 3 and applies the HiPS uv_swap.
   for (const [raDeg, decDeg, tileIndex, column, row] of [
@@ -293,17 +373,21 @@ test("maps ICRS through the FK5 frame bias into Galactic HiPS fixtures", () => {
 });
 
 test("maps equivalent ICRS and J2000 directions to identical survey pixels", () => {
-  const icrs = { raDeg: 51.88825, decDeg: 20.1681389, frame: "ICRS" };
+  const icrs = {
+    raDeg: 51.88825,
+    decDeg: 20.1681389,
+    frame: "ICRS",
+  };
   const j2000 = vectorToCoordinates(
-    transformEquatorialVectorFrame(
-      coordinatesToVector(icrs),
-      "ICRS",
-      "J2000",
-    ),
+    transformEquatorialVectorFrame(coordinatesToVector(icrs), "ICRS", "J2000"),
     "J2000",
   );
   for (const frame of ["ICRS", "GALACTIC"]) {
-    const survey = fixtureSurvey({ frame, tileWidth: 512, maxOrder: 9 });
+    const survey = fixtureSurvey({
+      frame,
+      tileWidth: 512,
+      maxOrder: 9,
+    });
     const left = equatorialToHipsTile(icrs, survey, 9);
     const right = equatorialToHipsTile(j2000, survey, 9);
     assert.equal(left.tileIndex, right.tileIndex);
@@ -375,7 +459,11 @@ test("discovers every raster-touched tile in portrait and landscape views", () =
       outputWidth: 31,
       order: 3,
       view: {
-        center: { raDeg: 217.42, decDeg: -13.81, frame: "ICRS" },
+        center: {
+          raDeg: 217.42,
+          decDeg: -13.81,
+          frame: "ICRS",
+        },
         fovDeg: 32,
         rotationDeg: 27,
       },
@@ -386,19 +474,29 @@ test("discovers every raster-touched tile in portrait and landscape views", () =
       outputWidth: 47,
       order: 4,
       view: {
-        center: { raDeg: 12.3, decDeg: 47.5, frame: "ICRS" },
+        center: {
+          raDeg: 12.3,
+          decDeg: 47.5,
+          frame: "ICRS",
+        },
         fovDeg: 58,
         rotationDeg: -41,
       },
     },
   ];
   for (const geometry of cases) {
-    const expected = expectedMappings({ survey, ...geometry });
+    const expected = expectedMappings({
+      survey,
+      ...geometry,
+    });
     const expectedTiles = [
       ...new Set(expected.mappings.map((mapping) => mapping.tileIndex)),
     ].sort((left, right) => left - right);
     assert.deepEqual(
-      discoverVisibleSkySurveyTiles({ survey, ...geometry }),
+      discoverVisibleSkySurveyTiles({
+        survey,
+        ...geometry,
+      }),
       expectedTiles,
     );
   }
@@ -442,7 +540,10 @@ test("clips visible-tile discovery in the view frame before Galactic mapping", (
   for (const item of cases) {
     const view = {
       center: horizontalToEquatorial(
-        { azimuthDeg: 180, altitudeDeg: item.centerAltitudeDeg },
+        {
+          azimuthDeg: 180,
+          altitudeDeg: item.centerAltitudeDeg,
+        },
         observer,
         timestampUtcMs,
         "J2000",
@@ -450,7 +551,10 @@ test("clips visible-tile discovery in the view frame before Galactic mapping", (
       fovDeg: 48,
       rotationDeg: 23,
     };
-    const expected = expectedMappings({ ...geometry, view });
+    const expected = expectedMappings({
+      ...geometry,
+      view,
+    });
     const expectedTiles = new Set();
     let visibleSamples = 0;
     for (let index = 0; index < expected.mappings.length; index += 1) {
@@ -514,8 +618,10 @@ test("does not plan survey tiles for views fully below the active horizon", () =
     rotationDeg: 17,
   };
   assert.ok(
-    discoverVisibleSkySurveyTiles({ ...geometry, view: geometricView }).length >
-      0,
+    discoverVisibleSkySurveyTiles({
+      ...geometry,
+      view: geometricView,
+    }).length > 0,
   );
   assert.deepEqual(
     discoverVisibleSkySurveyTiles({
@@ -561,7 +667,11 @@ test("rasterizes loaded tiles with the exact portrait/landscape view rotation", 
       outputWidth: 29,
       order: 2,
       view: {
-        center: { raDeg: 83.82, decDeg: -5.39, frame: "ICRS" },
+        center: {
+          raDeg: 83.82,
+          decDeg: -5.39,
+          frame: "ICRS",
+        },
         fovDeg: 40,
         rotationDeg: 33,
       },
@@ -572,7 +682,11 @@ test("rasterizes loaded tiles with the exact portrait/landscape view rotation", 
       outputWidth: 43,
       order: 3,
       view: {
-        center: { raDeg: 217.42, decDeg: -13.81, frame: "ICRS" },
+        center: {
+          raDeg: 217.42,
+          decDeg: -13.81,
+          frame: "ICRS",
+        },
         fovDeg: 54,
         rotationDeg: -22,
       },
@@ -583,7 +697,11 @@ test("rasterizes loaded tiles with the exact portrait/landscape view rotation", 
       outputWidth: 47,
       order: 3,
       view: {
-        center: { raDeg: 310.3575, decDeg: 45.2803, frame: "ICRS" },
+        center: {
+          raDeg: 310.3575,
+          decDeg: 45.2803,
+          frame: "ICRS",
+        },
         fovDeg: 66.8,
         rotationDeg: -41.4,
         mirrorX: true,
@@ -591,7 +709,10 @@ test("rasterizes loaded tiles with the exact portrait/landscape view rotation", 
     },
   ];
   for (const geometry of cases) {
-    const expected = expectedMappings({ survey, ...geometry });
+    const expected = expectedMappings({
+      survey,
+      ...geometry,
+    });
     const tiles = new Map();
     for (const tileIndex of new Set(
       expected.mappings.map((mapping) => mapping.tileIndex),
@@ -600,7 +721,11 @@ test("rasterizes loaded tiles with the exact portrait/landscape view rotation", 
         skySurveyTileKey(geometry.order, tileIndex),
         constantTile(survey.tileWidth, tileColor(tileIndex)),
       );
-    const actual = rasterizeSkySurvey({ survey, tiles, ...geometry });
+    const actual = rasterizeSkySurvey({
+      survey,
+      tiles,
+      ...geometry,
+    });
     assert.equal(actual.width, expected.width);
     assert.equal(actual.height, expected.height);
     for (const [index, mapping] of expected.mappings.entries()) {
@@ -673,7 +798,11 @@ test("chunked survey rasterization is byte-identical to the synchronous path", a
 });
 
 test("chunked survey rasterization yields to an event-loop turn", async () => {
-  const survey = fixtureSurvey({ minOrder: 0, maxOrder: 0, tileWidth: 2 });
+  const survey = fixtureSurvey({
+    minOrder: 0,
+    maxOrder: 0,
+    tileWidth: 2,
+  });
   const eventOrder = [];
   setTimeout(() => eventOrder.push("timer"), 0);
   const actual = await rasterizeSkySurveyAsync({
@@ -681,7 +810,11 @@ test("chunked survey rasterization yields to an event-loop turn", async () => {
     order: 0,
     tiles: allOrderTiles(survey, 0, true),
     view: {
-      center: { raDeg: 83.82, decDeg: -5.39, frame: "ICRS" },
+      center: {
+        raDeg: 83.82,
+        decDeg: -5.39,
+        frame: "ICRS",
+      },
       fovDeg: 40,
       rotationDeg: 12,
     },
@@ -695,7 +828,11 @@ test("chunked survey rasterization yields to an event-loop turn", async () => {
 });
 
 test("chunked survey rasterization rejects cancellation without publishing", async () => {
-  const survey = fixtureSurvey({ minOrder: 0, maxOrder: 0, tileWidth: 2 });
+  const survey = fixtureSurvey({
+    minOrder: 0,
+    maxOrder: 0,
+    tileWidth: 2,
+  });
   let cancelled = false;
   let published = false;
   let cancellationChecks = 0;
@@ -707,7 +844,11 @@ test("chunked survey rasterization rejects cancellation without publishing", asy
     order: 0,
     tiles: allOrderTiles(survey, 0, true),
     view: {
-      center: { raDeg: 217.42, decDeg: -13.81, frame: "ICRS" },
+      center: {
+        raDeg: 217.42,
+        decDeg: -13.81,
+        frame: "ICRS",
+      },
       fovDeg: 50,
       rotationDeg: -17,
     },
@@ -725,8 +866,7 @@ test("chunked survey rasterization rejects cancellation without publishing", asy
   });
   await assert.rejects(
     promise,
-    (error) =>
-      error?.name === "AbortError" && /cancelled/.test(error.message),
+    (error) => error?.name === "AbortError" && /cancelled/.test(error.message),
   );
   assert.equal(published, false);
   assert.ok(cancellationChecks >= 2);
@@ -745,19 +885,33 @@ test("reports absent tiles and leaves their raster pixels transparent", () => {
       rotationDeg: 18,
     },
   };
-  const expected = expectedMappings({ survey, ...geometry });
+  const expected = expectedMappings({
+    survey,
+    ...geometry,
+  });
   const expectedTileIndices = [
     ...new Set(expected.mappings.map((mapping) => mapping.tileIndex)),
   ].sort((left, right) => left - right);
-  const missing = expectedTileIndices[Math.floor(expectedTileIndices.length / 2)];
+  const missing =
+    expectedTileIndices[Math.floor(expectedTileIndices.length / 2)];
   const tiles = new Map();
   for (const tileIndex of expectedTileIndices)
     if (tileIndex !== missing)
-      tiles.set(tileIndex, constantTile(survey.tileWidth, tileColor(tileIndex)));
-  const actual = rasterizeSkySurvey({ survey, tiles, ...geometry });
+      tiles.set(
+        tileIndex,
+        constantTile(survey.tileWidth, tileColor(tileIndex)),
+      );
+  const actual = rasterizeSkySurvey({
+    survey,
+    tiles,
+    ...geometry,
+  });
   assert.deepEqual(actual.missingTileIndices, [missing]);
   for (const [index, mapping] of expected.mappings.entries())
-    assert.equal(actual.data[index * 4 + 3], mapping.tileIndex === missing ? 0 : 255);
+    assert.equal(
+      actual.data[index * 4 + 3],
+      mapping.tileIndex === missing ? 0 : 255,
+    );
 });
 
 test("fills missing target tiles from the highest available parent order", () => {
@@ -811,8 +965,67 @@ test("fills missing target tiles from the highest available parent order", () =>
     );
 });
 
+test("uses strided Allsky thumbnails as immutable low-resolution fallback", () => {
+  const survey = fixtureSurvey({
+    minOrder: 0,
+    maxOrder: 0,
+    tileWidth: 4,
+  });
+  const geometry = {
+    canvasWidth: 160,
+    canvasHeight: 100,
+    outputWidth: 40,
+    order: 0,
+    view: {
+      center: { raDeg: 123.4, decDeg: 20, frame: "ICRS" },
+      fovDeg: 35,
+    },
+  };
+  const expected = expectedMappings({
+    survey,
+    ...geometry,
+  });
+  const visible = new Set(
+    expected.mappings.map((mapping) => mapping.tileIndex),
+  );
+  const tiles = new Map();
+  for (const tileIndex of visible) {
+    const color = tileColor(tileIndex);
+    const master = constantTile(4, color);
+    const cacheKey = skySurveyAllskyTileKey(0, tileIndex);
+    tiles.set(cacheKey, {
+      width: 2,
+      height: 2,
+      data: master.data,
+      dataWidth: 4,
+      offsetX: 1,
+      offsetY: 1,
+      cacheKey,
+    });
+  }
+  const actual = rasterizeSkySurvey({
+    survey,
+    tiles,
+    ...geometry,
+  });
+  assert.deepEqual(actual.usedOrders, [0]);
+  assert.deepEqual(
+    actual.missingTileIndices,
+    [...visible].sort((a, b) => a - b),
+  );
+  assert.ok(actual.usedTileKeys.every((key) => key.startsWith("allsky:")));
+  for (const [index, mapping] of expected.mappings.entries())
+    assert.deepEqual(
+      [...actual.data.slice(index * 4, index * 4 + 4)],
+      tileColor(mapping.tileIndex),
+    );
+});
+
 test("reports sampled target-tile gaps even when a parent paints them", () => {
-  const survey = fixtureSurvey({ minOrder: 0, maxOrder: 2 });
+  const survey = fixtureSurvey({
+    minOrder: 0,
+    maxOrder: 2,
+  });
   const geometry = {
     survey,
     order: 2,
@@ -888,7 +1101,11 @@ test("does not reinterpret legacy numeric target keys as parent-order tiles", ()
 });
 
 test("keeps mixed numeric target keys out of keyed parent fallback", () => {
-  const survey = fixtureSurvey({ minOrder: 0, maxOrder: 3, tileWidth: 2 });
+  const survey = fixtureSurvey({
+    minOrder: 0,
+    maxOrder: 3,
+    tileWidth: 2,
+  });
   const targetColor = [220, 40, 30, 255];
   const unrelatedParentColor = [20, 90, 180, 255];
   const actual = rasterizeSkySurvey({
@@ -920,7 +1137,11 @@ test("keeps mixed numeric target keys out of keyed parent fallback", () => {
 });
 
 test("clips survey imagery against geometric and custom horizons", () => {
-  const survey = fixtureSurvey({ minOrder: 0, maxOrder: 0, tileWidth: 2 });
+  const survey = fixtureSurvey({
+    minOrder: 0,
+    maxOrder: 0,
+    tileWidth: 2,
+  });
   const observer = {
     latitudeDeg: 52.52,
     longitudeDeg: 13.405,
@@ -952,7 +1173,10 @@ test("clips survey imagery against geometric and custom horizons", () => {
   for (const item of cases) {
     const view = {
       center: horizontalToEquatorial(
-        { azimuthDeg: 180, altitudeDeg: item.centerAltitudeDeg },
+        {
+          azimuthDeg: 180,
+          altitudeDeg: item.centerAltitudeDeg,
+        },
         observer,
         timestampUtcMs,
         "ICRS",

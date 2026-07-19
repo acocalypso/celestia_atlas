@@ -189,13 +189,11 @@ export function createEquatorialRayGeometry({
   const sinRotation = Math.sin(rotation);
   const screenHandedness = view.mirrorX ? -1 : 1;
   const screenX =
-    (screenHandedness *
-      ((0.5 / rasterWidth) * canvasWidth - canvasWidth / 2)) /
+    (screenHandedness * ((0.5 / rasterWidth) * canvasWidth - canvasWidth / 2)) /
     focal;
   const screenY =
     (canvasHeight / 2 - (0.5 / rasterHeight) * canvasHeight) / focal;
-  const screenXStep =
-    (screenHandedness * canvasWidth) / rasterWidth / focal;
+  const screenXStep = (screenHandedness * canvasWidth) / rasterWidth / focal;
   const screenYStep = -canvasHeight / rasterHeight / focal;
   const planeX = screenX * cosRotation + screenY * sinRotation;
   const planeY = -screenX * sinRotation + screenY * cosRotation;
@@ -280,6 +278,9 @@ export function sampleTileBilinear(
   y,
   output,
   targetIndex,
+  sourceStride = tileWidth,
+  sourceOffsetX = 0,
+  sourceOffsetY = 0,
 ) {
   const x0 = Math.floor(x);
   const y0 = Math.floor(y);
@@ -291,10 +292,14 @@ export function sampleTileBilinear(
   const weight10 = fx * (1 - fy);
   const weight01 = (1 - fx) * fy;
   const weight11 = fx * fy;
-  const index00 = (y0 * tileWidth + x0) * 4;
-  const index10 = (y0 * tileWidth + x1) * 4;
-  const index01 = (y1 * tileWidth + x0) * 4;
-  const index11 = (y1 * tileWidth + x1) * 4;
+  const index00 =
+    ((sourceOffsetY + y0) * sourceStride + sourceOffsetX + x0) * 4;
+  const index10 =
+    ((sourceOffsetY + y0) * sourceStride + sourceOffsetX + x1) * 4;
+  const index01 =
+    ((sourceOffsetY + y1) * sourceStride + sourceOffsetX + x0) * 4;
+  const index11 =
+    ((sourceOffsetY + y1) * sourceStride + sourceOffsetX + x1) * 4;
   const alpha00 = tile[index00 + 3];
   const alpha10 = tile[index10 + 3];
   const alpha01 = tile[index01 + 3];

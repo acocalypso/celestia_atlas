@@ -24,9 +24,7 @@ const FRAME_ALIASES = new Map([
 
 function isPowerOfTwo(value) {
   return (
-    Number.isInteger(value) &&
-    value > 0 &&
-    Number.isInteger(Math.log2(value))
+    Number.isInteger(value) && value > 0 && Number.isInteger(Math.log2(value))
   );
 }
 
@@ -36,11 +34,7 @@ function positiveModulo(value, modulus) {
 }
 
 function validateOrder(order, label = "HiPS order") {
-  if (
-    !Number.isInteger(order) ||
-    order < 0 ||
-    order > MAX_SAFE_HIPS_ORDER
-  )
+  if (!Number.isInteger(order) || order < 0 || order > MAX_SAFE_HIPS_ORDER)
     throw new RangeError(
       `${label} must be an integer between 0 and ${MAX_SAFE_HIPS_ORDER}`,
     );
@@ -126,19 +120,14 @@ export function skySurveyBlendOpacity(
 }
 
 /** Select the first order whose survey pixel is no larger than a view pixel. */
-export function selectSkySurveyOrder(
-  surveyValue,
-  fovDeg,
-  viewportWidthPixels,
-) {
+export function selectSkySurveyOrder(surveyValue, fovDeg, viewportWidthPixels) {
   const survey = validateSkySurveyConfig(surveyValue);
   if (!Number.isFinite(fovDeg) || fovDeg <= 0 || fovDeg >= 180)
     throw new RangeError("Survey field of view must be in (0, 180) degrees");
   if (!Number.isFinite(viewportWidthPixels) || viewportWidthPixels <= 0)
     throw new RangeError("Survey viewport width must be positive and finite");
 
-  const planeStep =
-    (2 * Math.tan((fovDeg * DEG) / 2)) / viewportWidthPixels;
+  const planeStep = (2 * Math.tan((fovDeg * DEG) / 2)) / viewportWidthPixels;
   const viewPixelDeg = Math.atan(planeStep) * RAD;
   const exactOrder = Math.log2(
     HIPS_BASE_CELL_RESOLUTION_DEG /
@@ -182,10 +171,8 @@ function vectorToNestedFacePosition(xValue, yValue, zValue, order, output) {
   let naturalX;
   let naturalY;
   if (absoluteZ <= 2 / 3) {
-    const ascendingValue =
-      nside * (0.5 + longitudeQuarterTurns - z * 0.75);
-    const descendingValue =
-      nside * (0.5 + longitudeQuarterTurns + z * 0.75);
+    const ascendingValue = nside * (0.5 + longitudeQuarterTurns - z * 0.75);
+    const descendingValue = nside * (0.5 + longitudeQuarterTurns + z * 0.75);
     const ascending = Math.floor(ascendingValue);
     const descending = Math.floor(descendingValue);
     const ascendingFace = Math.floor(ascending / nside);
@@ -198,8 +185,7 @@ function vectorToNestedFacePosition(xValue, yValue, zValue, order, output) {
     ix = positiveModulo(descending, nside);
     iy = nside - positiveModulo(ascending, nside) - 1;
     naturalX = positiveModulo(descendingValue, nside) - 0.5;
-    naturalY =
-      nside - positiveModulo(ascendingValue, nside) - 0.5;
+    naturalY = nside - positiveModulo(ascendingValue, nside) - 0.5;
   } else {
     const quadrant = Math.min(3, Math.floor(longitudeQuarterTurns));
     const withinQuadrant = longitudeQuarterTurns - quadrant;
@@ -243,17 +229,11 @@ function equatorialVectorToSurveyFrame(
   if (surveyFrame === "GALACTIC") {
     const j2000 = transformEquatorialVectorFrame(input, inputFrame, "J2000");
     output.x =
-      -0.0548755604 * j2000.x -
-      0.8734370902 * j2000.y -
-      0.4838350155 * j2000.z;
+      -0.0548755604 * j2000.x - 0.8734370902 * j2000.y - 0.4838350155 * j2000.z;
     output.y =
-      0.4941094279 * j2000.x -
-      0.44482963 * j2000.y +
-      0.7469822445 * j2000.z;
+      0.4941094279 * j2000.x - 0.44482963 * j2000.y + 0.7469822445 * j2000.z;
     output.z =
-      -0.867666149 * j2000.x -
-      0.1980763734 * j2000.y +
-      0.4559837762 * j2000.z;
+      -0.867666149 * j2000.x - 0.1980763734 * j2000.y + 0.4559837762 * j2000.z;
   } else
     Object.assign(
       output,
@@ -264,18 +244,11 @@ function equatorialVectorToSurveyFrame(
 
 function mapSurveyFrameVector(survey, order, x, y, z, output) {
   const shiftOrder = Math.log2(survey.tileWidth);
-  vectorToNestedFacePosition(
-    x,
-    y,
-    z,
-    order + shiftOrder,
-    output,
-  );
+  vectorToNestedFacePosition(x, y, z, order + shiftOrder, output);
   const tileX = Math.floor(output.ix / survey.tileWidth);
   const tileY = Math.floor(output.iy / survey.tileWidth);
   const tileIndex =
-    output.face * 4 ** order +
-    interleaveNestedCoordinates(tileX, tileY, order);
+    output.face * 4 ** order + interleaveNestedCoordinates(tileX, tileY, order);
   output.tileIndex = tileIndex;
   output.tileX = tileX;
   output.tileY = tileY;
@@ -287,39 +260,17 @@ function mapSurveyFrameVector(survey, order, x, y, z, output) {
   output.pixelRow = output.ix % survey.tileWidth;
   output.pixelX = Math.max(
     0,
-    Math.min(
-      survey.tileWidth - 1,
-      output.naturalY - tileY * survey.tileWidth,
-    ),
+    Math.min(survey.tileWidth - 1, output.naturalY - tileY * survey.tileWidth),
   );
   output.pixelY = Math.max(
     0,
-    Math.min(
-      survey.tileWidth - 1,
-      output.naturalX - tileX * survey.tileWidth,
-    ),
+    Math.min(survey.tileWidth - 1, output.naturalX - tileX * survey.tileWidth),
   );
   return output;
 }
 
-function mapSurveyVector(
-  survey,
-  order,
-  x,
-  y,
-  z,
-  inputFrame,
-  output,
-  scratch,
-) {
-  equatorialVectorToSurveyFrame(
-    x,
-    y,
-    z,
-    inputFrame,
-    survey.frame,
-    scratch,
-  );
+function mapSurveyVector(survey, order, x, y, z, inputFrame, output, scratch) {
+  equatorialVectorToSurveyFrame(x, y, z, inputFrame, survey.frame, scratch);
   return mapSurveyFrameVector(
     survey,
     order,
@@ -361,6 +312,49 @@ export function skySurveyTileKey(order, tileIndex) {
   )
     throw new RangeError("HiPS tile index is outside the requested order");
   return `${order}:${tileIndex}`;
+}
+
+export function skySurveyAllskyTileKey(order, tileIndex) {
+  return `allsky:${skySurveyTileKey(order, tileIndex)}`;
+}
+
+/** Reduce detail order until the complete visible field fits decoded memory. */
+export function fitSkySurveyOrderToTileBudget(
+  surveyValue,
+  preferredOrder,
+  maxDecodedTiles,
+  visibleTileCountForOrder,
+  { includePreview = true } = {},
+) {
+  const survey = validateSkySurveyConfig(surveyValue);
+  validateSurveyOrder(survey, preferredOrder);
+  if (!Number.isInteger(maxDecodedTiles) || maxDecodedTiles < 1)
+    throw new RangeError(
+      "Decoded survey tile budget must be a positive integer",
+    );
+  if (typeof visibleTileCountForOrder !== "function")
+    throw new TypeError("Visible survey tile counter must be a function");
+  for (let targetOrder = preferredOrder; ; targetOrder -= 1) {
+    const previewOrder = Math.max(survey.minOrder, targetOrder - 1);
+    const targetCount = visibleTileCountForOrder(targetOrder);
+    const previewCount =
+      !includePreview || previewOrder === targetOrder
+        ? 0
+        : visibleTileCountForOrder(previewOrder);
+    if (
+      ![targetCount, previewCount].every(
+        (count) => Number.isSafeInteger(count) && count >= 0,
+      )
+    )
+      throw new TypeError("Visible survey tile counts must be safe integers");
+    const requiredTileCount = targetCount + previewCount;
+    if (requiredTileCount <= maxDecodedTiles || targetOrder === survey.minOrder)
+      return {
+        targetOrder,
+        previewOrder,
+        requiredTileCount,
+      };
+  }
 }
 
 export function skySurveyTilePath(order, tileIndex, format = "jpg") {
@@ -455,7 +449,9 @@ export function discoverVisibleSkySurveyTiles({
   const survey = validateSkySurveyConfig(surveyValue);
   validateSurveyOrder(survey, order);
   if (!Number.isInteger(sampleStep) || sampleStep < 1)
-    throw new RangeError("Survey discovery sample step must be a positive integer");
+    throw new RangeError(
+      "Survey discovery sample step must be a positive integer",
+    );
   if (!Array.isArray(horizon))
     throw new TypeError("Survey horizon must be an array");
   const { width, height } = rasterDimensions(
@@ -470,11 +466,7 @@ export function discoverVisibleSkySurveyTiles({
     rasterWidth: width,
     rasterHeight: height,
   });
-  const ray = surveyFrameRay(
-    equatorialRay,
-    view.center.frame,
-    survey.frame,
-  );
+  const ray = surveyFrameRay(equatorialRay, view.center.frame, survey.frame);
   const horizontalRay = hideBelowHorizon
     ? equatorialRayGeometryToHorizontal(
         equatorialRay,
@@ -522,22 +514,41 @@ export function discoverVisibleSkySurveyTiles({
 function validateTile(tile, tileWidth) {
   if (
     !tile ||
-    tile.width !== tileWidth ||
-    tile.height !== tileWidth ||
+    !isPowerOfTwo(tile.width) ||
+    tile.width > tileWidth ||
+    tile.height !== tile.width ||
+    tileWidth % tile.width !== 0 ||
     !tile.data ||
-    tile.data.length < tileWidth * tileWidth * 4
+    !Number.isInteger(tile.dataWidth ?? tile.width) ||
+    !Number.isInteger(tile.offsetX ?? 0) ||
+    (tile.offsetX ?? 0) < 0 ||
+    !Number.isInteger(tile.offsetY ?? 0) ||
+    (tile.offsetY ?? 0) < 0 ||
+    (tile.dataWidth ?? tile.width) < (tile.offsetX ?? 0) + tile.width ||
+    tile.data.length <
+      ((tile.offsetY ?? 0) + tile.height) * (tile.dataWidth ?? tile.width) * 4
   )
     throw new TypeError(
-      `Survey tiles must contain ${tileWidth} x ${tileWidth} RGBA pixels`,
+      `Survey tiles must contain a square power-of-two RGBA preview no larger than ${tileWidth} pixels`,
     );
 }
 
 function mapTile(tiles, order, tileIndex, allowNumericKey = false) {
   const keyed = tiles.get(skySurveyTileKey(order, tileIndex));
-  return keyed ?? (allowNumericKey ? tiles.get(tileIndex) : undefined);
+  return (
+    keyed ??
+    tiles.get(skySurveyAllskyTileKey(order, tileIndex)) ??
+    (allowNumericKey ? tiles.get(tileIndex) : undefined)
+  );
 }
 
-function parentSurveyMapping(mapping, survey, sourceOrder, parentOrder, output) {
+function parentSurveyMapping(
+  mapping,
+  survey,
+  sourceOrder,
+  parentOrder,
+  output,
+) {
   const factor = 2 ** (sourceOrder - parentOrder);
   const tileX = Math.floor(mapping.tileX / factor);
   const tileY = Math.floor(mapping.tileY / factor);
@@ -577,7 +588,9 @@ function createSkySurveyRasterState({
   validateSurveyOrder(survey, order);
   validateSurveyOrder(survey, fallbackMinOrder);
   if (fallbackMinOrder > order)
-    throw new RangeError("Survey fallback order cannot exceed the target order");
+    throw new RangeError(
+      "Survey fallback order cannot exceed the target order",
+    );
   if (!(tiles instanceof Map))
     throw new TypeError("Survey tiles must be supplied in a Map");
   if (!Array.isArray(horizon))
@@ -595,11 +608,7 @@ function createSkySurveyRasterState({
     rasterWidth: width,
     rasterHeight: height,
   });
-  const ray = surveyFrameRay(
-    equatorialRay,
-    view.center.frame,
-    survey.frame,
-  );
+  const ray = surveyFrameRay(equatorialRay, view.center.frame, survey.frame);
   const horizontalRay = hideBelowHorizon
     ? equatorialRayGeometryToHorizontal(
         equatorialRay,
@@ -622,7 +631,7 @@ function createSkySurveyRasterState({
       hasNumericTileKeys = true;
       continue;
     }
-    const match = /^(\d+):\d+$/.exec(key);
+    const match = /^(?:allsky:)?(\d+):\d+$/.exec(key);
     if (match) keyedOrders.add(Number(match[1]));
   }
   const fallbackOrders = [];
@@ -703,18 +712,14 @@ function rasterizeSkySurveyRows(state, startRow, endRow) {
           horizon,
         );
       if (visible) {
-        mapSurveyFrameVector(
-          survey,
-          order,
-          surveyX,
-          surveyY,
-          surveyZ,
-          mapping,
-        );
+        mapSurveyFrameVector(survey, order, surveyX, surveyY, surveyZ, mapping);
         // Keep refinement demand separate from visible fallback coverage. A
         // cached parent may paint this pixel, but the absent target tile still
         // has to be reported so the loader can fetch it at full resolution.
-        if (!mapTile(tiles, order, mapping.tileIndex, true))
+        if (
+          !tiles.get(skySurveyTileKey(order, mapping.tileIndex)) &&
+          !tiles.get(mapping.tileIndex)
+        )
           missingTileIndices.add(mapping.tileIndex);
         let sampleOrder = order;
         let sampleMapping = mapping;
@@ -745,15 +750,34 @@ function rasterizeSkySurveyRows(state, startRow, endRow) {
             validatedTiles.add(tile);
           }
           usedTileIndices.add(sampleMapping.tileIndex);
-          usedTileKeys.add(skySurveyTileKey(sampleOrder, sampleMapping.tileIndex));
+          usedTileKeys.add(
+            tile.cacheKey ??
+              skySurveyTileKey(sampleOrder, sampleMapping.tileIndex),
+          );
           usedOrders.add(sampleOrder);
+          const sampleScale = tile.width / survey.tileWidth;
           sampleTileBilinear(
             tile.data,
-            survey.tileWidth,
-            sampleMapping.pixelX,
-            sampleMapping.pixelY,
+            tile.width,
+            Math.max(
+              0,
+              Math.min(
+                tile.width - 1,
+                (sampleMapping.pixelX + 0.5) * sampleScale - 0.5,
+              ),
+            ),
+            Math.max(
+              0,
+              Math.min(
+                tile.width - 1,
+                (sampleMapping.pixelY + 0.5) * sampleScale - 0.5,
+              ),
+            ),
             data,
             (y * width + x) * 4,
+            tile.dataWidth ?? tile.width,
+            tile.offsetX ?? 0,
+            tile.offsetY ?? 0,
           );
         }
       }

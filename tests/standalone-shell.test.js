@@ -11,16 +11,15 @@ test("standalone shell boots the shared public viewer", async () => {
     publicApi,
     types,
     serviceWorker,
-  ] =
-    await Promise.all([
-      readFile(new URL("../index.html", import.meta.url), "utf8"),
-      readFile(new URL("../standalone-app.js", import.meta.url), "utf8"),
-      readFile(new URL("../styles.css", import.meta.url), "utf8"),
-      readFile(new URL("../standalone.css", import.meta.url), "utf8"),
-      readFile(new URL("../src/public-api.js", import.meta.url), "utf8"),
-      readFile(new URL("../src/index.d.ts", import.meta.url), "utf8"),
-      readFile(new URL("../service-worker.js", import.meta.url), "utf8"),
-    ]);
+  ] = await Promise.all([
+    readFile(new URL("../index.html", import.meta.url), "utf8"),
+    readFile(new URL("../standalone-app.js", import.meta.url), "utf8"),
+    readFile(new URL("../styles.css", import.meta.url), "utf8"),
+    readFile(new URL("../standalone.css", import.meta.url), "utf8"),
+    readFile(new URL("../src/public-api.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/index.d.ts", import.meta.url), "utf8"),
+    readFile(new URL("../service-worker.js", import.meta.url), "utf8"),
+  ]);
   assert.match(html, /type="module" src="standalone-app\.js"/);
   assert.match(
     html,
@@ -76,10 +75,7 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(html, /id="dsoSourceFilters"/);
   assert.match(html, /data-catalog-filter-action="all"/);
   assert.match(html, /data-catalog-filter-action="none"/);
-  assert.match(
-    application,
-    /deepSkyObjectTypes: state\.deepSkyObjectTypes/,
-  );
+  assert.match(application, /deepSkyObjectTypes: state\.deepSkyObjectTypes/);
   assert.match(
     application,
     /deepSkyCatalogueGroups: state\.deepSkyCatalogueGroups/,
@@ -138,15 +134,30 @@ test("standalone shell boots the shared public viewer", async () => {
     publicApi,
     /if \(interactive\) return Math\.min\(baseWidth, coarsePointer \? 64 : 128\)/,
   );
-  assert.match(publicApi, /const skySurveyCacheLimit = coarsePointer \? 24 : 64/);
-  assert.match(publicApi, /const skySurveyLoadConcurrency = coarsePointer \? 2 : 4/);
-  assert.match(publicApi, /SKY_SURVEY_PERSISTENT_CACHE = "celestia-atlas-survey-v1"/);
-  assert.match(publicApi, /SKY_SURVEY_PERSISTENT_CACHE_LIMIT = 96/);
-  assert.match(publicApi, /globalThis\.caches\.open\(SKY_SURVEY_PERSISTENT_CACHE\)/);
+  assert.match(publicApi, /\(coarsePointer \? 64 : 128\) \* 1024 \* 1024/);
+  assert.match(
+    publicApi,
+    /const skySurveyLoadConcurrency = coarsePointer \? 2 : 4/,
+  );
+  assert.match(
+    publicApi,
+    /SKY_SURVEY_PERSISTENT_CACHE = "celestia-atlas-survey-v1"/,
+  );
+  assert.match(publicApi, /SKY_SURVEY_PERSISTENT_CACHE_LIMIT = 512/);
+  assert.match(
+    publicApi,
+    /globalThis\.caches\.open\(SKY_SURVEY_PERSISTENT_CACHE\)/,
+  );
   assert.match(publicApi, /navigator\.onLine === false/);
-  assert.match(publicApi, /cachedAncestorOrders = offline[\s\S]*cacheOnly: true/);
+  assert.match(
+    publicApi,
+    /cachedAncestorOrders =\s*offline\s*\|\|\s*!includeRegularPreview[\s\S]*cacheOnly: true/,
+  );
   assert.match(publicApi, /error\?\.name === "CacheMissError"/);
-  assert.match(publicApi, /Photographic survey unavailable; using the offline sky background/);
+  assert.match(
+    publicApi,
+    /Photographic survey unavailable; using the offline sky background/,
+  );
   assert.match(publicApi, /drawDsoGlyph/);
   assert.doesNotMatch(publicApi, /if \(!display\.azimuthalGrid\) return view/);
   const landscapeDraw = publicApi.indexOf(
@@ -173,7 +184,7 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(serviceWorker, /\.\/src\/core\/catalog-layers\.js/);
   assert.match(serviceWorker, /\.\/src\/core\/sky-survey\.js/);
   assert.match(serviceWorker, /celestia-atlas-survey-v1/);
-  assert.match(serviceWorker, /SURVEY_CACHE_LIMIT=96/);
+  assert.match(serviceWorker, /SURVEY_CACHE_LIMIT=512/);
   assert.match(serviceWorker, /\.\/stellarium-supplement\.js/);
   assert.match(serviceWorker, /\.\/abell-pn-catalog\.js/);
   assert.match(serviceWorker, /\.\/hyg-star-catalog\.js/);
@@ -209,16 +220,36 @@ test("mobile renderer keeps expensive work inside bounded frame contracts", asyn
   assert.match(publicApi, /const refineSkySurveyRaster = \(\) =>/);
   assert.match(
     publicApi,
-    /skySurveyRasterCache\.alignmentKey === rasterAlignmentKey/,
+    /skySurveyRasterCache\.alignmentKey === rasterRetentionKey/,
   );
+  assert.match(publicApi, /SKY_SURVEY_RETENTION_ROTATION_DEG = 0\.5/);
+  assert.match(publicApi, /skySurveyAllskyStatus === "ready"/);
+  assert.match(
+    publicApi,
+    /const needsFirstRaster =\s*skySurveyAllskyStatus === "unavailable"/,
+  );
+  assert.doesNotMatch(
+    publicApi,
+    /const needsFirstRaster =\s*skySurveyAllskyStatus !== "ready"/,
+  );
+  assert.match(publicApi, /includePreview: includeRegularPreview/);
   assert.match(publicApi, /presentSkySurveyRaster\(/);
   assert.match(publicApi, /projectionView\.fovDeg \* 1\.3/);
   assert.match(publicApi, /sampleStep: 8/);
   assert.match(publicApi, /const visibleOrderComplete =/);
   assert.match(publicApi, /visibleOrderKeys\?\.has\(request\.tileKey\)/);
+  assert.match(publicApi, /let renderedMount = null/);
   assert.match(
     publicApi,
-    /const renderOrder = targetOrderComplete \? targetOrder : previewOrder/,
+    /renderedMount\.coordinates,\s*nextMount\.coordinates,\s*mountVisualEpsilonDeg/,
+  );
+  assert.doesNotMatch(
+    publicApi,
+    /coordinatesVisuallyEqual\(\s*mount\.coordinates,\s*nextMount\.coordinates,\s*mountVisualEpsilonDeg/,
+  );
+  assert.match(
+    publicApi,
+    /targetOrderComplete \|\| allskyReady \? targetOrder : previewOrder/,
   );
   assert.match(publicApi, /order: renderOrder/);
   assert.doesNotMatch(
