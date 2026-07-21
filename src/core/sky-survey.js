@@ -80,6 +80,19 @@ export function validateSkySurveyConfig(value) {
   if (!frame)
     throw new TypeError("Sky survey frame must be ICRS/equatorial or Galactic");
 
+  const blendStartFovDeg = value.blendStartFovDeg ?? 20;
+  const blendFullFovDeg = value.blendFullFovDeg ?? 10;
+  if (![blendStartFovDeg, blendFullFovDeg].every(Number.isFinite))
+    throw new TypeError("Survey blend fields of view must be finite");
+  if (
+    blendFullFovDeg < 0 ||
+    blendStartFovDeg >= 180 ||
+    blendStartFovDeg <= blendFullFovDeg
+  )
+    throw new RangeError(
+      "Survey blend requires a non-negative full FOV below a start FOV under 180 degrees",
+    );
+
   return Object.freeze({
     key: value.key.trim(),
     url: value.url.trim().replace(/\/+$/, ""),
@@ -88,6 +101,8 @@ export function validateSkySurveyConfig(value) {
     maxOrder,
     tileWidth,
     format: normalizeFormat(value.format),
+    blendStartFovDeg,
+    blendFullFovDeg,
   });
 }
 

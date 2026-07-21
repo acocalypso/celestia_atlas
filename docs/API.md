@@ -32,13 +32,15 @@ const viewer = createCelestiaAtlasViewer({
 | `observer` | `Observer` | Initial observer |
 | `utcMs` | `number` | Initial UTC Unix timestamp |
 | `devicePixelRatioCap` | `number` | Maximum render DPR |
-| `milkyWayPanoramaUrl` | `string` | Alternate panorama |
+| `milkyWayPanoramaUrl` | `string \| null` | Alternate panorama, or `null` to skip loading it |
 | `skySurveySource` | `SkySurveySource \| null` | Survey source or local-only mode |
 | `onSelect` | `(target) => void` | Selection callback |
 | `onViewChange` | `(view) => void` | Camera callback |
 | `onError` | `(error) => void` | Non-survey error callback |
 
 When `skySurveySource` is omitted, `DEFAULT_DSS_SKY_SURVEY_SOURCE` is used.
+Survey sources may define `blendStartFovDeg` and `blendFullFovDeg` to control
+their wide-field opacity. Defaults are 20 degrees and 10 degrees respectively.
 
 ## Lifecycle
 

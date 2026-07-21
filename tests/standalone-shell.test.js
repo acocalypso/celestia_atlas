@@ -124,7 +124,10 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(publicApi, /assets\/milky-way\.webp/);
   assert.match(publicApi, /DEFAULT_DSS_SKY_SURVEY_SOURCE/);
   assert.match(publicApi, /stpubdata\.s3\.us-east-1\.amazonaws\.com/);
-  assert.match(publicApi, /skySurveyBlendOpacity\(view\.fovDeg\)/);
+  assert.match(
+    publicApi,
+    /skySurveyBlendOpacity\(\s*view\.fovDeg,\s*skySurvey\.blendStartFovDeg,\s*skySurvey\.blendFullFovDeg/,
+  );
   assert.match(
     publicApi,
     /\(projectionView\.rotationDeg \?\? 0\)\.toFixed\(1\),\s*Boolean\(projectionView\.mirrorX\),\s*coordinateMode/,
@@ -172,7 +175,7 @@ test("standalone shell boots the shared public viewer", async () => {
     "    drawSkySurvey(width, height, projectionView, referenceUtcMs, dpr);",
   );
   assert.ok(surveyDraw > 0 && surveyDraw < landscapeDraw);
-  assert.match(types, /milkyWayPanoramaUrl\?: string/);
+  assert.match(types, /milkyWayPanoramaUrl\?: string \| null/);
   assert.match(types, /calculateCameraFieldOfView/);
   assert.match(types, /cameraFrameScreenRotationDeg/);
   assert.match(

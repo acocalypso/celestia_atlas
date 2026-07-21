@@ -107,6 +107,11 @@ The default photographic layer uses DSS2 Color image HiPS tiles from a CDS-liste
 - Viewed fields may remain available offline through Cache Storage.
 - The complete survey is not bundled or redistributed by this repository.
 
+Embedded applications can keep a packaged survey visible at wide fields by setting
+`blendStartFovDeg` and `blendFullFovDeg` on their `skySurveySource`. Set
+`milkyWayPanoramaUrl: null` and disable the `milkyWay` display option when the
+photographic survey replaces the synthetic panorama entirely.
+
 Disable the survey:
 
 ```js

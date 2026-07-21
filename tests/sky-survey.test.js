@@ -136,6 +136,8 @@ test("validates and normalizes image HiPS configuration", () => {
       maxOrder: 9,
       tileWidth: 512,
       format: "jpg",
+      blendStartFovDeg: 20,
+      blendFullFovDeg: 10,
     },
   );
   assert.equal(
@@ -224,6 +226,8 @@ test("normalizes HiPS identifiers independently of the browser locale", () => {
         maxOrder: 9,
         tileWidth: 512,
         format: "jpg",
+        blendStartFovDeg: 20,
+        blendFullFovDeg: 10,
       },
     );
   } finally {
@@ -249,6 +253,37 @@ test("selects the first HiPS order fine enough for a gnomonic view pixel", () =>
   assert.throws(
     () => selectSkySurveyOrder(survey, 180, width),
     /field of view/,
+  );
+  assert.deepEqual(
+    validateSkySurveyConfig({
+      key: "wide-field",
+      url: "/hips",
+      maxOrder: 4,
+      blendStartFovDeg: 170,
+      blendFullFovDeg: 130,
+    }),
+    {
+      key: "wide-field",
+      url: "/hips",
+      frame: "ICRS",
+      minOrder: 0,
+      maxOrder: 4,
+      tileWidth: 512,
+      format: "jpg",
+      blendStartFovDeg: 170,
+      blendFullFovDeg: 130,
+    },
+  );
+  assert.throws(
+    () =>
+      validateSkySurveyConfig({
+        key: "invalid-blend",
+        url: "/hips",
+        maxOrder: 4,
+        blendStartFovDeg: 130,
+        blendFullFovDeg: 130,
+      }),
+    /Survey blend/,
   );
 });
 

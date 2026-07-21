@@ -71,6 +71,10 @@ export interface SkySurveySource {
   maxOrder: number;
   tileWidth?: number;
   format?: "jpg" | "jpeg" | "png" | "webp";
+  /** FOV where survey imagery begins fading in. Defaults to 20 degrees. */
+  blendStartFovDeg?: number;
+  /** FOV where survey imagery reaches full opacity. Defaults to 10 degrees. */
+  blendFullFovDeg?: number;
   attribution?: string;
   attributionUrl?: string;
   rightsUrl?: string;
@@ -284,7 +288,8 @@ export function createCelestiaAtlasViewer(options: {
   observer?: Observer;
   utcMs?: number;
   devicePixelRatioCap?: number;
-  milkyWayPanoramaUrl?: string;
+  /** Panorama URL, or null to disable loading the synthetic Milky Way asset. */
+  milkyWayPanoramaUrl?: string | null;
   /** Defaults to the online DSS2 Color HiPS; pass null for a local-only viewer. */
   skySurveySource?: SkySurveySource | null;
   onSelect?: (value: SelectedTarget) => void;

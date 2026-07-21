@@ -1268,7 +1268,13 @@ export function createCelestiaAtlasViewer(options) {
     dpr,
   ) => {
     const opacity =
-      display.skySurvey && skySurvey ? skySurveyBlendOpacity(view.fovDeg) : 0;
+      display.skySurvey && skySurvey
+        ? skySurveyBlendOpacity(
+            view.fovDeg,
+            skySurvey.blendStartFovDeg,
+            skySurvey.blendFullFovDeg,
+          )
+        : 0;
     if (!opacity || !skySurveyContext) {
       cancelSkySurveyRasterJob();
       queueSkySurveyTiles([]);
