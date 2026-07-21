@@ -3,10 +3,11 @@
 ## Requirements
 
 - Python 3.11 or newer
-- Node.js compatible with the lockfile
-- A modern browser for smoke tests
+- Node.js 22 (the version used by CI; newer versions should also work)
+- Google Chrome or Chromium for browser smoke tests
 
-The GitHub Pages workflow currently uses Python 3.12 and Node.js 22.
+The GitHub Pages workflow currently uses Python 3.12 and Node.js 22. Set
+`CHROME_PATH` when the browser executable is not discoverable automatically.
 
 ## Install dependencies
 
@@ -36,6 +37,26 @@ Individual suites:
 npm run test:js
 npm run test:catalog
 ```
+
+`npm test` is the required unit and catalogue gate. The browser smoke test
+starts an isolated local server and checks desktop drag/wheel interaction,
+mobile pinch interaction, runtime console errors, and failed network requests.
+Use `SMOKE_TRACE=1 npm run test:browser` when the browser interaction trace is
+needed for diagnosis.
+
+Run the suites affected by a change while developing, then run both `npm test`
+and `npm run test:browser` before publishing a runtime or UI change.
+
+## Change checklist by area
+
+| Change | Required companion work |
+| --- | --- |
+| Public API | Update implementation, `src/index.d.ts`, [API.md](API.md), and tests |
+| Viewer behavior or UI | Test standalone and embedded behavior; run the browser smoke test |
+| Coordinates or projection | Add numerical tests at ordinary and polar/meridian edge cases |
+| Catalogue builder or schema | Regenerate every affected output and preserve source metadata |
+| Survey loading or caching | Test offline failure, attribution, movement, and cache reuse |
+| Third-party data or imagery | Update notices, licence copies, source version, and redistribution review |
 
 ## Catalogue builds
 
@@ -76,6 +97,8 @@ data/hyg-star-catalog.json
 ```
 
 Regenerate affected outputs when changing a builder, source version, normalization rule, or runtime schema.
+Generated catalogue files must not be edited by hand. Review both the builder
+change and the generated diff.
 
 ## Optional VizieR imports
 
@@ -126,3 +149,5 @@ Optional VizieR catalogues are not fetched or published by the workflow.
 - Run relevant tests.
 - Avoid unnecessary runtime network dependencies.
 - Document source-version and rights changes.
+- Keep browser console and network-error checks clean.
+- Do not commit `.cache/`, `_site/`, browser profiles, or smoke-test screenshots.

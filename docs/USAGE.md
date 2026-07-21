@@ -159,6 +159,25 @@ viewer.setSkySurvey({
 
 Supported formats are `jpg`, `jpeg`, `png`, and `webp`.
 
+For an offline or same-origin package, point `url` at the packaged HiPS root:
+
+```js
+viewer.setSkySurvey({
+  key: "packaged-milky-way",
+  label: "Packaged photographic sky survey",
+  url: "/celestia-atlas-data/hips/milky-way",
+  frame: "ICRS",
+  minOrder: 3,
+  maxOrder: 4,
+  tileWidth: 512,
+  format: "webp",
+  attribution: "Survey attribution supplied with the data package",
+});
+```
+
+The URL and orders must match the package actually being served. Keep the
+source attribution visible even when every tile is local.
+
 Disable all survey loading:
 
 ```js
@@ -224,6 +243,26 @@ viewer.setFieldOfView(null);
 
 ## Offline behavior
 
-The application shell, catalogues, search, calculations, Milky Way panorama, landscape, and available object previews work locally.
+The application shell, catalogues, search, calculations, Milky Way panorama,
+landscape, and available object previews work locally.
 
-Unseen DSS fields require a connection. Viewed fields may remain available through browser Cache Storage.
+The standalone default DSS survey is remote: unseen fields require a connection
+and previously viewed fields may remain available through browser Cache Storage.
+An embedded host that must be fully offline should provide a packaged
+`skySurveySource` as above, or pass `null` to disable photographic tiles. The
+viewer never needs a network request for catalogue search or coordinate work.
+
+## Embedded lifecycle
+
+```js
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) viewer.pause();
+  else {
+    viewer.resume();
+    viewer.resize();
+  }
+});
+```
+
+Native shells should apply the same rule to route and app foreground/background
+events. Call `destroy()` when the embedding component is permanently unmounted.

@@ -8,7 +8,7 @@
   horizons, and remains behind catalogue/grid/landscape overlays.
 - Added bounded mobile/desktop tile loading, gesture-time preview orders,
   non-fatal Milky Way fallback, conditional in-view attribution, an embed API
-  and standalone toggle. A separate 96-tile Cache Storage layer shared by the
+  and standalone toggle. A separate 512-tile Cache Storage layer shared by the
   viewer and service worker can preserve viewed fields offline in standalone
   and embedded builds when browser storage permits, without attempting to
   redistribute the full survey.
