@@ -5,6 +5,7 @@ import {
   cameraFrameScreenRotationDeg,
   celestialPositionAngleCanvasRotationDeg,
   projectAngularExtent,
+  projectCelestialEllipseAxes,
   projectEquatorial,
   unprojectEquatorial,
 } from "../src/core/projection.js";
@@ -58,6 +59,32 @@ test("projects an angular frame through the gnomonic focal length", () => {
   assert.throws(() => projectAngularExtent(0, focalLengthPixels), RangeError);
   assert.throws(() => projectAngularExtent(180, focalLengthPixels), RangeError);
   assert.throws(() => projectAngularExtent(2, 0), RangeError);
+});
+
+test("keeps DSO footprints centered while panning around Polaris", () => {
+  const object = { raDeg: 40, decDeg: 88.7, frame: "ICRS" };
+  for (const centerRaDeg of [0, 40, 80, 160]) {
+    const polarView = {
+      center: { raDeg: centerRaDeg, decDeg: 87, frame: "ICRS" },
+      fovDeg: 18,
+      rotationDeg: 31,
+      mirrorX: true,
+    };
+    const footprint = projectCelestialEllipseAxes(
+      object,
+      1.2,
+      0.7,
+      27,
+      polarView,
+      1200,
+      800,
+    );
+    const projectedObject = projectEquatorial(object, polarView, 1200, 800);
+    assert.ok(footprint);
+    assert.deepEqual(footprint.center, projectedObject);
+    assert.ok(Math.hypot(footprint.majorAxis.x, footprint.majorAxis.y) > 1);
+    assert.ok(Math.hypot(footprint.minorAxis.x, footprint.minorAxis.y) > 1);
+  }
 });
 
 test("converts both camera position-angle conventions from celestial north", () => {

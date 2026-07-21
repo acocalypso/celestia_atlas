@@ -10,7 +10,7 @@ import {
 import {
   alignViewToHorizon,
   cameraFrameScreenRotationDeg,
-  celestialPositionAngleCanvasRotationDeg,
+  projectCelestialEllipseAxes,
   projectAngularExtent,
   projectEquatorial,
 } from "./core/projection.js";
@@ -1019,11 +1019,10 @@ export function createCelestiaAtlasViewer(options) {
   };
   const drawDsoFootprint = (
     object,
-    x,
-    y,
     scale,
-    projectionRotationDeg,
-    projectionMirrorX,
+    projectionView,
+    width,
+    height,
     visualKind,
     approximateShape,
   ) => {
@@ -1058,28 +1057,48 @@ export function createCelestiaAtlasViewer(options) {
     if (!fill || !stroke) return;
     const positionAngleDeg =
       object.shape?.positionAngleDeg ?? object.positionAngle ?? 0;
-    const rotationDeg = celestialPositionAngleCanvasRotationDeg(
-      projectionRotationDeg,
+    const axes = projectCelestialEllipseAxes(
+      object.coordinates ?? {
+        raDeg: object.raDeg,
+        decDeg: object.decDeg,
+        frame: object.frame ?? projectionView.center.frame,
+      },
+      Math.min(majorArcmin / 60, 179),
+      Math.min(minorArcmin / 60, 179),
       positionAngleDeg,
-      projectionMirrorX,
+      projectionView,
+      width,
+      height,
     );
+    if (!axes) return;
+    const clampAxis = (axis, maximumLength) => {
+      const length = Math.hypot(axis.x, axis.y);
+      const factor = length > maximumLength ? maximumLength / length : 1;
+      return { x: axis.x * factor, y: axis.y * factor };
+    };
+    const majorAxis = clampAxis(axes.majorAxis, canvas.clientWidth * 0.75);
+    const minorAxis = clampAxis(axes.minorAxis, canvas.clientHeight * 0.75);
     context.save();
-    context.translate(x, y);
-    context.rotate((rotationDeg * Math.PI) / 180);
+    context.translate(axes.center.x, axes.center.y);
+    context.transform(
+      majorAxis.x,
+      majorAxis.y,
+      minorAxis.x,
+      minorAxis.y,
+      0,
+      0,
+    );
     context.fillStyle = display.nightMode ? "rgba(95,0,0,.12)" : fill;
     context.strokeStyle = display.nightMode ? "rgba(255,88,79,.3)" : stroke;
-    context.lineWidth = 0.8;
-    if (approximateShape) context.setLineDash?.([3, 3]);
-    context.beginPath();
-    context.ellipse(
-      0,
-      0,
-      Math.min(canvas.clientWidth * 0.75, majorPixels / 2),
-      Math.min(canvas.clientHeight * 0.75, minorPixels / 2),
-      0,
-      0,
-      Math.PI * 2,
+    const axisScale = Math.max(
+      Math.hypot(majorAxis.x, majorAxis.y),
+      Math.hypot(minorAxis.x, minorAxis.y),
     );
+    context.lineWidth = 0.8 / Math.max(axisScale, 0.001);
+    if (approximateShape)
+      context.setLineDash?.([3 / axisScale, 3 / axisScale]);
+    context.beginPath();
+    context.arc(0, 0, 1, 0, Math.PI * 2);
     context.fill();
     context.stroke();
     context.restore();
@@ -2241,11 +2260,10 @@ export function createCelestiaAtlasViewer(options) {
         const glyphSize = Math.max(3.7, Math.min(10, 3.2 + 70 / view.fovDeg));
         drawDsoFootprint(
           object,
-          x,
-          y,
           scale,
-          projectionView.rotationDeg ?? 0,
-          Boolean(projectionView.mirrorX),
+          projectionView,
+          width,
+          height,
           catalogVisualKinds[catalogIndex],
           Boolean(catalogApproximateShapeFlags[catalogIndex]),
         );

@@ -268,6 +268,8 @@ test("mobile renderer keeps expensive work inside bounded frame contracts", asyn
   assert.match(publicApi, /const interactionStarMagnitudeLimit/);
   assert.match(publicApi, /if \(!pendingSelectedStar\) break/);
   assert.match(publicApi, /const drawDsoFootprint = \(/);
+  assert.match(publicApi, /projectCelestialEllipseAxes\(/);
+  assert.match(publicApi, /context\.transform\(\s*majorAxis\.x/);
   assert.match(publicApi, /projectAngularExtent\(/);
   assert.match(publicApi, /addEventListener\("contextlost"/);
   assert.match(publicApi, /removeEventListener\("contextrestored"/);

@@ -65,6 +65,81 @@ export function celestialPositionAngleCanvasRotationDeg(
   );
 }
 
+function equatorialOffset(coordinates, distanceDeg, bearingDeg) {
+  const distance = distanceDeg * DEG;
+  const bearing = bearingDeg * DEG;
+  const ra = coordinates.raDeg * DEG;
+  const dec = coordinates.decDeg * DEG;
+  const nextDec = Math.asin(
+    Math.sin(dec) * Math.cos(distance) +
+      Math.cos(dec) * Math.sin(distance) * Math.cos(bearing),
+  );
+  const nextRa =
+    ra +
+    Math.atan2(
+      Math.sin(bearing) * Math.sin(distance) * Math.cos(dec),
+      Math.cos(distance) - Math.sin(dec) * Math.sin(nextDec),
+    );
+  return {
+    raDeg: normalizeDegrees(nextRa * RAD),
+    decDeg: nextDec * RAD,
+    frame: coordinates.frame,
+  };
+}
+
+/**
+ * Projects the local major/minor axes of a celestial ellipse at its catalogue
+ * position. The returned vectors are canvas-space semi-axes, so the footprint
+ * remains attached to the object even where celestial north varies rapidly.
+ */
+export function projectCelestialEllipseAxes(
+  coordinates,
+  majorExtentDeg,
+  minorExtentDeg,
+  positionAngleDeg,
+  view,
+  width,
+  height,
+) {
+  if (
+    !Number.isFinite(majorExtentDeg) ||
+    majorExtentDeg <= 0 ||
+    majorExtentDeg >= 180 ||
+    !Number.isFinite(minorExtentDeg) ||
+    minorExtentDeg <= 0 ||
+    minorExtentDeg >= 180 ||
+    !Number.isFinite(positionAngleDeg)
+  )
+    throw new RangeError("Celestial ellipse geometry must be finite and positive");
+
+  const center = projectEquatorial(coordinates, view, width, height);
+  if (!center) return null;
+  const projectAxis = (bearingDeg, extentDeg) => {
+    const halfExtentDeg = extentDeg / 2;
+    const positive = projectEquatorial(
+      equatorialOffset(coordinates, halfExtentDeg, bearingDeg),
+      view,
+      width,
+      height,
+    );
+    const negative = projectEquatorial(
+      equatorialOffset(coordinates, halfExtentDeg, bearingDeg + 180),
+      view,
+      width,
+      height,
+    );
+    if (!positive || !negative) return null;
+    return {
+      x: (positive.x - negative.x) / 2,
+      y: (positive.y - negative.y) / 2,
+    };
+  };
+  const majorAxis = projectAxis(positionAngleDeg, majorExtentDeg);
+  const minorAxis = projectAxis(positionAngleDeg + 90, minorExtentDeg);
+  if (!majorAxis || !minorAxis) return null;
+  return { center, majorAxis, minorAxis };
+}
+
 export function projectEquatorial(coordinates, view, width, height) {
   const ra = coordinates.raDeg * DEG;
   const dec = coordinates.decDeg * DEG;
