@@ -8,12 +8,55 @@ import re
 
 from catalog_coordinates import icrs_from_sexagesimal, shape_from_axes
 from catalog_identifiers import dedupe_aliases
-from catalog_model import CatalogObject, CatalogSourceRef, TYPE_NAMES
+from catalog_model import CatalogObject, CatalogSourceRef, Coordinates, TYPE_NAMES
 from catalog_sources.base import compact_properties
 
 
 EXCLUDED_TYPES = {"*", "**", "Nova", "NonEx", "Dup"}
 FILES = ("NGC.csv", "addendum.csv")
+MESSIER_DESIGNATION = re.compile(r"M\d+$")
+MESSIER_102_CATALOG_ID = "NGC 5866"
+
+
+def _messier_40() -> CatalogObject:
+    """Return the one Messier entry OpenNGC deliberately cannot represent.
+
+    M40 is an optical double star rather than a deep-sky object.  SIMBAD's
+    catalogue-level ICRS position is retained as a point marker so the Atlas
+    can expose all 110 historical Messier designations without pretending the
+    pair is a nebula or cluster.
+    """
+
+    return CatalogObject(
+        uid="messier:m40",
+        primary_name="M40",
+        common_name="Winnecke 4",
+        aliases=("M 40", "WNC 4"),
+        type_code="DoubleStar",
+        coordinates=Coordinates(
+            ra_deg=185.55,
+            dec_deg=58.083333333333336,
+            original_frame="ICRS/J2000",
+            original_values={"ra": "12:22:12.0", "dec": "+58:05:00"},
+            accuracy_arcsec=30,
+            origin="SIMBAD M 40, accessed 2026-07-22",
+        ),
+        properties={
+            "catalogId": "M40",
+            "constellation": "UMa",
+            "notes": "Optical double star; retained to complete the historical Messier catalogue.",
+        },
+        sources=(
+            CatalogSourceRef(
+                "SIMBAD",
+                "M 40",
+                original_identifier="M 40",
+                original_frame="ICRS/J2000",
+            ),
+        ),
+        catalogue_groups=("messier",),
+        cross_identifications=("M 40", "WNC 4"),
+    )
 
 
 def _field(row: dict[str, str], *names: str) -> str:
@@ -88,6 +131,20 @@ def load(source_dir: Path, *, strict: bool = True, version: str = "v20260501") -
                     raise ValueError(f"{path}:{row_number}: missing identifier or coordinate")
                 continue
             display, aliases, common = _aliases(row, primary)
+            properties_notes = _field(row, "OpenNGC notes", "OpenNGC note")
+            if primary == MESSIER_102_CATALOG_ID:
+                display = "M102"
+                common = "Spindle Galaxy"
+                aliases = dedupe_aliases(display, (primary, *aliases))
+                properties_notes = (
+                    "Conventionally identified as Messier 102 by NASA; the historical "
+                    "M102 identification remains disputed."
+                )
+            catalogue_groups = (
+                ("openngc", "messier")
+                if MESSIER_DESIGNATION.fullmatch(display)
+                else ("openngc",)
+            )
             major = _number(_field(row, "MajAx", "Major axis"))
             minor = _number(_field(row, "MinAx", "Minor axis"))
             pa = _number(_field(row, "PosAng", "Position angle"))
@@ -116,15 +173,16 @@ def load(source_dir: Path, *, strict: bool = True, version: str = "v20260501") -
                         "hubbleClass": _field(row, "Hubble"),
                         "redshift": _number(_field(row, "Redshift")),
                         "radialVelocityKmS": _number(_field(row, "RadVel", "Radial velocity")),
-                        "notes": _field(row, "OpenNGC notes", "OpenNGC note"),
+                        "notes": properties_notes,
                     }
                 ),
                 sources=(CatalogSourceRef("OpenNGC", primary, None, path.name, primary, "ICRS"),),
-                catalogue_groups=("openngc",),
+                catalogue_groups=catalogue_groups,
                 cross_identifications=tuple(value for value in aliases if re.match(r"^(?:M|NGC|IC)\s*\d", value)),
             )
             by_catalog.setdefault(primary.casefold().replace(" ", ""), obj)
     result = list(by_catalog.values())
+    result.append(_messier_40())
     if strict and len(result) < 1000:
         raise RuntimeError(f"Only {len(result):,} OpenNGC objects parsed")
     return result

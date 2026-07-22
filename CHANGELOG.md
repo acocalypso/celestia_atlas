@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Completed the 110-entry Messier catalogue with an explicitly sourced M40
+  point marker and the documented NASA M102/NGC 5866 convention. Messier
+  membership is now independently filterable, while map and selection labels
+  retain both the `M` designation and common name.
 - Added an independently implemented celestial HiPS image renderer and a
   default DSS2 Color source. Real survey imagery fades in between 20 and 10
   degrees FOV, refines progressively to order 9, respects rotation and custom

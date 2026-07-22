@@ -24,12 +24,36 @@ terms. Acceptance is not a grant of additional rights.
 
 ## Public sources
 
-| Asset | Pinned source | Included records | Runtime groups | Licence |
-| --- | --- | --- | --- | --- |
-| OpenNGC browser catalogue | OpenNGC `v20260501` | 12,578 in the pinned build | `openngc` | CC BY-SA 4.0 |
-| Abell 1966 planetary-nebula layer | Committed SIMBAD TAP snapshot, retrieved 2026-07-15 from SIMBAD4 1.8 (2026-06) | 86 objects from 1,152 identifier rows | `abell-pn` | ODbL 1.0 |
-| Stellarium DSO supplement | Stellarium `v26.2`, DSO catalogue `3.23` | 8,658 records from the validated 94,899-row input having at least one selected cross-index | `abell`, `ldn`, `barnard`, `lbn`, `sharpless`, `vdb`, `rcw` | GPL-2.0-or-later |
-| HYG naked-eye star layer | HYG `v4.1`, commit `3bf37f4` | 8,780 records after curated-layer duplicate removal | stars through visual magnitude 6.5 | CC BY-SA 4.0 |
+| Asset                             | Pinned source                                                                  | Included records                                                                           | Runtime groups                                              | Licence                                                               |
+| --------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------- | --------------------------------------------------------------------- |
+| Normalized base catalogue         | OpenNGC `v20260501`, plus the two documented Messier completions below         | 12,579 markers                                                                             | `openngc`, `messier`                                        | OpenNGC rows CC BY-SA 4.0; M40 factual SIMBAD record attributed below |
+| Abell 1966 planetary-nebula layer | Committed SIMBAD TAP snapshot, retrieved 2026-07-15 from SIMBAD4 1.8 (2026-06) | 86 objects from 1,152 identifier rows                                                      | `abell-pn`                                                  | ODbL 1.0                                                              |
+| Stellarium DSO supplement         | Stellarium `v26.2`, DSO catalogue `3.23`                                       | 8,658 records from the validated 94,899-row input having at least one selected cross-index | `abell`, `ldn`, `barnard`, `lbn`, `sharpless`, `vdb`, `rcw` | GPL-2.0-or-later                                                      |
+| HYG naked-eye star layer          | HYG `v4.1`, commit `3bf37f4`                                                   | 8,780 records after curated-layer duplicate removal                                        | stars through visual magnitude 6.5                          | CC BY-SA 4.0                                                          |
+
+### Messier completion and labels
+
+The normalized base catalogue contains exactly 110 independently filterable
+`messier` members. OpenNGC supplies 108 Messier cross-identifications. The
+builder adds the two historically exceptional entries explicitly:
+
+- `M40` is the optical double star Winnecke 4, which OpenNGC correctly excludes
+  from its deep-sky rows. The point marker uses SIMBAD's catalogue-level
+  ICRS/J2000 position `12:22:12.0 +58:05:00`, records SIMBAD as its source, and
+  does not invent a nebula or cluster classification.
+- `M102` is attached to OpenNGC's `NGC 5866` record using NASA's Hubble Messier
+  catalogue convention. The record keeps `NGC 5866` searchable and explicitly
+  notes that the historical M102 identification is disputed.
+
+The runtime label helper renders a Messier designation together with a common
+name, for example `M81 · Bode's Galaxy` and `M42 · Great Orion Nebula`. Search
+continues to match either form. The generic `catalog-data` and
+`viewer-catalog-data` package exports contain the normalized base catalogue;
+the explicit `openngc-*-data` exports remain the 12,578-row OpenNGC-only
+compatibility assets.
+
+Sources: [SIMBAD M40](https://simbad.harvard.edu/simbad/sim-basic?Ident=M40)
+and [NASA Hubble Messier 102](https://science.nasa.gov/mission/hubble/science/explore-the-night-sky/hubble-messier-catalog/messier-102/).
 
 ### Abell 1966 planetary-nebula layer
 
@@ -76,7 +100,7 @@ LBN column. The Abell gate contributes 5,249 rows, including the southern
 One Stellarium row can contribute more than one searchable alias and runtime
 group. The emitted record retains the Stellarium row identifier, original
 cross-indices, catalogue version, source URL, and transformation provenance.
-All nine runtime groups are searchable and filterable in the deployed atlas.
+All ten runtime groups are searchable and filterable in the deployed atlas.
 
 The Stellarium-derived JavaScript/JSON and metadata stay separate from the
 OpenNGC-derived files. See `licenses/Stellarium-GPL-2.0.txt` for the complete
@@ -85,16 +109,16 @@ details.
 
 ## Optional local VizieR sources
 
-| Group | CDS/VizieR table | Imported records | Input coordinates | Atlas type |
-| --- | --- | ---: | --- | --- |
-| LDN | [`VII/7A/ldn`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/7A?format=html&tex=true) | 1,791 | FK4/B1950 | `DrkN` |
-| Barnard | [`VII/220A/barnard`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/220A?format=html&tex=true) | 349 | FK4/B1875 | `DrkN` |
-| LBN | [`VII/9/catalog`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/9?format=html&tex=true) | 1,125 | FK4/B1950 | `Neb`, refined only by evidence |
-| Sharpless 2 | [`VII/20/catalog`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/20?format=html&tex=true) | 313 | FK4/B1900 | `HII` |
-| vdB | [`VII/21/catalog`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/21?format=html&tex=true) | 158 | Galactic, with VizieR-added positions retained separately | `RfN` |
-| RCW | [`VII/216/rcw`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/216?format=html&tex=true) | 181 | FK4/B1950 | `EmN`, refined only by evidence |
-| Southern Dark Clouds | [`VII/191/table1`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/191?format=html&tex=true) | 1,101 | FK4/B1950 | `DrkN` |
-| Feitzinger-Stuewe | [`VII/68A/darkneb`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/68A?format=html&tex=true) | 489 | FK4/B1950 | `DrkN` |
+| Group                | CDS/VizieR table                                                                                 | Imported records | Input coordinates                                         | Atlas type                      |
+| -------------------- | ------------------------------------------------------------------------------------------------ | ---------------: | --------------------------------------------------------- | ------------------------------- |
+| LDN                  | [`VII/7A/ldn`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/7A?format=html&tex=true)         |            1,791 | FK4/B1950                                                 | `DrkN`                          |
+| Barnard              | [`VII/220A/barnard`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/220A?format=html&tex=true) |              349 | FK4/B1875                                                 | `DrkN`                          |
+| LBN                  | [`VII/9/catalog`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/9?format=html&tex=true)       |            1,125 | FK4/B1950                                                 | `Neb`, refined only by evidence |
+| Sharpless 2          | [`VII/20/catalog`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/20?format=html&tex=true)     |              313 | FK4/B1900                                                 | `HII`                           |
+| vdB                  | [`VII/21/catalog`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/21?format=html&tex=true)     |              158 | Galactic, with VizieR-added positions retained separately | `RfN`                           |
+| RCW                  | [`VII/216/rcw`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/216?format=html&tex=true)       |              181 | FK4/B1950                                                 | `EmN`, refined only by evidence |
+| Southern Dark Clouds | [`VII/191/table1`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/191?format=html&tex=true)    |            1,101 | FK4/B1950                                                 | `DrkN`                          |
+| Feitzinger-Stuewe    | [`VII/68A/darkneb`](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/VII/68A?format=html&tex=true)   |              489 | FK4/B1950                                                 | `DrkN`                          |
 
 `VII/68A/globules` and its raster sky map are intentionally outside the first
 import scope. The globule table has a second, colliding `FEST` number sequence,
@@ -351,7 +375,7 @@ supplement objects and HYG stars can be searched, drawn, and selected directly
 from their canvas markers.
 Focused A66 tests additionally verify the committed snapshot/query hashes, all
 86 sequential designations, raw SIMBAD type distribution, required aliases,
-the four exact merge keys, byte-reproducible outputs, and the 21,191-object
+the four exact merge keys, byte-reproducible outputs, and the 21,192-object
 result of composing OpenNGC, A66, then Stellarium.
 
 ## Source and licence notes

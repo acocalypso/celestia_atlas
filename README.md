@@ -17,7 +17,8 @@ The project includes a standalone Progressive Web App and a framework-neutral Ja
 ## Highlights
 
 - Offline catalogue search, navigation, coordinate transforms, and celestial calculations
-- 8,910 stars and 21,191 deep-sky objects in the current public build
+- 8,910 stars and 21,192 deep-sky catalogue markers in the current public build
+- All 110 Messier designations, with catalogue number and common name labels
 - Local positions for the Sun, Moon, planets, Pluto, Galilean moons, and comets
 - Horizontal and equatorial viewing modes
 - Constellations, grids, meridian, ecliptic, labels, and cardinal directions
@@ -131,15 +132,15 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for survey loading and caching 
 
 ## Documentation
 
-| Document | Contents |
-| --- | --- |
-| [docs/README.md](docs/README.md) | Documentation index |
-| [docs/USAGE.md](docs/USAGE.md) | Standalone and embedded usage |
-| [docs/API.md](docs/API.md) | Public viewer API |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Rendering, data flow, HiPS, caching, and offline design |
-| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Setup, catalogue builds, tests, images, and deployment |
-| [docs/CATALOGUES.md](docs/CATALOGUES.md) | Schemas, transformations, source policy, and catalogue rights |
-| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Attribution and redistribution terms |
+| Document                                         | Contents                                                      |
+| ------------------------------------------------ | ------------------------------------------------------------- |
+| [docs/README.md](docs/README.md)                 | Documentation index                                           |
+| [docs/USAGE.md](docs/USAGE.md)                   | Standalone and embedded usage                                 |
+| [docs/API.md](docs/API.md)                       | Public viewer API                                             |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)     | Rendering, data flow, HiPS, caching, and offline design       |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)       | Setup, catalogue builds, tests, images, and deployment        |
+| [docs/CATALOGUES.md](docs/CATALOGUES.md)         | Schemas, transformations, source policy, and catalogue rights |
+| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Attribution and redistribution terms                          |
 
 ## Development
 
@@ -167,15 +168,15 @@ The application source code is licensed under the [MIT License](LICENSE).
 
 Generated data and external imagery retain separate licence boundaries:
 
-| Component | Licence or terms |
-| --- | --- |
-| Celestia Atlas source code | MIT |
-| OpenNGC-derived catalogue assets | CC BY-SA 4.0 |
-| HYG-derived star assets | CC BY-SA 4.0 |
-| SIMBAD A66-derived asset | ODbL 1.0 |
-| Stellarium-derived DSO supplement | GPL-2.0-or-later |
-| DSS2 photographic imagery | External STScI/MAST survey terms |
-| NASA image previews | Per-source metadata and rights |
+| Component                         | Licence or terms                 |
+| --------------------------------- | -------------------------------- |
+| Celestia Atlas source code        | MIT                              |
+| OpenNGC-derived catalogue assets  | CC BY-SA 4.0                     |
+| HYG-derived star assets           | CC BY-SA 4.0                     |
+| SIMBAD A66-derived asset          | ODbL 1.0                         |
+| Stellarium-derived DSO supplement | GPL-2.0-or-later                 |
+| DSS2 photographic imagery         | External STScI/MAST survey terms |
+| NASA image previews               | Per-source metadata and rights   |
 
 Do not assume generated catalogues or downloaded images inherit the MIT licence.
 

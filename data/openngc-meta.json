@@ -1,6 +1,7 @@
 {
   "attribution": "OpenNGC by Mattia Verga and contributors",
   "catalogueGroups": [
+    "messier",
     "openngc"
   ],
   "coordinateFrame": "ICRS",

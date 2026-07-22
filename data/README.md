@@ -12,11 +12,11 @@ the same builder. Both commands update the neutral and legacy files together:
 
 ```text
 dso-catalog.json              normalized rich model with provenance
-dso-viewer-catalog.json       compact degree-based runtime projection
+dso-viewer-catalog.json       compact runtime projection, including all 110 Messier designations
 catalog-sources.json          exact source, rights, and transform manifest
 dedup-candidates.json         spatial and ambiguous identity review report
 openngc-catalog.json          legacy full OpenNGC package path
-openngc-viewer-catalog.json   legacy compact OpenNGC package path
+openngc-viewer-catalog.json   legacy compact OpenNGC-only package path
 openngc-meta.json             legacy OpenNGC metadata
 ../dso-catalog.js             browser bundle plus curated-detail merge
 ```
@@ -39,7 +39,7 @@ stellarium-supplement-meta.json pinned source, version, count, licence, hashes
 
 GitHub Pages builds and deploys the separate catalogue assets. The viewer loads
 the A66 layer before Stellarium and constructs one search index, so `abell-pn`,
-the seven Stellarium historical groups, and OpenNGC appear as nine source
+the seven Stellarium historical groups, Messier, and OpenNGC appear as ten source
 filters and remain available to offline search. The deployed atlas makes no
 catalogue network requests at runtime.
 

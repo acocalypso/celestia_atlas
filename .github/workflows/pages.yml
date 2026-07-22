@@ -97,6 +97,17 @@ jobs:
             raise SystemExit('Generated catalogue is unexpectedly small')
           if len(viewer.get('objects', [])) != count:
             raise SystemExit('Viewer catalogue count does not match source catalogue')
+          if count != 12579:
+            raise SystemExit('Normalized base catalogue does not match its pinned row count')
+          messier=[item for item in viewer.get('objects', []) if 'messier' in item.get('catalogueGroups', [])]
+          numbers=set()
+          for item in messier:
+            for value in [item.get('id'), *item.get('aliases', [])]:
+              normalized=''.join(character for character in str(value or '').upper() if character.isalnum())
+              if normalized.startswith('M') and normalized[1:].isdigit():
+                numbers.add(int(normalized[1:]))
+          if len(messier) != 110 or numbers != set(range(1, 111)):
+            raise SystemExit('Complete M1-M110 catalogue is missing or ambiguous')
           supplement=json.loads(Path('data/stellarium-dso-supplement.json').read_text(encoding='utf-8'))
           supplement_meta=json.loads(Path('data/stellarium-supplement-meta.json').read_text(encoding='utf-8'))
           supplement_objects=supplement.get('objects', [])
@@ -136,9 +147,9 @@ jobs:
         env:
           SMOKE_QUERY: LDN 1
           SMOKE_EXPECT_TITLE: LDN 1
-          SMOKE_EXPECTED_SOURCE_FILTERS: "9"
+          SMOKE_EXPECTED_SOURCE_FILTERS: "10"
           SMOKE_EXPECTED_STAR_COUNT: "8910"
-          SMOKE_EXPECTED_DSO_COUNT: "21191"
+          SMOKE_EXPECTED_DSO_COUNT: "21192"
           SMOKE_EXPECT_DETAIL_TEXT: LDN via Stellarium
         run: npm run test:browser
 
@@ -146,9 +157,9 @@ jobs:
         env:
           SMOKE_QUERY: Abell 1656
           SMOKE_EXPECT_TITLE: Abell 1656
-          SMOKE_EXPECTED_SOURCE_FILTERS: "9"
+          SMOKE_EXPECTED_SOURCE_FILTERS: "10"
           SMOKE_EXPECTED_STAR_COUNT: "8910"
-          SMOKE_EXPECTED_DSO_COUNT: "21191"
+          SMOKE_EXPECTED_DSO_COUNT: "21192"
           SMOKE_EXPECT_DETAIL_TEXT: Abell via Stellarium
         run: npm run test:browser
 
@@ -156,9 +167,9 @@ jobs:
         env:
           SMOKE_QUERY: Abell 39
           SMOKE_EXPECT_TITLE: Abell PN 39
-          SMOKE_EXPECTED_SOURCE_FILTERS: "9"
+          SMOKE_EXPECTED_SOURCE_FILTERS: "10"
           SMOKE_EXPECTED_STAR_COUNT: "8910"
-          SMOKE_EXPECTED_DSO_COUNT: "21191"
+          SMOKE_EXPECTED_DSO_COUNT: "21192"
           SMOKE_EXPECT_DETAIL_TEXT: SIMBAD A66
         run: npm run test:browser
 
@@ -166,9 +177,9 @@ jobs:
         env:
           SMOKE_QUERY: Larawag
           SMOKE_EXPECT_TITLE: Larawag
-          SMOKE_EXPECTED_SOURCE_FILTERS: "9"
+          SMOKE_EXPECTED_SOURCE_FILTERS: "10"
           SMOKE_EXPECTED_STAR_COUNT: "8910"
-          SMOKE_EXPECTED_DSO_COUNT: "21191"
+          SMOKE_EXPECTED_DSO_COUNT: "21192"
           SMOKE_EXPECT_DETAIL_TEXT: HYG
         run: npm run test:browser
 
@@ -176,7 +187,7 @@ jobs:
         env:
           SMOKE_CATALOG_BUNDLE: .cache/catalog-browser-fixture/dso-catalog.js
           SMOKE_QUERY: Sh 2-1
-          SMOKE_EXPECTED_SOURCE_FILTERS: "11"
+          SMOKE_EXPECTED_SOURCE_FILTERS: "12"
           SMOKE_EXPECTED_STAR_COUNT: "8910"
           SMOKE_EXPECT_DETAIL_TEXT: VII/20
         run: |

@@ -13,6 +13,43 @@ export function normalizeCatalogIdentifier(value) {
     .replace(/[^\p{L}\p{N}]/gu, "");
 }
 
+const MESSIER_DESIGNATION = /^m0*(\d{1,3})$/;
+
+/** Returns the canonical M1-M110 designation carried by a catalogue record. */
+export function messierDesignation(item) {
+  const values = [
+    item?.id,
+    item?.primaryName,
+    item?.catalogId,
+    item?.properties?.catalogId,
+    ...(Array.isArray(item?.aliases) ? item.aliases : []),
+  ];
+  for (const value of values) {
+    const match = normalizeCatalogIdentifier(value).match(MESSIER_DESIGNATION);
+    if (!match) continue;
+    const number = Number(match[1]);
+    if (Number.isInteger(number) && number >= 1 && number <= 110)
+      return `M${number}`;
+  }
+  return "";
+}
+
+/** Formats a map/detail label without hiding a Messier designation. */
+export function deepSkyObjectLabel(item) {
+  const designation = messierDesignation(item);
+  const preferred = String(
+    item?.commonName ?? item?.name ?? item?.primaryName ?? item?.id ?? "",
+  ).trim();
+  if (!designation) return preferred;
+  if (
+    !preferred ||
+    normalizeCatalogIdentifier(preferred) ===
+      normalizeCatalogIdentifier(designation)
+  )
+    return designation;
+  return `${designation} · ${preferred}`;
+}
+
 function catalogSearchTerms(item) {
   const aliases = Array.isArray(item?.aliases) ? item.aliases : [];
   const values = [
@@ -58,7 +95,9 @@ export function searchCatalogIndex(index, query, limit = 20) {
   if (!Array.isArray(index))
     throw new TypeError("Catalogue search index must be an array");
   if (!Number.isInteger(limit) || limit < 0)
-    throw new TypeError("Catalogue search limit must be a non-negative integer");
+    throw new TypeError(
+      "Catalogue search limit must be a non-negative integer",
+    );
   const needle = normalizeCatalogIdentifier(query);
   if (!needle || limit === 0) return [];
 

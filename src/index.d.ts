@@ -174,6 +174,7 @@ export interface SelectedTarget {
   uid?: string;
   id?: string;
   name: string;
+  displayName?: string;
   primaryName?: string;
   aliases?: string[];
   coordinates: EquatorialCoordinates;
@@ -219,9 +220,7 @@ export interface StarCatalogueObject {
   [key: string]: unknown;
 }
 export type CatalogueTarget =
-  | SelectedTarget
-  | DeepSkyCatalogueObject
-  | StarCatalogueObject;
+  SelectedTarget | DeepSkyCatalogueObject | StarCatalogueObject;
 export interface SolarSystemObject extends SelectedTarget {
   id: string;
   objectType: string;
@@ -275,9 +274,9 @@ export interface CelestiaAtlasViewer {
     fovDeg?: number,
   ): void;
   select(value: CatalogueTarget): void;
-  search(query: string): Array<
-    CatalogueTarget | SolarSystemObject | CometObject
-  >;
+  search(
+    query: string,
+  ): Array<CatalogueTarget | SolarSystemObject | CometObject>;
   getState(): CelestiaAtlasState;
 }
 export function createCelestiaAtlasViewer(options: {
@@ -504,6 +503,8 @@ export function passesDeepSkyMagnitudeFilter(
   deepSkyMagnitudeLimit: number,
 ): boolean;
 export function normalizeCatalogIdentifier(value: unknown): string;
+export function messierDesignation(object: unknown): string;
+export function deepSkyObjectLabel(object: unknown): string;
 export interface CatalogSearchIndexEntry<T = unknown> {
   item: T;
   terms: readonly string[];

@@ -130,7 +130,7 @@ def _selected_manifest(
             "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
             "termsUrl": "https://github.com/mattiaverga/OpenNGC/blob/master/LICENSE",
             "rightsStatus": "redistribution-permitted-with-attribution-and-share-alike",
-            "modifications": "Parsed the semicolon-delimited OpenNGC release files; excluded unsupported stellar, duplicate, nonexistent, and nova rows; normalized identifiers and ICRS coordinates; selected V magnitude with B magnitude as fallback.",
+            "modifications": "Parsed the semicolon-delimited OpenNGC release files; excluded unsupported stellar, duplicate, nonexistent, and nova rows; normalized identifiers and ICRS coordinates; selected V magnitude with B magnitude as fallback; assigned the Messier catalogue group from published cross-identifiers; associated NGC 5866 with M102 using the documented NASA Hubble convention.",
             "files": files,
         }
     for key in selected:
@@ -151,7 +151,7 @@ def _selected_manifest(
             entry["notesFilename"] = spec.notes_filename
             entry["notesSourceSha256"] = _sha256_path(vizier_dir / spec.notes_filename)
         catalogues[key] = entry
-    return {
+    manifest = {
         "schemaVersion": 1,
         "rightsNoticeUrl": policy["rightsNoticeUrl"],
         "rightsPolicy": policy["rightsPolicy"],
@@ -160,6 +160,18 @@ def _selected_manifest(
         "transformSoftware": {"astropy": astropy.__version__},
         "dedupOverridesSha256": _sha256_path(overrides_path),
     }
+    if "openngc" in selected:
+        manifest["messierCompletion"] = {
+            "version": "2026-07-22",
+            "catalogueSize": 110,
+            "addedObjectCount": 1,
+            "addedObject": "M40 / Winnecke 4",
+            "m40Source": "https://simbad.harvard.edu/simbad/sim-basic?Ident=M40",
+            "m40License": "ODbL-1.0",
+            "m102ConventionSource": "https://science.nasa.gov/mission/hubble/science/explore-the-night-sky/hubble-messier-catalog/messier-102/",
+            "modifications": "Added the separately sourced SIMBAD M40 point marker and used NASA's documented M102/NGC 5866 convention; no missing object class or angular extent was inferred.",
+        }
+    return manifest
 
 
 def _verify_cached_source(key: str, source_dir: Path, policy: dict[str, Any]) -> None:

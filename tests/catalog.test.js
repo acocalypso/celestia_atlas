@@ -25,7 +25,34 @@ test("packages matching rich, compact, legacy, and source-manifest catalogues", 
   const legacyViewer = JSON.parse(legacyViewerText);
   const sources = JSON.parse(sourceText);
 
-  for (const payload of [rich, viewer, legacy, legacyViewer]) {
+  for (const payload of [rich, viewer]) {
+    assert.equal(payload.meta.objectCount, 12579);
+    assert.equal(payload.objects.length, 12579);
+    assert.ok(payload.meta.catalogueGroups.includes("messier"));
+    assert.equal(
+      payload.objects.filter((object) =>
+        object.catalogueGroups?.includes("messier"),
+      ).length,
+      110,
+    );
+    const designations = new Set(
+      payload.objects
+        .filter((object) => object.catalogueGroups?.includes("messier"))
+        .flatMap((object) => [
+          object.id,
+          object.primaryName,
+          ...(object.aliases ?? []),
+        ])
+        .map((value) => String(value).match(/^M\s*0*(\d+)$/i))
+        .filter(Boolean)
+        .map((match) => Number(match[1])),
+    );
+    assert.deepEqual(
+      [...designations].sort((left, right) => left - right),
+      [...Array.from({ length: 110 }, (_, index) => index + 1)],
+    );
+  }
+  for (const payload of [legacy, legacyViewer]) {
     assert.equal(payload.meta.objectCount, 12578);
     assert.equal(payload.objects.length, 12578);
     assert.equal(payload.meta.coordinateFrame, "ICRS");
@@ -37,6 +64,10 @@ test("packages matching rich, compact, legacy, and source-manifest catalogues", 
     sources.catalogues.openngc.rightsStatus,
     "redistribution-permitted-with-attribution-and-share-alike",
   );
+  assert.equal(sources.messierCompletion.catalogueSize, 110);
+  assert.equal(sources.messierCompletion.addedObject, "M40 / Winnecke 4");
+  assert.match(sources.messierCompletion.m40Source, /simbad/i);
+  assert.match(sources.messierCompletion.m102ConventionSource, /nasa\.gov/i);
   assert.ok(viewerText.length < richText.length);
   assert.ok(legacyViewerText.length < legacyText.length * 0.7);
 
@@ -55,7 +86,7 @@ test("packages matching rich, compact, legacy, and source-manifest catalogues", 
         Number.isFinite(object.raDeg) &&
         Number.isFinite(object.decDeg) &&
         object.frame === "ICRS" &&
-        object.catalogSource === "OpenNGC" &&
+        ["OpenNGC", "SIMBAD"].includes(object.catalogSource) &&
         !("ra" in object) &&
         !("dec" in object),
     ),
@@ -65,6 +96,13 @@ test("packages matching rich, compact, legacy, and source-manifest catalogues", 
   assert.equal(andromeda.name, "Andromeda Galaxy");
   assert.ok(Math.abs(andromeda.raDeg - 10.684791666666664) < 1e-10);
   assert.ok(Math.abs(andromeda.decDeg - 41.26905555555555) < 1e-10);
+  const m40 = viewer.objects.find((object) => object.id === "M40");
+  assert.equal(m40.name, "Winnecke 4");
+  assert.equal(m40.type, "Double star");
+  assert.deepEqual(m40.catalogueGroups, ["messier"]);
+  const m102 = viewer.objects.find((object) => object.id === "M102");
+  assert.equal(m102.name, "Spindle Galaxy");
+  assert.ok(m102.aliases.includes("NGC 5866"));
 });
 
 test("browser bundle keeps normalized coordinates and curated descriptions", async () => {
@@ -76,8 +114,10 @@ test("browser bundle keeps normalized coordinates and curated descriptions", asy
   vm.runInContext(curatedScript, context, { filename: "catalog.js" });
   vm.runInContext(generatedScript, context, { filename: "dso-catalog.js" });
 
-  assert.equal(context.window.DSO_CATALOG_DATA.length, 12578);
-  const andromeda = context.window.DSO_DATA.find((object) => object.id === "M31");
+  assert.equal(context.window.DSO_CATALOG_DATA.length, 12579);
+  const andromeda = context.window.DSO_DATA.find(
+    (object) => object.id === "M31",
+  );
   assert.equal(andromeda.name, "Andromeda Galaxy");
   assert.match(andromeda.description, /nearest large spiral galaxy/i);
   assert.ok(Math.abs(andromeda.raDeg - 10.684791666666664) < 1e-10);
@@ -85,14 +125,19 @@ test("browser bundle keeps normalized coordinates and curated descriptions", asy
 });
 
 test("public Stellarium layer exposes searchable LDN and Abell records without mixing assets", async () => {
-  const [curatedScript, baseScript, supplementScript, supplementJson, metaJson] =
-    await Promise.all([
-      readFile(new URL("../catalog.js", import.meta.url), "utf8"),
-      readFile(new URL("../dso-catalog.js", import.meta.url), "utf8"),
-      readFile(new URL("../stellarium-supplement.js", import.meta.url), "utf8"),
-      readFile(dataUrl("stellarium-dso-supplement.json"), "utf8"),
-      readFile(dataUrl("stellarium-supplement-meta.json"), "utf8"),
-    ]);
+  const [
+    curatedScript,
+    baseScript,
+    supplementScript,
+    supplementJson,
+    metaJson,
+  ] = await Promise.all([
+    readFile(new URL("../catalog.js", import.meta.url), "utf8"),
+    readFile(new URL("../dso-catalog.js", import.meta.url), "utf8"),
+    readFile(new URL("../stellarium-supplement.js", import.meta.url), "utf8"),
+    readFile(dataUrl("stellarium-dso-supplement.json"), "utf8"),
+    readFile(dataUrl("stellarium-supplement-meta.json"), "utf8"),
+  ]);
   const payload = JSON.parse(supplementJson);
   const metadata = JSON.parse(metaJson);
 
@@ -124,7 +169,7 @@ test("public Stellarium layer exposes searchable LDN and Abell records without m
     baseObjects,
     "the separately licensed asset must not rewrite the OpenNGC layer",
   );
-  assert.equal(context.window.DSO_DATA.length, 12578);
+  assert.equal(context.window.DSO_DATA.length, 12579);
   assert.equal(context.window.STELLARIUM_DSO_SUPPLEMENT_DATA.length, 8658);
 
   const layered = combineCatalogLayers(
@@ -133,14 +178,15 @@ test("public Stellarium layer exposes searchable LDN and Abell records without m
     baseMetadata,
     context.window.STELLARIUM_DSO_SUPPLEMENT_META,
   );
-  assert.equal(layered.objects.length, 21109);
-  assert.equal(layered.meta.objectCount, 21109);
+  assert.equal(layered.objects.length, 21110);
+  assert.equal(layered.meta.objectCount, 21110);
   assert.equal(layered.meta.supplementAttachmentPositionConflicts, 4);
   assert.deepEqual(layered.meta.catalogueGroups, [
     "abell",
     "barnard",
     "lbn",
     "ldn",
+    "messier",
     "openngc",
     "rcw",
     "sharpless",

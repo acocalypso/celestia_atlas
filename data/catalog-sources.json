@@ -15,7 +15,7 @@
       },
       "license": "CC-BY-SA-4.0",
       "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
-      "modifications": "Parsed the semicolon-delimited OpenNGC release files; excluded unsupported stellar, duplicate, nonexistent, and nova rows; normalized identifiers and ICRS coordinates; selected V magnitude with B magnitude as fallback.",
+      "modifications": "Parsed the semicolon-delimited OpenNGC release files; excluded unsupported stellar, duplicate, nonexistent, and nova rows; normalized identifiers and ICRS coordinates; selected V magnitude with B magnitude as fallback; assigned the Messier catalogue group from published cross-identifiers; associated NGC 5866 with M102 using the documented NASA Hubble convention.",
       "name": "OpenNGC",
       "project": "https://github.com/mattiaverga/OpenNGC",
       "publicationUrl": "https://github.com/mattiaverga/OpenNGC",
@@ -36,6 +36,16 @@
     }
   },
   "dedupOverridesSha256": "c23eaccf0652c623721bae109d4d656eecd1155d057593434966f1f11c028257",
+  "messierCompletion": {
+    "addedObject": "M40 / Winnecke 4",
+    "addedObjectCount": 1,
+    "catalogueSize": 110,
+    "m102ConventionSource": "https://science.nasa.gov/mission/hubble/science/explore-the-night-sky/hubble-messier-catalog/messier-102/",
+    "m40License": "ODbL-1.0",
+    "m40Source": "https://simbad.harvard.edu/simbad/sim-basic?Ident=M40",
+    "modifications": "Added the separately sourced SIMBAD M40 point marker and used NASA's documented M102/NGC 5866 convention; no missing object class or angular extent was inferred.",
+    "version": "2026-07-22"
+  },
   "rightsNoticeUrl": "https://cds.unistra.fr/vizier-org/licences_vizier.html",
   "rightsPolicy": "Catalogue-specific public redistribution permission has not been established. Downloads are for acknowledged local scientific use and review only.",
   "schemaVersion": 1,

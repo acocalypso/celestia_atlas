@@ -2,9 +2,30 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createCatalogSearchIndex,
+  deepSkyObjectLabel,
+  messierDesignation,
   normalizeCatalogIdentifier,
   searchCatalogIndex,
 } from "../src/core/catalog-identifiers.js";
+
+test("keeps Messier designations visible beside common names", () => {
+  assert.equal(messierDesignation({ id: "M081" }), "M81");
+  assert.equal(
+    deepSkyObjectLabel({ id: "M81", name: "Bode's Galaxy" }),
+    "M81 · Bode's Galaxy",
+  );
+  assert.equal(
+    deepSkyObjectLabel({
+      primaryName: "M42",
+      commonName: "Great Orion Nebula",
+    }),
+    "M42 · Great Orion Nebula",
+  );
+  assert.equal(
+    deepSkyObjectLabel({ id: "NGC 7000", name: "North America Nebula" }),
+    "North America Nebula",
+  );
+});
 
 test("normalizes case, compatibility forms, accents, spaces, and punctuation", () => {
   assert.equal(normalizeCatalogIdentifier("Sh 2-101"), "sh2101");

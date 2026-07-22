@@ -50,6 +50,7 @@ import {
 } from "./core/catalog-filters.js";
 import {
   createCatalogSearchIndex,
+  deepSkyObjectLabel,
   normalizeCatalogIdentifier,
   searchCatalogIndex,
 } from "./core/catalog-identifiers.js";
@@ -399,6 +400,7 @@ export function createCelestiaAtlasViewer(options) {
     return {
       ...object,
       name: object?.name ?? object?.primaryName ?? object?.id ?? "",
+      displayName: deepSkyObjectLabel(object),
       objectType: object?.objectType ?? object?.type,
       magnitude: object?.magnitude ?? object?.mag,
       catalogueSource: object?.catalogueSource ?? object?.catalogSource,
@@ -1080,14 +1082,7 @@ export function createCelestiaAtlasViewer(options) {
     const minorAxis = clampAxis(axes.minorAxis, canvas.clientHeight * 0.75);
     context.save();
     context.translate(axes.center.x, axes.center.y);
-    context.transform(
-      majorAxis.x,
-      majorAxis.y,
-      minorAxis.x,
-      minorAxis.y,
-      0,
-      0,
-    );
+    context.transform(majorAxis.x, majorAxis.y, minorAxis.x, minorAxis.y, 0, 0);
     context.fillStyle = display.nightMode ? "rgba(95,0,0,.12)" : fill;
     context.strokeStyle = display.nightMode ? "rgba(255,88,79,.3)" : stroke;
     const axisScale = Math.max(
@@ -1095,8 +1090,7 @@ export function createCelestiaAtlasViewer(options) {
       Math.hypot(minorAxis.x, minorAxis.y),
     );
     context.lineWidth = 0.8 / Math.max(axisScale, 0.001);
-    if (approximateShape)
-      context.setLineDash?.([3 / axisScale, 3 / axisScale]);
+    if (approximateShape) context.setLineDash?.([3 / axisScale, 3 / axisScale]);
     context.beginPath();
     context.arc(0, 0, 1, 0, Math.PI * 2);
     context.fill();
@@ -2318,10 +2312,7 @@ export function createCelestiaAtlasViewer(options) {
       context.fillStyle = display.nightMode ? "#ff8178" : "#dbe8f7";
       for (const candidate of dsoLabelCandidates) {
         if (!candidate.isSelected && placedDsoLabels >= dsoLabelBudget) break;
-        const text =
-          candidate.object.primaryName ||
-          candidate.object.name ||
-          candidate.object.id;
+        const text = deepSkyObjectLabel(candidate.object);
         const left = candidate.x + 6;
         const labelWidth = context.measureText(text).width;
         const box = {
@@ -3164,7 +3155,10 @@ export function createCelestiaAtlasViewer(options) {
         [...dynamicSearchIndex, ...searchableObjectIndex],
         query,
         20,
-      );
+      ).map((object) => ({
+        ...object,
+        displayName: deepSkyObjectLabel(object),
+      }));
     },
     getState() {
       assertAlive();

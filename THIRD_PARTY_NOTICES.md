@@ -91,8 +91,8 @@ Required acknowledgement retained by Celestia Atlas:
 > Strasbourg, France.
 
 SIMBAD also requests citation of Wenger et al. (2000), “The SIMBAD astronomical
-database,” *Astronomy and Astrophysics Supplement Series* 143, 9. The historical
-designation originates with Abell (1966), *Astrophysical Journal* 144, 259.
+database,” _Astronomy and Astrophysics Supplement Series_ 143, 9. The historical
+designation originates with Abell (1966), _Astrophysical Journal_ 144, 259.
 
 Celestia Atlas groups the long-form response by the SIMBAD object selected by
 the query, normalizes display spacing, adds deterministic `Abell`, `A66`, and
@@ -116,6 +116,22 @@ data/abell-pn-catalog.json
 Redistributors must retain the ODbL terms, SIMBAD attribution, source/query
 metadata, hashes, and modification statement above.
 
+### SIMBAD Messier 40 completion
+
+The normalized base catalogue also includes one separately sourced SIMBAD
+record for `M40` / Winnecke 4, retrieved on `2026-07-22`:
+
+- Record: https://simbad.harvard.edu/simbad/sim-basic?Ident=M40
+- Retained data: identifier and ICRS position
+- Licence: Open Data Commons Open Database License 1.0 (`ODbL-1.0`)
+- Local licence notice: `licenses/SIMBAD-ODbL-1.0.md`
+
+Celestia Atlas converts the published sexagesimal position to decimal degrees
+and represents M40 as a point-like double-star marker. It does not infer a
+deep-sky object class or angular extent. The SIMBAD acknowledgement above also
+applies to this record. The explicit OpenNGC-only package exports do not contain
+this addition.
+
 ## OpenNGC
 
 The generated deep-sky catalogue is based on **OpenNGC**, created by Mattia
@@ -134,7 +150,13 @@ upstream acknowledgements.
 Changes made by Celestia Atlas include CSV parsing, filtering out star,
 duplicate and explicitly non-existent entries from the plotted DSO set,
 normalising identifiers, compact JSON/JavaScript conversion, and merging a
-small curated description layer for prominent objects.
+small curated description layer for prominent objects. The normalized base
+catalogue assigns Messier membership from OpenNGC cross-identifiers and follows
+NASA Hubble's documented convention of identifying M102 with NGC 5866 (the
+Spindle Galaxy):
+https://science.nasa.gov/mission/hubble/science/explore-the-night-sky/hubble-messier-catalog/messier-102/.
+The historical M102 identification remains disputed; this association is
+explicitly recorded as a convention rather than presented as settled fact.
 
 Generated OpenNGC-derived catalogue files must remain available under
 CC BY-SA 4.0 with attribution and share-alike terms.
@@ -165,8 +187,8 @@ version, and source URL are retained in the derived records or supplement
 metadata.
 
 The Abell/ACO galaxy-cluster designations refer to Abell, Corwin, and Olowin
-(1989), “A Catalog of Rich Clusters of Galaxies,” *Astrophysical Journal
-Supplement Series* 70, 1, DOI `10.1086/191333`. They are distinct from the
+(1989), “A Catalog of Rich Clusters of Galaxies,” _Astrophysical Journal
+Supplement Series_ 70, 1, DOI `10.1086/191333`. They are distinct from the
 Abell-1966 planetary-nebula designations in the separate SIMBAD A66 layer.
 
 The following derived assets remain under GPL-2.0-or-later and are kept
@@ -192,16 +214,16 @@ source tables and transformed records are **not** committed or included in the
 public deployment because neither the current CDS catalogue metadata nor the
 catalogue ReadMes state an open redistribution licence.
 
-| Catalogue | Original publication | CDS/VizieR ID |
-| --- | --- | --- |
-| Lynds Dark Nebulae (LDN) | Lynds, B. T. (1962), *ApJS* 7, 1, DOI `10.1086/190072` | `VII/7A` |
-| Barnard dark objects | Barnard, E. E. (1927), *A Photographic Atlas of Selected Regions of the Milky Way* | `VII/220A` |
-| Lynds Bright Nebulae (LBN) | Lynds, B. T. (1965), *ApJS* 12, 163, DOI `10.1086/190123` | `VII/9` |
-| Sharpless 2 H II regions | Sharpless, S. (1959), *ApJS* 4, 257, DOI `10.1086/190049` | `VII/20` |
-| van den Bergh reflection nebulae | van den Bergh, S. (1966), *AJ* 71, 990, DOI `10.1086/109995` | `VII/21` |
-| RCW emission nebulae | Rodgers, A. W.; Campbell, C. T.; Whiteoak, J. B. (1960), *MNRAS* 121, 103, DOI `10.1093/mnras/121.1.103` | `VII/216` |
-| Southern Dark Clouds | Hartley et al. (1986), *A&AS* 63, 27 | `VII/191` |
-| Feitzinger-Stuewe southern dark nebulae | Feitzinger, J. V.; Stuewe, J. A. (1984), *A&AS* 58, 365; erratum *A&AS* 63, 203 | `VII/68A` |
+| Catalogue                               | Original publication                                                                                     | CDS/VizieR ID |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------- |
+| Lynds Dark Nebulae (LDN)                | Lynds, B. T. (1962), _ApJS_ 7, 1, DOI `10.1086/190072`                                                   | `VII/7A`      |
+| Barnard dark objects                    | Barnard, E. E. (1927), _A Photographic Atlas of Selected Regions of the Milky Way_                       | `VII/220A`    |
+| Lynds Bright Nebulae (LBN)              | Lynds, B. T. (1965), _ApJS_ 12, 163, DOI `10.1086/190123`                                                | `VII/9`       |
+| Sharpless 2 H II regions                | Sharpless, S. (1959), _ApJS_ 4, 257, DOI `10.1086/190049`                                                | `VII/20`      |
+| van den Bergh reflection nebulae        | van den Bergh, S. (1966), _AJ_ 71, 990, DOI `10.1086/109995`                                             | `VII/21`      |
+| RCW emission nebulae                    | Rodgers, A. W.; Campbell, C. T.; Whiteoak, J. B. (1960), _MNRAS_ 121, 103, DOI `10.1093/mnras/121.1.103` | `VII/216`     |
+| Southern Dark Clouds                    | Hartley et al. (1986), _A&AS_ 63, 27                                                                     | `VII/191`     |
+| Feitzinger-Stuewe southern dark nebulae | Feitzinger, J. V.; Stuewe, J. A. (1984), _A&AS_ 58, 365; erratum _A&AS_ 63, 203                          | `VII/68A`     |
 
 CDS states in its [VizieR rules of
 usage](https://cds.unistra.fr/vizier-org/licences_vizier.html) that data are

@@ -30,6 +30,7 @@ TYPE_NAMES: dict[str, str] = {
     "RfN": "Reflection nebula",
     "SNR": "Supernova remnant",
     "Other": "Deep-sky object",
+    "DoubleStar": "Double star",
 }
 
 

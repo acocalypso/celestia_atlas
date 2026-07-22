@@ -3,6 +3,7 @@ import {
   combineCatalogLayers,
   createCelestiaAtlasViewer,
   DEFAULT_DSS_SKY_SURVEY_SOURCE,
+  deepSkyObjectLabel,
   equatorialToHorizontal,
   horizontalToEquatorial,
 } from "./src/index.js";
@@ -134,7 +135,9 @@ const objectTypeLabels = new Map(
     object.objectType || object.type || object.typeCode,
   ]),
 );
+objectTypeLabels.set("doublestar", "Double star");
 const catalogueGroupLabels = new Map([
+  ["messier", "Messier"],
   ["openngc", "OpenNGC"],
   ["abell", "Abell / ACO galaxy clusters"],
   ["abell-pn", "Abell planetary nebulae (A66)"],
@@ -156,8 +159,7 @@ const state = {
   deepSkyObjects: true,
   labels: true,
   milkyWay: true,
-  skySurvey:
-    localStorage.getItem("celestia-atlas.sky-survey") !== "false",
+  skySurvey: localStorage.getItem("celestia-atlas.sky-survey") !== "false",
   cardinals: true,
   ecliptic: false,
   meridian: false,
@@ -229,6 +231,7 @@ function normalizeTarget(object) {
     ...object,
     id: object.id || object.name,
     name: object.name || object.primaryName || object.id,
+    displayName: object.displayName || deepSkyObjectLabel(object),
     objectType: object.objectType || object.type,
     typeCode: object.typeCode || object.objectType || object.type,
     magnitude: object.magnitude ?? object.mag,
@@ -339,7 +342,8 @@ function sourceDescriptions(target) {
       descriptions.push(`${legacyCatalogue} — ${legacyIdentifier}`);
     else descriptions.push(legacyCatalogue, legacyIdentifier);
   }
-  if (!descriptions.some(Boolean)) descriptions.push(target.catalogueGroups ?? []);
+  if (!descriptions.some(Boolean))
+    descriptions.push(target.catalogueGroups ?? []);
   return uniqueStrings(descriptions);
 }
 
@@ -350,9 +354,7 @@ function sourcePropertyConflictDescriptions(properties) {
   for (const [source, values] of Object.entries(conflicts)) {
     if (!values || typeof values !== "object") continue;
     if (values.brightnessClass != null) {
-      const scale = values.brightnessScale
-        ? `; ${values.brightnessScale}`
-        : "";
+      const scale = values.brightnessScale ? `; ${values.brightnessScale}` : "";
       descriptions.push(
         `${source}: brightness class ${values.brightnessClass}${scale}`,
       );
@@ -406,7 +408,7 @@ function shapeDetails(target) {
 
 function aliasMarkup(target) {
   const aliases = uniqueStrings(target.aliases ?? []).filter(
-    (alias) => alias !== target.name,
+    (alias) => alias !== target.name && alias !== target.displayName,
   );
   if (!aliases.length) return "";
   return `<div class="object-aliases" aria-label="Aliases">${aliases
@@ -435,8 +437,7 @@ function showDetails(value) {
     properties.brightnessClass ??
     target.brightness ??
     target.brightnessClass;
-  const brightnessScale =
-    properties.brightnessScale ?? target.brightnessScale;
+  const brightnessScale = properties.brightnessScale ?? target.brightnessScale;
   const density = properties.densityClass ?? target.densityClass;
   const densityScale = properties.densityScale ?? target.densityScale;
   const colorClass = properties.colorClass ?? target.colorClass;
@@ -444,7 +445,7 @@ function showDetails(value) {
   const notes = uniqueStrings([properties.notes, target.description]);
   $("#detailsContent").innerHTML = `
     <p class="object-kicker">${escapeHtml(target.objectType || target.typeCode || "Sky object")}</p>
-    <h2 class="object-title">${escapeHtml(target.name)}</h2>
+    <h2 class="object-title">${escapeHtml(target.displayName || target.name)}</h2>
     ${aliasMarkup(target)}
     <div class="detail-grid">
       ${detailCell("Right ascension", formatRa(raDeg))}
@@ -733,7 +734,7 @@ function updateCatalogueFilterSummary(kind) {
 function initializeCatalogueFilters() {
   for (const kind of Object.keys(catalogueFilterConfigs))
     renderCatalogueFilter(kind);
-  $$('[data-catalog-filter-action]').forEach((button) => {
+  $$("[data-catalog-filter-action]").forEach((button) => {
     const config = catalogueFilterConfigs[button.dataset.catalogFilterKind];
     button.disabled = !config.values.length;
     button.onclick = () => {
@@ -774,7 +775,7 @@ function renderSearchResults(items) {
     button.className = `search-result${index === 0 ? " active" : ""}`;
     button.type = "button";
     const name = document.createElement("strong");
-    name.textContent = object.name || object.id;
+    name.textContent = object.displayName || deepSkyObjectLabel(object);
     const type = document.createElement("span");
     type.textContent = object.objectType || object.type || "Sky object";
     button.append(name, type);
@@ -1028,8 +1029,7 @@ function initialize() {
   });
   if (globalThis.CELESTIA_ATLAS_ENABLE_TEST_HOOKS === true) {
     globalThis.__CELESTIA_ATLAS_VIEWER__ = viewer;
-    globalThis.__CELESTIA_ATLAS_SKY_SURVEY_SOURCE__ =
-      configuredSkySurveySource;
+    globalThis.__CELESTIA_ATLAS_SKY_SURVEY_SOURCE__ = configuredSkySurveySource;
   }
   viewer.setView(currentView);
   initializeCatalogueFilters();
