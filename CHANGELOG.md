@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Rendered photographic surveys at display-aware resolution and selected their
+  HiPS detail order from that same resolution. Complete visible tile sets now
+  fill one sharp viewport atomically, with increased parallel loading for
+  local-plugin, web, Android and iOS use.
 - Kept the last sharp photographic-survey raster as an atomic front buffer
   during clicks, drags, pinches and periodic host view updates. Interaction no
   longer replaces settled imagery with a 64/128-pixel preview; full-resolution

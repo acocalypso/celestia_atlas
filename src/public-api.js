@@ -292,7 +292,10 @@ export function createCelestiaAtlasViewer(options) {
     failedTiles: 0,
     lastError: null,
   };
-  const skySurveyLoadConcurrency = coarsePointer ? 2 : 4;
+  // Browsers already schedule requests per origin. Keep enough independent
+  // fetch/decode work in flight to fill a complete HiPS viewport promptly,
+  // especially when the tiles come from the local NINA plugin.
+  const skySurveyLoadConcurrency = coarsePointer ? 4 : 8;
   let skySurveyPersistentTrim = Promise.resolve();
   let skySurveyPersistentTrimTimer = null;
   const loadedSkySurveyResourceCount = () =>
@@ -1112,10 +1115,12 @@ export function createCelestiaAtlasViewer(options) {
     );
   };
   const skySurveyOutputWidth = (width, height, dpr) => {
-    const interactive = performance.now() < lowQualityUntil;
-    const baseWidth = rasterOutputWidth(width, dpr);
-    if (interactive) return Math.min(baseWidth, coarsePointer ? 64 : 128);
-    const maxPixels = coarsePointer ? 240000 : 450000;
+    // A survey raster is a retained front buffer, so unlike the landscape it
+    // is not regenerated on every interaction frame. Render it at the canvas'
+    // device resolution instead of stretching a small CPU raster over the
+    // viewport. The area guard only affects unusually large displays.
+    const baseWidth = Math.max(1, Math.ceil(width * dpr));
+    const maxPixels = coarsePointer ? 1_500_000 : 4_000_000;
     return Math.max(
       1,
       Math.min(
@@ -1397,12 +1402,11 @@ export function createCelestiaAtlasViewer(options) {
     }
 
     const outputWidth = skySurveyOutputWidth(width, height, dpr);
-    const selectionWidth = landscapeRasterWidth(
-      width,
-      dpr,
-      false,
-      coarsePointer,
-    );
+    // Select the HiPS level for the pixels that will actually be presented.
+    // Using the landscape's 768/1024 px ceiling selected a coarse survey order
+    // on larger and high-density screens even when the raster itself was
+    // capable of displaying more detail.
+    const selectionWidth = outputWidth;
     let preferredOrder = selectSkySurveyOrder(
       skySurvey,
       view.fovDeg,
@@ -1790,7 +1794,7 @@ export function createCelestiaAtlasViewer(options) {
             skySurveyRasterJob = job;
             void rasterizeSkySurveyAsync({
               ...rasterOptions,
-              rowsPerChunk: coarsePointer ? 6 : 8,
+              rowsPerChunk: coarsePointer ? 16 : 24,
               isCancelled: () =>
                 job.cancelled ||
                 destroyed ||
@@ -1859,9 +1863,8 @@ export function createCelestiaAtlasViewer(options) {
               });
           }
         }
-        // The interaction pass already produced a low-resolution raster for
-        // this exact view. Keep it visible while the higher-resolution pass
-        // yields between chunks instead of flashing back to the plain sky.
+        // Keep the last complete viewport visible while the next
+        // display-resolution projection yields between chunks.
         if (
           retainedRasterCompatible &&
           presentSkySurveyRaster(

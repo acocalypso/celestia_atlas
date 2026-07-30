@@ -138,8 +138,17 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(publicApi, /\(coarsePointer \? 64 : 128\) \* 1024 \* 1024/);
   assert.match(
     publicApi,
-    /const skySurveyLoadConcurrency = coarsePointer \? 2 : 4/,
+    /const skySurveyLoadConcurrency = coarsePointer \? 4 : 8/,
   );
+  assert.match(
+    publicApi,
+    /const baseWidth = Math\.max\(1, Math\.ceil\(width \* dpr\)\)/,
+  );
+  assert.match(
+    publicApi,
+    /const maxPixels = coarsePointer \? 1_500_000 : 4_000_000/,
+  );
+  assert.match(publicApi, /const selectionWidth = outputWidth/);
   assert.match(
     publicApi,
     /SKY_SURVEY_PERSISTENT_CACHE = "celestia-atlas-survey-v1"/,
