@@ -25,6 +25,7 @@ import {
 } from "./core/reference-lines.js";
 import {
   landscapeRasterWidth,
+  horizontalToHealpixPixel,
   rasterizeHealpixLandscape,
   rasterizeMilkyWayPanorama,
 } from "./core/landscape.js";
@@ -195,7 +196,15 @@ export function createCelestiaAtlasViewer(options) {
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Canvas 2D rendering is unavailable");
   const landscapeCanvas = document.createElement("canvas");
-  const landscapeContext = landscapeCanvas.getContext("2d");
+  let landscapeWebglRenderer = null;
+  try {
+    landscapeWebglRenderer = createSkySurveyWebglRenderer(landscapeCanvas);
+  } catch {
+    // The CPU landscape raster remains available in restricted WebViews.
+  }
+  const landscapeContext = landscapeWebglRenderer
+    ? null
+    : landscapeCanvas.getContext("2d");
   const milkyWayCanvas = document.createElement("canvas");
   const milkyWayContext = milkyWayCanvas.getContext("2d");
   const skySurveyCanvas = document.createElement("canvas");
@@ -1199,7 +1208,52 @@ export function createCelestiaAtlasViewer(options) {
       : view;
   };
   const drawLandscape = (width, height, projectionView, landscapeTime, dpr) => {
-    if (!display.horizon || !landscape?.tiles || !landscapeContext) return;
+    if (
+      !display.horizon ||
+      !landscape?.tiles ||
+      (!landscapeContext && !landscapeWebglRenderer)
+    )
+      return false;
+    if (landscapeWebglRenderer) {
+      const outputWidth = skySurveyOutputWidth(width, height, dpr);
+      const tiles = new Map(
+        landscape.tiles.map((tile, face) => [skySurveyTileKey(0, face), tile]),
+      );
+      const result = landscapeWebglRenderer.render({
+        survey: landscape.gpuSurvey,
+        targetOrder: 0,
+        tileIndices: Array.from({ length: 12 }, (_, face) => face),
+        tiles,
+        minimumOrder: 0,
+        view: projectionView,
+        width,
+        height,
+        outputWidth,
+        tileOutputFrame: "ICRS",
+        mapCoordinates: (coordinates) =>
+          horizontalToEquatorial(
+            {
+              azimuthDeg: (360 - coordinates.raDeg) % 360,
+              altitudeDeg: coordinates.decDeg,
+            },
+            observer,
+            landscapeTime,
+            projectionView.center.frame,
+          ),
+      });
+      if (!result.drawn) return false;
+      context.save();
+      context.globalAlpha = 1;
+      context.filter = display.nightMode
+        ? "brightness(.34) sepia(1) saturate(5) hue-rotate(315deg)"
+        : "none";
+      context.imageSmoothingEnabled = true;
+      context.drawImage(landscapeCanvas, 0, 0, width, height);
+      context.restore();
+      canvas.dataset.landscapeRenderer = "webgl";
+      canvas.dataset.landscapeRasterWidth = String(outputWidth);
+      return true;
+    }
     const outputWidth = rasterOutputWidth(width, dpr);
     const rasterKey = [
       width,
@@ -1236,10 +1290,16 @@ export function createCelestiaAtlasViewer(options) {
       landscapeUploadKey = landscapeRasterCache.key;
     }
     context.save();
-    context.globalAlpha = display.nightMode ? 0.32 : 0.82;
+    context.globalAlpha = 1;
+    context.filter = display.nightMode
+      ? "brightness(.34) sepia(1) saturate(5) hue-rotate(315deg)"
+      : "none";
     context.imageSmoothingEnabled = true;
     context.drawImage(landscapeCanvas, 0, 0, width, height);
     context.restore();
+    canvas.dataset.landscapeRenderer = "cpu";
+    canvas.dataset.landscapeRasterWidth = String(outputWidth);
+    return true;
   };
   const drawMilkyWayPanorama = (
     width,
@@ -2124,7 +2184,19 @@ export function createCelestiaAtlasViewer(options) {
       ),
     );
     if (destroyed || token !== landscapeLoadToken) return;
-    landscape = { source: structuredClone(source), tiles };
+    landscape = {
+      source: structuredClone(source),
+      tiles,
+      gpuSurvey: {
+        key: `landscape:${source.key}`,
+        url: baseUrl,
+        frame: "ICRS",
+        minOrder: 0,
+        maxOrder: 0,
+        tileWidth: tiles[0].width,
+        format: tileFormat.replace("jpeg", "jpg"),
+      },
+    };
     landscapeRasterCache = { key: "", raster: null };
     landscapeUploadKey = "";
     invalidate();
@@ -2146,17 +2218,28 @@ export function createCelestiaAtlasViewer(options) {
     const referenceUtcMs = currentUtcMs();
     const projectionView = horizontalProjectionView(referenceUtcMs);
     const isAboveHorizon = (coordinates) => {
-      if (!display.hideBelowHorizon) return true;
-      return isHorizontalVisible(
-        equatorialToHorizontal(
-          {
-            ...coordinates,
-            frame: coordinates.frame || view.center.frame,
-          },
-          observer,
-          referenceUtcMs,
-        ),
+      const horizontal = equatorialToHorizontal(
+        {
+          ...coordinates,
+          frame: coordinates.frame || view.center.frame,
+        },
+        observer,
+        referenceUtcMs,
       );
+      if (!isHorizontalVisible(horizontal)) return false;
+      if (!display.horizon || !landscape?.tiles?.length) return true;
+      const tileWidth = landscape.tiles[0].width;
+      const source = horizontalToHealpixPixel(
+        horizontal.azimuthDeg,
+        horizontal.altitudeDeg,
+        tileWidth,
+      );
+      const tile = landscape.tiles[source.face];
+      const alpha =
+        tile.data[
+          (Math.floor(source.y) * tileWidth + Math.floor(source.x)) * 4 + 3
+        ];
+      return alpha < 128;
     };
     const project = (coordinates) =>
       projectEquatorial(coordinates, projectionView, width, height);
@@ -2239,7 +2322,6 @@ export function createCelestiaAtlasViewer(options) {
       context.restore();
     }
     drawSkySurvey(width, height, projectionView, referenceUtcMs, dpr);
-    drawLandscape(width, height, projectionView, referenceUtcMs, dpr);
     if (display.atmosphere) {
       context.save();
       context.strokeStyle = display.nightMode
@@ -2609,6 +2691,10 @@ export function createCelestiaAtlasViewer(options) {
         }
       }
     }
+    // Terrain is a foreground occluder. Painting it after every celestial
+    // layer prevents stars, DSO footprints and labels from showing through
+    // opaque landscape pixels.
+    drawLandscape(width, height, projectionView, referenceUtcMs, dpr);
     if (display.cardinals && display.labels) {
       context.save();
       context.font = "600 11px system-ui";
@@ -3386,6 +3472,8 @@ export function createCelestiaAtlasViewer(options) {
       cancelSkySurveyRasterJob();
       skySurveyWebglRenderer?.destroy();
       skySurveyWebglRenderer = null;
+      landscapeWebglRenderer?.destroy();
+      landscapeWebglRenderer = null;
       skySurveyQueue = [];
       skySurveyPending.clear();
       clearSkySurveyTiles();

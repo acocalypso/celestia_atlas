@@ -175,11 +175,15 @@ test("standalone shell boots the shared public viewer", async () => {
   const landscapeDraw = publicApi.indexOf(
     "    drawLandscape(width, height, projectionView, referenceUtcMs, dpr);",
   );
-  const horizontalGridDraw = publicApi.indexOf(
-    "    if (display.azimuthalGrid)",
+  const cometDraw = publicApi.indexOf("    if (display.comets)");
+  const cardinalDraw = publicApi.indexOf(
+    "    if (display.cardinals && display.labels)",
   );
   assert.ok(landscapeDraw > 0);
-  assert.ok(landscapeDraw < horizontalGridDraw);
+  assert.ok(landscapeDraw > cometDraw);
+  assert.ok(landscapeDraw < cardinalDraw);
+  assert.match(publicApi, /canvas\.dataset\.landscapeRenderer = "webgl"/);
+  assert.match(publicApi, /context\.globalAlpha = 1/);
   const surveyDraw = publicApi.indexOf(
     "    drawSkySurvey(width, height, projectionView, referenceUtcMs, dpr);",
   );

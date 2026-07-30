@@ -6,6 +6,7 @@ import {
   horizonAltitudeAtAzimuth,
   horizontalToEquatorial,
   horizontalToHealpixPixel,
+  hipsTilePointToEquatorial,
   landscapeRasterWidth,
   rasterizeHealpixLandscape,
   transformEquatorialVectorFrame,
@@ -134,7 +135,7 @@ function equatorialCoordinatesToVector({ raDeg, decDeg }) {
 
 function vectorToEquatorialCoordinates({ x, y, z }, frame) {
   return {
-    raDeg: ((Math.atan2(y, x) * RAD) % 360 + 360) % 360,
+    raDeg: (((Math.atan2(y, x) * RAD) % 360) + 360) % 360,
     decDeg: Math.atan2(z, Math.hypot(x, y)) * RAD,
     frame,
   };
@@ -444,6 +445,40 @@ test("maps the local sphere across all twelve order-0 HEALPix faces", () => {
     x: 81,
     y: 243,
   });
+});
+
+test("maps landscape image pixels back to local directions for GPU meshes", () => {
+  const tileWidth = 512;
+  const survey = {
+    key: "landscape",
+    url: "/landscape",
+    frame: "ICRS",
+    minOrder: 0,
+    maxOrder: 0,
+    tileWidth,
+    format: "webp",
+  };
+  for (const [azimuthDeg, altitudeDeg] of [
+    [0, 0],
+    [90, 20],
+    [225, -15],
+    [350, 70],
+  ]) {
+    const source = horizontalToHealpixPixel(azimuthDeg, altitudeDeg, tileWidth);
+    const spherical = hipsTilePointToEquatorial(
+      survey,
+      0,
+      source.face,
+      (source.x + 0.5) / tileWidth,
+      (source.y + 0.5) / tileWidth,
+    );
+    const recoveredAzimuth = (360 - spherical.raDeg) % 360;
+    const azimuthError = Math.abs(
+      ((recoveredAzimuth - azimuthDeg + 540) % 360) - 180,
+    );
+    assert.ok(azimuthError < 0.2);
+    assert.ok(Math.abs(spherical.decDeg - altitudeDeg) < 0.2);
+  }
 });
 
 test("keeps swapped HiPS axes when bilinear-sampling polar faces", () => {

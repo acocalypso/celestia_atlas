@@ -198,6 +198,8 @@ export function createSkySurveyWebglRenderer(canvas) {
     width,
     height,
     outputWidth,
+    tileOutputFrame = view.center.frame,
+    mapCoordinates = (coordinates) => coordinates,
     isCoordinateVisible = () => true,
   }) => {
     if (contextLost || !width || !height || !tileIndices.length)
@@ -245,13 +247,15 @@ export function createSkySurveyWebglRenderer(canvas) {
         const v = row / subdivisions;
         for (let column = 0; column <= subdivisions; column += 1) {
           const u = column / subdivisions;
-          const coordinates = hipsTilePointToEquatorial(
-            survey,
-            targetOrder,
-            tileIndex,
-            u,
-            v,
-            view.center.frame,
+          const coordinates = mapCoordinates(
+            hipsTilePointToEquatorial(
+              survey,
+              targetOrder,
+              tileIndex,
+              u,
+              v,
+              tileOutputFrame,
+            ),
           );
           const projected = isCoordinateVisible(coordinates)
             ? projectEquatorial(coordinates, view, width, height)

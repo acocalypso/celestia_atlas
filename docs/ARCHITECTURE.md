@@ -24,7 +24,7 @@ Local catalogues + optional image HiPS
 | `src/core/projection.js`          | Camera projection and orientation                           |
 | `src/core/solar-system.js`        | Sun, Moon, planets, Pluto, and Galilean moons               |
 | `src/core/comets.js`              | Comet positions from pinned elements                        |
-| `src/core/landscape.js`           | Milky Way and HEALPix landscape rasterization               |
+| `src/core/landscape.js`           | Milky Way rasterization and local HEALPix mapping           |
 | `src/core/sky-survey.js`          | HiPS mapping, tile discovery, and CPU fallback reprojection |
 | `src/core/sky-survey-webgl.js`    | Progressive GPU HiPS tile compositor                        |
 | `src/core/catalog-identifiers.js` | Ranked normalized search                                    |
@@ -44,6 +44,13 @@ A frame combines:
 7. Solar System objects and comets
 8. Horizon and landscape
 9. Labels, selections, and imaging overlays
+
+The landscape is a foreground occluder rather than a translucent sky layer.
+Its twelve order-0 HEALPix tiles use the same curved WebGL mesh compositor as
+the photographic survey and render at device resolution during interaction.
+Opaque terrain is painted after celestial grids, stars, DSO footprints, labels,
+planets, and comets; controls, cardinal labels, mount state, and camera framing
+remain visible above it. WebGL-unavailable hosts retain the CPU fallback.
 
 ## Catalogue model
 

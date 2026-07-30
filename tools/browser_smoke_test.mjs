@@ -304,6 +304,40 @@ async function waitForSkySurvey(
   }
 }
 
+async function waitForGpuLandscape(client) {
+  await client.send("Runtime.evaluate", {
+    expression: `(() => {
+      const switchElement = document.querySelector('#horizonSwitch');
+      if (switchElement && !switchElement.checked) switchElement.click();
+    })()`,
+  });
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const result = await client.send("Runtime.evaluate", {
+      expression: `(() => {
+        const canvas = document.querySelector('.celestia-atlas-canvas');
+        return {
+          renderer: canvas?.dataset.landscapeRenderer,
+          rasterWidth: Number(canvas?.dataset.landscapeRasterWidth || 0),
+          displayWidth: canvas?.clientWidth || 0,
+        };
+      })()`,
+      returnByValue: true,
+    });
+    const state = result.result?.value;
+    if (
+      state?.renderer === "webgl" &&
+      state.rasterWidth >= state.displayWidth &&
+      state.displayWidth > 0
+    )
+      return state;
+    if (attempt === 99)
+      throw new Error(
+        `Landscape did not activate its full-resolution GPU renderer: ${JSON.stringify(state)}`,
+      );
+    await delay(100);
+  }
+}
+
 async function startSkySurveyContinuityProbe(client) {
   const result = await client.send("Runtime.evaluate", {
     expression: `(() => {
@@ -695,6 +729,8 @@ async function run() {
 
     await waitForAtlas(client);
     trace("Atlas ready");
+    await waitForGpuLandscape(client);
+    trace("GPU landscape ready");
 
     const interaction = await client.send("Runtime.evaluate", {
       expression: `(() => {
