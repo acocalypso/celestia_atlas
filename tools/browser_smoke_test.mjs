@@ -269,6 +269,7 @@ async function waitForSkySurvey(
           targetOrder: Number(canvas?.dataset.skySurveyTargetOrder),
           rasterUsedOrders: canvas?.dataset.skySurveyRasterUsedOrders,
           rasterMissingTiles: canvas?.dataset.skySurveyRasterMissingTiles,
+          rasterWidth: Number(canvas?.dataset.skySurveyRasterWidth || 0),
           creditVisible: Boolean(credit && !credit.hidden && getComputedStyle(credit).display !== 'none'),
           creditText: credit?.textContent?.trim(),
           online: navigator.onLine,
@@ -314,12 +315,17 @@ async function startSkySurveyContinuityProbe(client) {
         samples: 0,
         inactiveSamples: [],
         minimumLoadedTiles: Infinity,
+        initialRasterWidth: Number(canvas.dataset.skySurveyRasterWidth || 0),
+        minimumRasterWidth: Infinity,
       };
       const sample = reason => {
         const loadedTiles = Number(canvas.dataset.skySurveyLoadedTiles || 0);
         state.samples += 1;
         if (Number.isFinite(loadedTiles))
           state.minimumLoadedTiles = Math.min(state.minimumLoadedTiles, loadedTiles);
+        const rasterWidth = Number(canvas.dataset.skySurveyRasterWidth || 0);
+        if (rasterWidth > 0)
+          state.minimumRasterWidth = Math.min(state.minimumRasterWidth, rasterWidth);
         if (
           canvas.dataset.skySurveyActive !== 'true' &&
           state.inactiveSamples.length < 20
@@ -331,6 +337,7 @@ async function startSkySurveyContinuityProbe(client) {
             order: canvas.dataset.skySurveyOrder || null,
             targetOrder: canvas.dataset.skySurveyTargetOrder || null,
             missingTiles: canvas.dataset.skySurveyRasterMissingTiles || null,
+            rasterWidth,
           });
       };
       const observer = new MutationObserver(() => sample('mutation'));
@@ -342,6 +349,7 @@ async function startSkySurveyContinuityProbe(client) {
           'data-sky-survey-order',
           'data-sky-survey-target-order',
           'data-sky-survey-raster-missing-tiles',
+          'data-sky-survey-raster-width',
         ],
       });
       const timer = setInterval(() => sample('timer'), 16);
@@ -380,6 +388,9 @@ async function stopSkySurveyContinuityProbe(client) {
         minimumLoadedTiles: Number.isFinite(probe.state.minimumLoadedTiles)
           ? probe.state.minimumLoadedTiles
           : null,
+        minimumRasterWidth: Number.isFinite(probe.state.minimumRasterWidth)
+          ? probe.state.minimumRasterWidth
+          : null,
         resources,
       };
       delete globalThis.__CELESTIA_ATLAS_SURVEY_PROBE__;
@@ -395,6 +406,8 @@ function assertSkySurveyContinuity(state, label, { warm = false } = {}) {
     !state ||
     state.samples < 1 ||
     state.minimumLoadedTiles < 1 ||
+    state.initialRasterWidth < 1 ||
+    state.minimumRasterWidth < state.initialRasterWidth ||
     state.inactiveSamples.length > 0 ||
     (warm && state.resources.length > 0)
   )
@@ -802,7 +815,12 @@ async function run() {
       await startSkySurveyContinuityProbe(client);
       await client.send("Runtime.evaluate", {
         expression: `globalThis.__CELESTIA_ATLAS_ROTATION_PROBE_TIMER__ = setInterval(
-          () => globalThis.__CELESTIA_ATLAS_VIEWER__?.setFieldOfView(null),
+          () => {
+            const viewer = globalThis.__CELESTIA_ATLAS_VIEWER__;
+            if (!viewer) return;
+            viewer.setView(viewer.getView());
+            viewer.setFieldOfView(null);
+          },
           100
         )`,
       });
@@ -815,7 +833,7 @@ async function run() {
         await stopSkySurveyContinuityProbe(client);
       assertSkySurveyContinuity(
         rotationSurveyContinuity,
-        "Settled horizontal rotation",
+        "Periodic settled view updates",
       );
       trace(
         `settled rotation survey continuity verified: ${JSON.stringify(rotationSurveyContinuity)}`,

@@ -133,10 +133,8 @@ test("standalone shell boots the shared public viewer", async () => {
     /\(projectionView\.rotationDeg \?\? 0\)\.toFixed\(1\),\s*Boolean\(projectionView\.mirrorX\),\s*coordinateMode/,
   );
   assert.match(publicApi, /rasterizeSkySurveyAsync/);
-  assert.match(
-    publicApi,
-    /if \(interactive\) return Math\.min\(baseWidth, coarsePointer \? 64 : 128\)/,
-  );
+  assert.match(publicApi, /if \(interactive\) \{[\s\S]*presentRetainedSkySurveyRaster/);
+  assert.match(publicApi, /canvas\.dataset\.skySurveyRasterWidth/);
   assert.match(publicApi, /\(coarsePointer \? 64 : 128\) \* 1024 \* 1024/);
   assert.match(
     publicApi,
@@ -237,6 +235,15 @@ test("mobile renderer keeps expensive work inside bounded frame contracts", asyn
   );
   assert.match(publicApi, /includePreview: includeRegularPreview/);
   assert.match(publicApi, /presentSkySurveyRaster\(/);
+  assert.match(publicApi, /presentRetainedSkySurveyRaster\(/);
+  assert.match(
+    publicApi,
+    /if \(completed\.moved\) scheduleQualityRefinement\(\)/,
+  );
+  assert.match(
+    publicApi,
+    /projectionView: structuredClone\(projectionView\)/,
+  );
   assert.match(publicApi, /projectionView\.fovDeg \* 1\.3/);
   assert.match(publicApi, /sampleStep: 8/);
   assert.match(publicApi, /const visibleOrderComplete =/);

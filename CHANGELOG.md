@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Kept the last sharp photographic-survey raster as an atomic front buffer
+  during clicks, drags, pinches and periodic host view updates. Interaction no
+  longer replaces settled imagery with a 64/128-pixel preview; full-resolution
+  reprojections are swapped in only after completion, preventing recurring
+  clear-to-blurry flicker on desktop and mobile.
 - Completed the 110-entry Messier catalogue with an explicitly sourced M40
   point marker and the documented NASA M102/NGC 5866 convention. Messier
   membership is now independently filterable, while map and selection labels

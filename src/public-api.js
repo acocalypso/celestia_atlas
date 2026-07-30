@@ -255,6 +255,9 @@ export function createCelestiaAtlasViewer(options) {
     rotationDeg: null,
     renderKey: "",
     raster: null,
+    projectionView: null,
+    displayWidth: 0,
+    displayHeight: 0,
   };
   let skySurveyUploadKey = "";
   let skySurveyRasterJob = null;
@@ -669,6 +672,9 @@ export function createCelestiaAtlasViewer(options) {
       rotationDeg: null,
       renderKey: "",
       raster: null,
+      projectionView: null,
+      displayWidth: 0,
+      displayHeight: 0,
     };
     skySurveyUploadKey = "";
   };
@@ -1308,6 +1314,88 @@ export function createCelestiaAtlasViewer(options) {
       return false;
     }
 
+    const interactive = performance.now() < lowQualityUntil;
+    const presentRetainedSkySurveyRaster = () => {
+      const raster = skySurveyRasterCache.raster;
+      const retainedView = skySurveyRasterCache.projectionView;
+      const retainedWidth = skySurveyRasterCache.displayWidth;
+      const retainedHeight = skySurveyRasterCache.displayHeight;
+      if (
+        !raster?.usedOrders.length ||
+        !retainedView ||
+        !Number.isFinite(retainedWidth) ||
+        retainedWidth <= 0 ||
+        !Number.isFinite(retainedHeight) ||
+        retainedHeight <= 0
+      )
+        return false;
+      if (skySurveyUploadKey !== skySurveyRasterCache.renderKey) {
+        uploadRaster(skySurveyCanvas, skySurveyContext, raster);
+        skySurveyUploadKey = skySurveyRasterCache.renderKey;
+      }
+      const retainedCenter = projectEquatorial(
+        retainedView.center,
+        projectionView,
+        width,
+        height,
+      );
+      if (!retainedCenter) return false;
+      const retainedFocal =
+        retainedWidth /
+        (2 * Math.tan((retainedView.fovDeg * Math.PI) / 360));
+      const currentFocal =
+        width / (2 * Math.tan((projectionView.fovDeg * Math.PI) / 360));
+      const scale = currentFocal / retainedFocal;
+      const rotationDeltaDeg =
+        (projectionView.rotationDeg ?? 0) -
+        (retainedView.rotationDeg ?? 0);
+      const mirrorScale =
+        Boolean(projectionView.mirrorX) === Boolean(retainedView.mirrorX)
+          ? 1
+          : -1;
+      context.save();
+      context.globalAlpha = opacity;
+      context.imageSmoothingEnabled = false;
+      context.translate(retainedCenter.x, retainedCenter.y);
+      context.rotate((-rotationDeltaDeg * Math.PI) / 180);
+      context.scale(scale * mirrorScale, scale);
+      context.drawImage(
+        skySurveyCanvas,
+        -retainedWidth / 2,
+        -retainedHeight / 2,
+        retainedWidth,
+        retainedHeight,
+      );
+      context.restore();
+      const renderedOrder = Math.max(...raster.usedOrders);
+      skySurveyRuntime = {
+        ...skySurveyRuntime,
+        active: true,
+        opacity,
+        renderedOrder,
+        loadedTiles: loadedSkySurveyResourceCount(),
+        pendingTiles: skySurveyPending.size,
+        failedTiles: skySurveyFailures.size,
+      };
+      canvas.dataset.skySurveyActive = "true";
+      canvas.dataset.skySurveyOrder = String(renderedOrder);
+      canvas.dataset.skySurveyRasterWidth = String(raster.width);
+      canvas.dataset.skySurveyLoadedTiles = String(
+        loadedSkySurveyResourceCount(),
+      );
+      updateSurveyCredit(true);
+      return true;
+    };
+    if (interactive) {
+      // Keep the last full-resolution front buffer during clicks, drags,
+      // pinches and periodic view updates. Replacing it with a tiny
+      // interaction raster made the survey visibly pulse between sharp and
+      // blurry on both desktop and mobile.
+      cancelSkySurveyRasterJob();
+      if (presentRetainedSkySurveyRaster()) return true;
+      return false;
+    }
+
     const outputWidth = skySurveyOutputWidth(width, height, dpr);
     const selectionWidth = landscapeRasterWidth(
       width,
@@ -1325,7 +1413,6 @@ export function createCelestiaAtlasViewer(options) {
         preferredOrder,
         Math.max(skySurvey.minOrder, 6),
       );
-    const interactive = performance.now() < lowQualityUntil;
     const offline =
       navigator.onLine === false && !locallyReachableSurveyUrl(skySurvey.url);
     const visiblePlanKey = [
@@ -1669,6 +1756,7 @@ export function createCelestiaAtlasViewer(options) {
       };
       canvas.dataset.skySurveyActive = "true";
       canvas.dataset.skySurveyOrder = String(renderedOrder);
+      canvas.dataset.skySurveyRasterWidth = String(raster.width);
       canvas.dataset.skySurveyTargetOrder = String(targetOrder);
       canvas.dataset.skySurveyLoadedTiles = String(
         loadedSkySurveyResourceCount(),
@@ -1755,6 +1843,9 @@ export function createCelestiaAtlasViewer(options) {
                   rotationDeg: rasterRotationDeg,
                   renderKey: rasterKey,
                   raster,
+                  projectionView: structuredClone(projectionView),
+                  displayWidth: width,
+                  displayHeight: height,
                 };
                 skySurveyRasterJob = null;
                 invalidate();
@@ -1779,6 +1870,7 @@ export function createCelestiaAtlasViewer(options) {
           )
         )
           return true;
+        if (presentRetainedSkySurveyRaster()) return true;
         skySurveyRuntime = {
           ...skySurveyRuntime,
           active: false,
@@ -1827,6 +1919,9 @@ export function createCelestiaAtlasViewer(options) {
         rotationDeg: rasterRotationDeg,
         renderKey: rasterKey,
         raster,
+        projectionView: structuredClone(projectionView),
+        displayWidth: width,
+        displayHeight: height,
       };
     }
     const raster = skySurveyRasterCache.raster;
@@ -2714,7 +2809,7 @@ export function createCelestiaAtlasViewer(options) {
         invalidate();
       }
     }
-    scheduleQualityRefinement();
+    if (completed.moved) scheduleQualityRefinement();
     invalidate();
   };
   const wheel = (event) => {
