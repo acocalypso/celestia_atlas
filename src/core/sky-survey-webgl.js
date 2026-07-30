@@ -130,19 +130,35 @@ export function createSkySurveyWebglRenderer(canvas) {
   });
   if (!gl) return null;
 
-  const program = createProgram(gl);
-  const buffer = gl.createBuffer();
-  const positionLocation = gl.getAttribLocation(program, "a_position");
-  const textureLocation = gl.getAttribLocation(program, "a_texture");
+  let program;
+  let buffer;
+  let positionLocation;
+  let textureLocation;
   const textures = new Map();
   let contextLost = false;
+  let disposed = false;
+  const initializeResources = () => {
+    program = createProgram(gl);
+    buffer = gl.createBuffer();
+    positionLocation = gl.getAttribLocation(program, "a_position");
+    textureLocation = gl.getAttribLocation(program, "a_texture");
+  };
+  initializeResources();
   canvas.addEventListener("webglcontextlost", (event) => {
     event.preventDefault();
     contextLost = true;
     textures.clear();
+    program = null;
+    buffer = null;
   });
   canvas.addEventListener("webglcontextrestored", () => {
-    contextLost = false;
+    if (disposed) return;
+    try {
+      initializeResources();
+      contextLost = false;
+    } catch {
+      contextLost = true;
+    }
   });
 
   const textureFor = (key, tile) => {
@@ -305,10 +321,13 @@ export function createSkySurveyWebglRenderer(canvas) {
   };
 
   const destroy = () => {
+    disposed = true;
     for (const entry of textures.values()) gl.deleteTexture(entry.texture);
     textures.clear();
-    gl.deleteBuffer(buffer);
-    gl.deleteProgram(program);
+    if (buffer) gl.deleteBuffer(buffer);
+    if (program) gl.deleteProgram(program);
+    buffer = null;
+    program = null;
   };
   return { render, destroy };
 }
