@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   discoverVisibleSkySurveyTiles,
   equatorialToHipsTile,
+  hipsTilePointToEquatorial,
   fitSkySurveyOrderToTileBudget,
   rasterizeSkySurvey,
   rasterizeSkySurveyAsync,
@@ -428,6 +429,27 @@ test("maps equivalent ICRS and J2000 directions to identical survey pixels", () 
     assert.equal(left.tileIndex, right.tileIndex);
     assert.ok(Math.abs(left.pixelX - right.pixelX) < 1e-7);
     assert.ok(Math.abs(left.pixelY - right.pixelY) < 1e-7);
+  }
+});
+
+test("round trips HiPS image points for curved GPU tile meshes", () => {
+  const survey = fixtureSurvey({ tileWidth: 512 });
+  for (const coordinates of [
+    { raDeg: 310.3579, decDeg: 45.2803, frame: "ICRS" },
+    { raDeg: 83.822, decDeg: -5.391, frame: "ICRS" },
+    { raDeg: 10, decDeg: 89, frame: "ICRS" },
+    { raDeg: 195, decDeg: -82, frame: "ICRS" },
+  ]) {
+    const mapped = equatorialToHipsTile(coordinates, survey, 5);
+    const roundTrip = hipsTilePointToEquatorial(
+      survey,
+      5,
+      mapped.tileIndex,
+      (mapped.pixelX + 0.5) / survey.tileWidth,
+      (mapped.pixelY + 0.5) / survey.tileWidth,
+    );
+    assert.ok(Math.abs(roundTrip.raDeg - coordinates.raDeg) < 1e-8);
+    assert.ok(Math.abs(roundTrip.decDeg - coordinates.decDeg) < 1e-8);
   }
 });
 

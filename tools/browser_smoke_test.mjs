@@ -264,6 +264,7 @@ async function waitForSkySurvey(
         const credit = document.querySelector('.celestia-atlas-survey-credit');
         return {
           active: canvas?.dataset.skySurveyActive === 'true',
+          renderer: canvas?.dataset.skySurveyRenderer,
           loadedTiles: Number(canvas?.dataset.skySurveyLoadedTiles || 0),
           order: Number(canvas?.dataset.skySurveyOrder),
           targetOrder: Number(canvas?.dataset.skySurveyTargetOrder),
@@ -774,6 +775,10 @@ async function run() {
       );
 
     const initialSurveyState = await waitForSkySurvey(client);
+    if (initialSurveyState.renderer !== "webgl")
+      throw new Error(
+        `Chromium did not activate the progressive WebGL survey renderer: ${JSON.stringify(initialSurveyState)}`,
+      );
     if (
       liveSurvey &&
       !/Digitized Sky Survey.*STScI\/NASA.*CDS/.test(

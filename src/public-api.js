@@ -40,6 +40,7 @@ import {
   skySurveyTileUrl,
   validateSkySurveyConfig,
 } from "./core/sky-survey.js";
+import { createSkySurveyWebglRenderer } from "./core/sky-survey-webgl.js";
 import {
   classifyDeepSkyObject,
   deepSkyCatalogueGroupKeys,
@@ -198,7 +199,16 @@ export function createCelestiaAtlasViewer(options) {
   const milkyWayCanvas = document.createElement("canvas");
   const milkyWayContext = milkyWayCanvas.getContext("2d");
   const skySurveyCanvas = document.createElement("canvas");
-  const skySurveyContext = skySurveyCanvas.getContext("2d");
+  let skySurveyWebglRenderer = null;
+  try {
+    skySurveyWebglRenderer = createSkySurveyWebglRenderer(skySurveyCanvas);
+  } catch {
+    // WebGL is an optimization. Restricted WebViews retain the established
+    // asynchronous 2D raster path instead of losing the survey completely.
+  }
+  const skySurveyContext = skySurveyWebglRenderer
+    ? null
+    : skySurveyCanvas.getContext("2d");
   const surveyCredit = document.createElement("a");
   surveyCredit.className = "celestia-atlas-survey-credit";
   surveyCredit.target = "_blank";
@@ -1299,7 +1309,7 @@ export function createCelestiaAtlasViewer(options) {
             skySurvey.blendFullFovDeg,
           )
         : 0;
-    if (!opacity || !skySurveyContext) {
+    if (!opacity || (!skySurveyContext && !skySurveyWebglRenderer)) {
       cancelSkySurveyRasterJob();
       queueSkySurveyTiles([]);
       skySurveyRuntime = {
@@ -1315,6 +1325,7 @@ export function createCelestiaAtlasViewer(options) {
       canvas.dataset.skySurveyActive = "false";
       delete canvas.dataset.skySurveyOrder;
       delete canvas.dataset.skySurveyTargetOrder;
+      delete canvas.dataset.skySurveyRenderer;
       updateSurveyCredit(false);
       return false;
     }
@@ -1346,14 +1357,12 @@ export function createCelestiaAtlasViewer(options) {
       );
       if (!retainedCenter) return false;
       const retainedFocal =
-        retainedWidth /
-        (2 * Math.tan((retainedView.fovDeg * Math.PI) / 360));
+        retainedWidth / (2 * Math.tan((retainedView.fovDeg * Math.PI) / 360));
       const currentFocal =
         width / (2 * Math.tan((projectionView.fovDeg * Math.PI) / 360));
       const scale = currentFocal / retainedFocal;
       const rotationDeltaDeg =
-        (projectionView.rotationDeg ?? 0) -
-        (retainedView.rotationDeg ?? 0);
+        (projectionView.rotationDeg ?? 0) - (retainedView.rotationDeg ?? 0);
       const mirrorScale =
         Boolean(projectionView.mirrorX) === Boolean(retainedView.mirrorX)
           ? 1
@@ -1391,7 +1400,7 @@ export function createCelestiaAtlasViewer(options) {
       updateSurveyCredit(true);
       return true;
     };
-    if (interactive) {
+    if (interactive && !skySurveyWebglRenderer) {
       // Keep the last full-resolution front buffer during clicks, drags,
       // pinches and periodic view updates. Replacing it with a tiny
       // interaction raster made the survey visibly pulse between sharp and
@@ -1452,10 +1461,11 @@ export function createCelestiaAtlasViewer(options) {
             canvasWidth: width,
             canvasHeight: height,
             outputWidth,
-            // Completion and rasterization must use the same exact sampling
-            // grid. A coarse barrier can miss a boundary tile and publish a
-            // supposedly complete raster with a transparent strip.
-            sampleStep: 1,
+            // GPU tiles are independently backed by an ancestor, so discovery
+            // does not need the CPU raster's expensive every-output-pixel
+            // completion barrier. Selected HiPS tiles span hundreds of screen
+            // pixels; this sampling remains safely finer than one tile.
+            sampleStep: skySurveyWebglRenderer ? 8 : 1,
             observer,
             timestampUtcMs,
             hideBelowHorizon: display.hideBelowHorizon,
@@ -1577,6 +1587,7 @@ export function createCelestiaAtlasViewer(options) {
           });
       }
     }
+    const deferDetailDuringInteraction = interactive && !skySurveyWebglRenderer;
     const primaryLoadOrders = includeRegularPreview
       ? offline
         ? [
@@ -1591,10 +1602,10 @@ export function createCelestiaAtlasViewer(options) {
               ),
             ]),
           ]
-        : interactive
+        : deferDetailDuringInteraction
           ? [previewOrder]
           : [...new Set([previewOrder, targetOrder])]
-      : interactive
+      : deferDetailDuringInteraction
         ? []
         : [targetOrder];
     // Probe lower cached parents even when navigator.onLine remains true. A
@@ -1651,6 +1662,87 @@ export function createCelestiaAtlasViewer(options) {
       };
       canvas.dataset.skySurveyActive = "false";
       delete canvas.dataset.skySurveyOrder;
+      canvas.dataset.skySurveyTargetOrder = String(targetOrder);
+      updateSurveyCredit(false);
+      return false;
+    }
+
+    if (skySurveyWebglRenderer) {
+      cancelSkySurveyRasterJob();
+      const gpuTiles = new Map([...skySurveyAllskyTiles, ...skySurveyTiles]);
+      const result = skySurveyWebglRenderer.render({
+        survey: skySurvey,
+        targetOrder,
+        tileIndices: targetTileIndices,
+        tiles: gpuTiles,
+        minimumOrder: skySurvey.minOrder,
+        view: projectionView,
+        width,
+        height,
+        outputWidth,
+        isCoordinateVisible: (coordinates) => {
+          if (!display.hideBelowHorizon) return true;
+          const horizontal = equatorialToHorizontal(
+            coordinates,
+            observer,
+            timestampUtcMs,
+          );
+          return (
+            horizontal.altitudeDeg >=
+            horizonAltitudeAtAzimuth(horizon, horizontal.azimuthDeg)
+          );
+        },
+      });
+      if (result.drawn) {
+        for (const tileKey of result.usedTileKeys)
+          if (skySurveyTiles.has(tileKey)) touchSkySurveyTile(tileKey);
+        const renderedOrder = Math.max(...result.usedOrders);
+        context.save();
+        context.globalAlpha = opacity;
+        context.imageSmoothingEnabled = true;
+        context.drawImage(skySurveyCanvas, 0, 0, width, height);
+        context.restore();
+        skySurveyRuntime = {
+          ...skySurveyRuntime,
+          active: true,
+          opacity,
+          targetOrder,
+          renderedOrder,
+          loadedTiles: loadedSkySurveyResourceCount(),
+          pendingTiles: skySurveyPending.size,
+          failedTiles: skySurveyFailures.size,
+        };
+        canvas.dataset.skySurveyActive = "true";
+        canvas.dataset.skySurveyRenderer = "webgl";
+        canvas.dataset.skySurveyOrder = String(renderedOrder);
+        canvas.dataset.skySurveyTargetOrder = String(targetOrder);
+        canvas.dataset.skySurveyRasterWidth = String(outputWidth);
+        canvas.dataset.skySurveyRasterUsedOrders = result.usedOrders.join(",");
+        canvas.dataset.skySurveyRasterMissingTiles = String(
+          targetTileIndices.filter(
+            (tileIndex) =>
+              !skySurveyTiles.has(skySurveyTileKey(targetOrder, tileIndex)),
+          ).length,
+        );
+        canvas.dataset.skySurveyTriangles = String(result.triangleCount);
+        canvas.dataset.skySurveyLoadedTiles = String(
+          loadedSkySurveyResourceCount(),
+        );
+        updateSurveyCredit(true);
+        return true;
+      }
+      skySurveyRuntime = {
+        ...skySurveyRuntime,
+        active: false,
+        opacity: 0,
+        targetOrder,
+        renderedOrder: null,
+        loadedTiles: loadedSkySurveyResourceCount(),
+        pendingTiles: skySurveyPending.size,
+        failedTiles: skySurveyFailures.size,
+      };
+      canvas.dataset.skySurveyActive = "false";
+      canvas.dataset.skySurveyRenderer = "webgl";
       canvas.dataset.skySurveyTargetOrder = String(targetOrder);
       updateSurveyCredit(false);
       return false;
@@ -3292,6 +3384,8 @@ export function createCelestiaAtlasViewer(options) {
       skySurveySourceToken += 1;
       abortSkySurveyRequests();
       cancelSkySurveyRasterJob();
+      skySurveyWebglRenderer?.destroy();
+      skySurveyWebglRenderer = null;
       skySurveyQueue = [];
       skySurveyPending.clear();
       clearSkySurveyTiles();

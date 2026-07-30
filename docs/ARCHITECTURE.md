@@ -16,19 +16,20 @@ Local catalogues + optional image HiPS
 
 ## Main modules
 
-| Module | Responsibility |
-| --- | --- |
-| `standalone-app.js` | Standalone controls and application integration |
-| `src/public-api.js` | Viewer lifecycle, interaction, rendering, and state |
-| `src/core/coordinates.js` | Equatorial and horizontal transforms |
-| `src/core/projection.js` | Camera projection and orientation |
-| `src/core/solar-system.js` | Sun, Moon, planets, Pluto, and Galilean moons |
-| `src/core/comets.js` | Comet positions from pinned elements |
-| `src/core/landscape.js` | Milky Way and HEALPix landscape rasterization |
-| `src/core/sky-survey.js` | HiPS mapping, visible tiles, and reprojection |
-| `src/core/catalog-identifiers.js` | Ranked normalized search |
-| `src/core/catalog-layers.js` | Catalogue normalization and composition |
-| `src/core/optics.js` | Imaging-train calculations |
+| Module                            | Responsibility                                              |
+| --------------------------------- | ----------------------------------------------------------- |
+| `standalone-app.js`               | Standalone controls and application integration             |
+| `src/public-api.js`               | Viewer lifecycle, interaction, rendering, and state         |
+| `src/core/coordinates.js`         | Equatorial and horizontal transforms                        |
+| `src/core/projection.js`          | Camera projection and orientation                           |
+| `src/core/solar-system.js`        | Sun, Moon, planets, Pluto, and Galilean moons               |
+| `src/core/comets.js`              | Comet positions from pinned elements                        |
+| `src/core/landscape.js`           | Milky Way and HEALPix landscape rasterization               |
+| `src/core/sky-survey.js`          | HiPS mapping, tile discovery, and CPU fallback reprojection |
+| `src/core/sky-survey-webgl.js`    | Progressive GPU HiPS tile compositor                        |
+| `src/core/catalog-identifiers.js` | Ranked normalized search                                    |
+| `src/core/catalog-layers.js`      | Catalogue normalization and composition                     |
+| `src/core/optics.js`              | Imaging-train calculations                                  |
 
 ## Render pipeline
 
@@ -78,18 +79,28 @@ Tile paths use:
 Norder{order}/Dir{group}/Npix{tileIndex}.{format}
 ```
 
-### Fetch and reprojection
+### Fetch and rendering
 
-The browser checks Cache Storage before fetching a tile. Images are decoded into RGBA pixels and reprojected into the current canvas view.
+The browser checks Cache Storage before fetching a tile and decodes it once into
+RGBA pixels. The normal renderer uploads each decoded tile to one WebGL texture
+and projects it on a tessellated, curved HEALPix mesh. Moving the view changes
+the small mesh, not a viewport-sized bitmap.
 
-Interaction uses reduced work. A settled view is refined asynchronously.
+Each visible target tile is always drawn from the highest loaded level in its
+NESTED ancestor chain. The order-3 Allsky mosaic is the final ancestor fallback.
+Detail tiles replace their parent independently as they arrive, so dragging and
+releasing never clears or rebuilds the full photographic layer. Texture memory
+follows the decoded-tile LRU.
+
+If WebGL is unavailable, the viewer retains the asynchronous CPU reprojection
+path and keeps its last complete raster visible during interaction.
 
 ### Memory limits
 
-| Device class | Approximate decoded survey budget |
-| --- | ---: |
-| Coarse pointer | 64 MiB |
-| Fine pointer | 128 MiB |
+| Device class   | Approximate decoded survey budget |
+| -------------- | --------------------------------: |
+| Coarse pointer |                            64 MiB |
+| Fine pointer   |                           128 MiB |
 
 ## Persistent cache
 

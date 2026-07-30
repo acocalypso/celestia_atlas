@@ -133,7 +133,9 @@ test("standalone shell boots the shared public viewer", async () => {
     /\(projectionView\.rotationDeg \?\? 0\)\.toFixed\(1\),\s*Boolean\(projectionView\.mirrorX\),\s*coordinateMode/,
   );
   assert.match(publicApi, /rasterizeSkySurveyAsync/);
-  assert.match(publicApi, /if \(interactive\) \{[\s\S]*presentRetainedSkySurveyRaster/);
+  assert.match(publicApi, /createSkySurveyWebglRenderer/);
+  assert.match(publicApi, /if \(interactive && !skySurveyWebglRenderer\)/);
+  assert.match(publicApi, /canvas\.dataset\.skySurveyRenderer = "webgl"/);
   assert.match(publicApi, /canvas\.dataset\.skySurveyRasterWidth/);
   assert.match(publicApi, /\(coarsePointer \? 64 : 128\) \* 1024 \* 1024/);
   assert.match(
@@ -193,8 +195,9 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(serviceWorker, /\.\/src\/core\/catalog-filters\.js/);
   assert.match(serviceWorker, /\.\/src\/core\/catalog-layers\.js/);
   assert.match(serviceWorker, /\.\/src\/core\/sky-survey\.js/);
+  assert.match(serviceWorker, /\.\/src\/core\/sky-survey-webgl\.js/);
   assert.match(serviceWorker, /celestia-atlas-survey-v1/);
-  assert.match(serviceWorker, /SURVEY_CACHE_LIMIT=512/);
+  assert.match(serviceWorker, /SURVEY_CACHE_LIMIT\s*=\s*512/);
   assert.match(serviceWorker, /\.\/stellarium-supplement\.js/);
   assert.match(serviceWorker, /\.\/abell-pn-catalog\.js/);
   assert.match(serviceWorker, /\.\/hyg-star-catalog\.js/);
@@ -249,10 +252,7 @@ test("mobile renderer keeps expensive work inside bounded frame contracts", asyn
     publicApi,
     /if \(completed\.moved\) scheduleQualityRefinement\(\)/,
   );
-  assert.match(
-    publicApi,
-    /projectionView: structuredClone\(projectionView\)/,
-  );
+  assert.match(publicApi, /projectionView: structuredClone\(projectionView\)/);
   assert.match(publicApi, /projectionView\.fovDeg \* 1\.3/);
   assert.match(publicApi, /sampleStep: 8/);
   assert.match(publicApi, /const visibleOrderComplete =/);

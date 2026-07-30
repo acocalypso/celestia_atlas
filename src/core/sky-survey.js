@@ -169,6 +169,21 @@ function interleaveNestedCoordinates(xValue, yValue, order) {
   return result;
 }
 
+function deinterleaveNestedCoordinates(value, order) {
+  let nested = value;
+  let x = 0;
+  let y = 0;
+  let place = 1;
+  for (let bit = 0; bit < order; bit += 1) {
+    x += (nested % 2) * place;
+    nested = Math.floor(nested / 2);
+    y += (nested % 2) * place;
+    nested = Math.floor(nested / 2);
+    place *= 2;
+  }
+  return { x, y };
+}
+
 function vectorToNestedFacePosition(xValue, yValue, zValue, order, output) {
   const inverseLength = 1 / Math.hypot(xValue, yValue, zValue);
   const x = xValue * inverseLength;
@@ -294,6 +309,106 @@ function mapSurveyVector(survey, order, x, y, z, inputFrame, output, scratch) {
     scratch.z,
     output,
   );
+}
+
+/**
+ * Convert a point in a NESTED HiPS raster tile back to equatorial coordinates.
+ *
+ * `u` and `v` address the displayed image from left-to-right and top-to-bottom.
+ * Values on the inclusive 0..1 boundary are useful for constructing a curved
+ * GPU mesh; ordinary texture samples lie between those boundaries.
+ */
+export function hipsTilePointToEquatorial(
+  surveyValue,
+  order,
+  tileIndex,
+  u,
+  v,
+  outputFrame = "ICRS",
+) {
+  const survey = validateSkySurveyConfig(surveyValue);
+  validateOrder(order);
+  if (order < survey.minOrder || order > survey.maxOrder)
+    throw new RangeError("Requested HiPS order is outside the survey range");
+  const tileCount = 12 * 4 ** order;
+  if (
+    !Number.isSafeInteger(tileIndex) ||
+    tileIndex < 0 ||
+    tileIndex >= tileCount
+  )
+    throw new RangeError("HiPS tile index is outside the requested order");
+  if (!Number.isFinite(u) || !Number.isFinite(v))
+    throw new TypeError("HiPS tile coordinates must be finite");
+
+  const tilesPerFace = 2 ** order;
+  const faceSize = 4 ** order;
+  const face = Math.floor(tileIndex / faceSize);
+  const nested = deinterleaveNestedCoordinates(tileIndex % faceSize, order);
+  const nside = tilesPerFace * survey.tileWidth;
+  // HiPS applies HEALPix uv_swap: image x follows nested y, while image y
+  // follows nested x. The half-pixel offset converts image edges to the
+  // continuous HEALPix coordinates whose integer values are pixel centres.
+  const naturalX =
+    nested.x * survey.tileWidth +
+    Math.max(0, Math.min(1, v)) * survey.tileWidth -
+    0.5;
+  const naturalY =
+    nested.y * survey.tileWidth +
+    Math.max(0, Math.min(1, u)) * survey.tileWidth -
+    0.5;
+  const jrll = [2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4];
+  const jpll = [1, 3, 5, 7, 0, 2, 4, 6, 1, 3, 5, 7];
+  const ring = jrll[face] * nside - naturalX - naturalY - 1;
+  let ringRadius;
+  let z;
+  let parity = 0;
+  if (ring < nside) {
+    ringRadius = Math.max(Number.EPSILON, ring);
+    z = 1 - (ringRadius * ringRadius) / (3 * nside * nside);
+  } else if (ring > 3 * nside) {
+    ringRadius = Math.max(Number.EPSILON, 4 * nside - ring);
+    z = -1 + (ringRadius * ringRadius) / (3 * nside * nside);
+  } else {
+    ringRadius = nside;
+    z = ((2 * nside - ring) * 2) / (3 * nside);
+    parity = positiveModulo(Math.floor(ring - nside), 2);
+  }
+  const longitudeIndex =
+    (jpll[face] * ringRadius + naturalX - naturalY + 1 + parity) / 2;
+  const longitude =
+    (longitudeIndex - (parity + 1) * 0.5) * (HALF_PI / ringRadius);
+  const radial = Math.sqrt(Math.max(0, 1 - z * z));
+  let vector = {
+    x: radial * Math.cos(longitude),
+    y: radial * Math.sin(longitude),
+    z: Math.max(-1, Math.min(1, z)),
+  };
+
+  if (survey.frame === "GALACTIC") {
+    // Transpose of the IAU J2000-to-galactic rotation used above.
+    vector = {
+      x:
+        -0.0548755604 * vector.x +
+        0.4941094279 * vector.y -
+        0.867666149 * vector.z,
+      y:
+        -0.8734370902 * vector.x -
+        0.44482963 * vector.y -
+        0.1980763734 * vector.z,
+      z:
+        -0.4838350155 * vector.x +
+        0.7469822445 * vector.y +
+        0.4559837762 * vector.z,
+    };
+    vector = transformEquatorialVectorFrame(vector, "J2000", outputFrame);
+  } else vector = transformEquatorialVectorFrame(vector, "ICRS", outputFrame);
+
+  const length = Math.hypot(vector.x, vector.y, vector.z);
+  return {
+    raDeg: positiveModulo(Math.atan2(vector.y, vector.x) * RAD, 360),
+    decDeg: Math.asin(Math.max(-1, Math.min(1, vector.z / length))) * RAD,
+    frame: outputFrame,
+  };
 }
 
 /** Map an equatorial direction to its NESTED HiPS tile and browser pixel. */

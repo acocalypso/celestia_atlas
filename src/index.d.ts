@@ -335,6 +335,14 @@ export function equatorialToHipsTile(
   pixelX: number;
   pixelY: number;
 };
+export function hipsTilePointToEquatorial(
+  survey: SkySurveySource,
+  order: number,
+  tileIndex: number,
+  u: number,
+  v: number,
+  outputFrame?: EquatorialFrame,
+): EquatorialCoordinates;
 export function skySurveyTileKey(order: number, tileIndex: number): string;
 export function skySurveyTilePath(
   order: number,

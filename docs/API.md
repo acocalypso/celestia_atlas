@@ -27,20 +27,20 @@ const viewer = createCelestiaAtlasViewer({
 
 ### Main options
 
-| Option | Type | Description |
-| --- | --- | --- |
-| `container` | `HTMLElement` | Required host element |
-| `catalog` | `DeepSkyCatalogueObject[]` | Deep-sky catalogue |
-| `stars` | `StarCatalogueObject[]` | Star catalogue |
-| `constellations` | `Record<string, Array<[string,string]>>` | Constellation line data |
-| `observer` | `Observer` | Initial observer |
-| `utcMs` | `number` | Initial UTC Unix timestamp |
-| `devicePixelRatioCap` | `number` | Maximum render DPR |
-| `milkyWayPanoramaUrl` | `string \| null` | Alternate panorama, or `null` to skip loading it |
-| `skySurveySource` | `SkySurveySource \| null` | Survey source or local-only mode |
-| `onSelect` | `(target) => void` | Selection callback |
-| `onViewChange` | `(view) => void` | Camera callback |
-| `onError` | `(error) => void` | Non-survey error callback |
+| Option                | Type                                     | Description                                      |
+| --------------------- | ---------------------------------------- | ------------------------------------------------ |
+| `container`           | `HTMLElement`                            | Required host element                            |
+| `catalog`             | `DeepSkyCatalogueObject[]`               | Deep-sky catalogue                               |
+| `stars`               | `StarCatalogueObject[]`                  | Star catalogue                                   |
+| `constellations`      | `Record<string, Array<[string,string]>>` | Constellation line data                          |
+| `observer`            | `Observer`                               | Initial observer                                 |
+| `utcMs`               | `number`                                 | Initial UTC Unix timestamp                       |
+| `devicePixelRatioCap` | `number`                                 | Maximum render DPR                               |
+| `milkyWayPanoramaUrl` | `string \| null`                         | Alternate panorama, or `null` to skip loading it |
+| `skySurveySource`     | `SkySurveySource \| null`                | Survey source or local-only mode                 |
+| `onSelect`            | `(target) => void`                       | Selection callback                               |
+| `onViewChange`        | `(view) => void`                         | Camera callback                                  |
+| `onError`             | `(error) => void`                        | Non-survey error callback                        |
 
 When `skySurveySource` is omitted, `DEFAULT_DSS_SKY_SURVEY_SOURCE` is used.
 Survey sources may define `blendStartFovDeg` and `blendFullFovDeg` to control
@@ -246,7 +246,11 @@ const observer = validateObserver({
 });
 
 const horizontal = equatorialToHorizontal(
-  validateEquatorialCoordinates({ raDeg: 37.95, decDeg: 89.264, frame: "ICRS" }),
+  validateEquatorialCoordinates({
+    raDeg: 37.95,
+    decDeg: 89.264,
+    frame: "ICRS",
+  }),
   observer,
   Date.now(),
 );
@@ -278,8 +282,9 @@ an empty array for no values.
 ## Low-level HiPS helpers
 
 Advanced hosts may validate a survey, choose an order, discover visible tiles,
-construct tile keys/URLs, and rasterize tiles with the exported `skySurvey*`,
-`equatorialToHipsTile`, `discoverVisibleSkySurveyTiles`, and
+construct tile keys/URLs, map tile mesh points, and rasterize tiles with the
+exported `skySurvey*`, `equatorialToHipsTile`,
+`hipsTilePointToEquatorial`, `discoverVisibleSkySurveyTiles`, and
 `rasterizeSkySurvey*` helpers. Most integrations should use `setSkySurvey`,
 which owns view-driven discovery, caching, blending, and cancellation.
 
