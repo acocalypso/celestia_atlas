@@ -11,6 +11,7 @@ test("standalone shell boots the shared public viewer", async () => {
     publicApi,
     types,
     serviceWorker,
+    pagesWorkflow,
   ] = await Promise.all([
     readFile(new URL("../index.html", import.meta.url), "utf8"),
     readFile(new URL("../standalone-app.js", import.meta.url), "utf8"),
@@ -19,6 +20,7 @@ test("standalone shell boots the shared public viewer", async () => {
     readFile(new URL("../src/public-api.js", import.meta.url), "utf8"),
     readFile(new URL("../src/index.d.ts", import.meta.url), "utf8"),
     readFile(new URL("../service-worker.js", import.meta.url), "utf8"),
+    readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8"),
   ]);
   assert.match(html, /type="module" src="standalone-app\.js"/);
   assert.match(
@@ -33,6 +35,8 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(application, /catalogWithAbellPlanetaryNebulae/);
   assert.match(application, /globalThis\.HYG_STAR_DATA/);
   assert.match(application, /globalThis\.WESTERN_CONSTELLATIONS/);
+  assert.match(pagesWorkflow, /cp western-constellations\.js _site\//);
+  assert.match(pagesWorkflow, /test -s _site\/western-constellations\.js/);
   assert.match(application, /\.\.\.\(globalThis\.STAR_DATA \?\? \[\]\)/);
   assert.match(application, /\.\.\.\(globalThis\.HYG_STAR_DATA \?\? \[\]\)/);
   assert.match(html, /id="magLimit"[\s\S]*max="6\.5"[\s\S]*value="6\.5"/);

@@ -71,6 +71,7 @@ jobs:
           test -s stellarium-supplement.js
           test -s abell-pn-catalog.js
           test -s hyg-star-catalog.js
+          test -s western-constellations.js
           test -s data/dso-catalog.json
           test -s data/dso-viewer-catalog.json
           test -s data/catalog-sources.json
@@ -206,6 +207,7 @@ jobs:
           cp milky-way-renderer.js _site/
           cp catalog.js _site/
           cp hyg-star-catalog.js _site/
+          cp western-constellations.js _site/
           cp dso-catalog.js _site/
           cp abell-pn-catalog.js _site/
           cp stellarium-supplement.js _site/
@@ -244,6 +246,7 @@ jobs:
           fi
 
           test -s _site/licenses/Stellarium-GPL-2.0.txt
+          test -s _site/western-constellations.js
           test -s _site/licenses/HYG-CC-BY-SA-4.0.md
           test -s _site/licenses/SIMBAD-ODbL-1.0.md
 
