@@ -739,10 +739,11 @@ async function run() {
         controls?.click();
         const hideBelow = document.querySelector('#hideBelowHorizonSwitch');
         if (hideBelow?.checked) hideBelow.click();
-        if (${JSON.stringify(liveSurvey)}) {
-          const landscape = document.querySelector('#horizonSwitch');
-          if (landscape?.checked) landscape.click();
-        }
+        // GPU landscape startup is verified before this interaction. Disable
+        // the opaque foreground for catalogue hit-testing because CI targets
+        // can be below the horizon at the wall-clock time of a run.
+        const landscape = document.querySelector('#horizonSwitch');
+        if (landscape?.checked) landscape.click();
         const labelledSwitch = document.querySelector('#milkyWaySwitch');
         labelledSwitch?.focus();
         document.querySelector('[data-catalog-filter-kind="sources"][data-catalog-filter-action="none"]')?.click();
