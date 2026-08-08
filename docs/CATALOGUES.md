@@ -42,6 +42,8 @@ to fixed ICRS/J2000 coordinates using the pinned HYG v4.1 source. Fixed
 coordinates make every one of the 674 segments independent of display names
 and of curated/HYG duplicate removal. The package export is
 `@acocalypso/celestia-atlas/western-constellation-data`.
+The separate `bright-sky-data` export contains curated stars only and no longer
+duplicates the former incomplete, name-based line object.
 
 To reproduce the assets from an authorized source snapshot and the pinned HYG
 CSV, run:

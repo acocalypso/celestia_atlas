@@ -16,16 +16,18 @@ const stars = (context.window.STAR_DATA ?? []).map((star) => ({
   decDeg: star.dec,
   frame: "ICRS",
 }));
-const constellations = context.window.CONSTELLATION_LINES ?? {};
-if (stars.length < 100 || Object.keys(constellations).length < 10) {
+if (stars.length < 100) {
   throw new Error("Refusing to write an incomplete bright-sky catalogue");
 }
-const payload = { stars, constellations };
+// Constellations have their own complete, independently licensed HIP-path
+// asset. Do not copy the obsolete hand-written compatibility lines from
+// catalog.js into this star-only package export.
+const payload = { stars };
 await writeFile(
   new URL("../data/bright-sky.json", import.meta.url),
   `${JSON.stringify(payload)}\n`,
   "utf8",
 );
 console.log(
-  `Generated ${stars.length} stars and ${Object.keys(constellations).length} constellations`,
+  `Generated ${stars.length} curated bright stars`,
 );
