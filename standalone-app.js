@@ -117,7 +117,7 @@ const catalog = layeredCatalog.objects.map((object) => {
     },
   };
 });
-const constellations = globalThis.CONSTELLATION_LINES ?? {};
+const constellations = globalThis.WESTERN_CONSTELLATIONS ?? {};
 const catalogMeta = layeredCatalog.meta;
 const catalogVersion =
   catalogMeta.version ||

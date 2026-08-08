@@ -7,7 +7,7 @@ it loads only visible HiPS image tiles below 20 degrees FOV, caches a bounded
 recent set, and is never used for search, coordinates, object identity, or
 metadata. Disabling or losing that layer does not change catalogue behavior.
 
-The public atlas loads four separately generated catalogue assets. OpenNGC and
+The public atlas loads five separately generated catalogue assets. OpenNGC and
 HYG-derived data are each distributed under CC BY-SA 4.0. The SIMBAD A66 layer
 is distributed under ODbL 1.0. A fourth asset selects historical DSO
 cross-index records from Stellarium v26.2 DSO catalogue v3.23 and is distributed
@@ -30,6 +30,29 @@ terms. Acceptance is not a grant of additional rights.
 | Abell 1966 planetary-nebula layer | Committed SIMBAD TAP snapshot, retrieved 2026-07-15 from SIMBAD4 1.8 (2026-06) | 86 objects from 1,152 identifier rows                                                      | `abell-pn`                                                  | ODbL 1.0                                                              |
 | Stellarium DSO supplement         | Stellarium `v26.2`, DSO catalogue `3.23`                                       | 8,658 records from the validated 94,899-row input having at least one selected cross-index | `abell`, `ldn`, `barnard`, `lbn`, `sharpless`, `vdb`, `rcw` | GPL-2.0-or-later                                                      |
 | HYG naked-eye star layer          | HYG `v4.1`, commit `3bf37f4`                                                   | 8,780 records after curated-layer duplicate removal                                        | stars through visual magnitude 6.5                          | CC BY-SA 4.0                                                          |
+| Western constellation lines       | Stellarium Western sky culture, normalized to Atlas schema                     | 88 IAU figures, 691 HIP vertices, 674 segments; no illustrations                            | constellation line overlay                                 | GPL-2.0-or-later                                                      |
+
+### Western constellation lines
+
+`data/western-constellations.json` and `western-constellations.js` contain the
+same compact, image-free Atlas dataset. It keeps the Western sky culture's 88
+IAU line paths and Latin names, removes images, image anchors, boundaries,
+translations, and Stellarium runtime fields, and resolves its 691 HIP vertices
+to fixed ICRS/J2000 coordinates using the pinned HYG v4.1 source. Fixed
+coordinates make every one of the 674 segments independent of display names
+and of curated/HYG duplicate removal. The package export is
+`@acocalypso/celestia-atlas/western-constellation-data`.
+
+To reproduce the assets from an authorized source snapshot and the pinned HYG
+CSV, run:
+
+```powershell
+node tools/build_western_constellations.mjs --source path/to/western/index.json --hyg .cache/hygdata_v41.csv
+```
+
+The source paths remain GPL-2.0-or-later derived data. Schema conversion and
+removing illustrations do not change that licence; see the third-party notice
+and bundled Stellarium GPL text.
 
 ### Messier completion and labels
 

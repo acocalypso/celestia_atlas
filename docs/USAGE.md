@@ -39,6 +39,7 @@ import {
   createCelestiaAtlasViewer,
   DEFAULT_DSS_SKY_SURVEY_SOURCE,
 } from "./src/index.js";
+import constellations from "./data/western-constellations.json" with { type: "json" };
 
 const viewer = createCelestiaAtlasViewer({
   container: document.querySelector("#atlas"),

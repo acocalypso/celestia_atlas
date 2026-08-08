@@ -114,7 +114,7 @@ test("precaches the offline app core without precaching remote survey tiles", as
   const harness = createHarness();
   await harness.dispatch("install");
 
-  const core = harness.stores.get("celestia-atlas-offline-v32");
+  const core = harness.stores.get("celestia-atlas-offline-v33");
   assert.ok(core);
   assert.ok(core.entries.has(`${APP_BASE}src/core/sky-survey.js`));
   assert.ok(core.entries.has(`${APP_BASE}src/core/sky-survey-webgl.js`));
@@ -176,7 +176,7 @@ test("stores same-origin HiPS tiles only in the bounded survey cache", async () 
   const survey = harness.stores.get("celestia-atlas-survey-v1");
   assert.equal(await (await survey.match(surveyUrl)).text(), "local-survey");
   assert.equal(
-    await harness.stores.get("celestia-atlas-offline-v32")?.match(surveyUrl),
+    await harness.stores.get("celestia-atlas-offline-v33")?.match(surveyUrl),
     undefined,
   );
 });
@@ -263,7 +263,7 @@ test("leaves other cross-origin requests alone and keeps landscapes in the core 
   assert.equal(landscape.responded, true);
   assert.equal(await landscape.response.text(), "precache");
   assert.equal(networkRequests, 0);
-  const core = harness.stores.get("celestia-atlas-offline-v32");
+  const core = harness.stores.get("celestia-atlas-offline-v33");
   assert.equal(await (await core.match(landscapeUrl)).text(), "precache");
   assert.equal(
     await harness.stores.get("celestia-atlas-survey-v1")?.match(landscapeUrl),
@@ -275,7 +275,7 @@ test("activation removes only superseded Atlas caches", async () => {
   const harness = createHarness();
   for (const name of [
     "celestia-atlas-offline-v29",
-    "celestia-atlas-offline-v32",
+    "celestia-atlas-offline-v33",
     "celestia-atlas-survey-v29",
     "celestia-atlas-survey-v1",
     "another-app-cache-v1",

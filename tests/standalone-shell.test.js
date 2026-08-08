@@ -23,7 +23,7 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(html, /type="module" src="standalone-app\.js"/);
   assert.match(
     html,
-    /catalog\.js[\s\S]*hyg-star-catalog\.js[\s\S]*dso-catalog\.js[\s\S]*abell-pn-catalog\.js[\s\S]*stellarium-supplement\.js[\s\S]*standalone-app\.js/,
+    /catalog\.js[\s\S]*hyg-star-catalog\.js[\s\S]*western-constellations\.js[\s\S]*dso-catalog\.js[\s\S]*abell-pn-catalog\.js[\s\S]*stellarium-supplement\.js[\s\S]*standalone-app\.js/,
   );
   assert.doesNotMatch(html, /app-v8\.js|standalone-engine-bridge\.js/);
   assert.match(application, /createCelestiaAtlasViewer/);
@@ -32,6 +32,7 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(application, /globalThis\.ABELL_PN_CATALOG_DATA/);
   assert.match(application, /catalogWithAbellPlanetaryNebulae/);
   assert.match(application, /globalThis\.HYG_STAR_DATA/);
+  assert.match(application, /globalThis\.WESTERN_CONSTELLATIONS/);
   assert.match(application, /\.\.\.\(globalThis\.STAR_DATA \?\? \[\]\)/);
   assert.match(application, /\.\.\.\(globalThis\.HYG_STAR_DATA \?\? \[\]\)/);
   assert.match(html, /id="magLimit"[\s\S]*max="6\.5"[\s\S]*value="6\.5"/);
@@ -205,6 +206,7 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(serviceWorker, /\.\/stellarium-supplement\.js/);
   assert.match(serviceWorker, /\.\/abell-pn-catalog\.js/);
   assert.match(serviceWorker, /\.\/hyg-star-catalog\.js/);
+  assert.match(serviceWorker, /\.\/western-constellations\.js/);
 });
 
 test("standalone package contains all twelve offline landscape faces", async () => {

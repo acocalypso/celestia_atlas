@@ -56,6 +56,7 @@ import {
   normalizeCatalogIdentifier,
   searchCatalogIndex,
 } from "./core/catalog-identifiers.js";
+import { compileConstellationSegments } from "./core/constellations.js";
 
 const DEG = Math.PI / 180;
 const MAX_FOV_DEG = 130;
@@ -397,7 +398,9 @@ export function createCelestiaAtlasViewer(options) {
   const isSelectedObject = (object) => hasSameObjectIdentity(selected, object);
   const starsByName = new Map();
   for (const star of stars) {
-    starsByName.set(String(star.name).toLocaleLowerCase(), star);
+    for (const identifier of [star.name, star.id, star.uid])
+      if (identifier)
+        starsByName.set(String(identifier).toLocaleLowerCase(), star);
     for (const alias of [
       ...(Array.isArray(star.aliases) ? star.aliases : []),
       star.alias,
@@ -405,6 +408,10 @@ export function createCelestiaAtlasViewer(options) {
       if (alias) starsByName.set(String(alias).toLocaleLowerCase(), star);
     }
   }
+  const constellationSegments = compileConstellationSegments(
+    constellations,
+    starsByName,
+  );
 
   const selectedTargetPayload = (object) => {
     const suppliedCoordinates = object?.coordinates;
@@ -2427,11 +2434,7 @@ export function createCelestiaAtlasViewer(options) {
       ? "rgba(255,80,70,.32)"
       : "rgba(125,151,255,.32)";
     if (display.constellations)
-      for (const lines of Object.values(constellations)) {
-        for (const [startName, endName] of lines) {
-          const start = starsByName.get(String(startName).toLocaleLowerCase());
-          const end = starsByName.get(String(endName).toLocaleLowerCase());
-          if (!start || !end) continue;
+      for (const [start, end] of constellationSegments) {
           if (!isAboveHorizon(start) || !isAboveHorizon(end)) continue;
           const startPoint = start && project(start);
           const endPoint = end && project(end);
@@ -2445,7 +2448,6 @@ export function createCelestiaAtlasViewer(options) {
           context.moveTo(startPoint.x, startPoint.y);
           context.lineTo(endPoint.x, endPoint.y);
           context.stroke();
-        }
       }
     const interactionStarMagnitudeLimit = Math.min(
       display.starMagnitudeLimit,

@@ -161,6 +161,22 @@ explicitly recorded as a convention rather than presented as settled fact.
 Generated OpenNGC-derived catalogue files must remain available under
 CC BY-SA 4.0 with attribution and share-alike terms.
 
+## Western constellation line paths
+
+The image-free Western constellation overlay is derived from Stellarium's
+Western sky culture. Celestia Atlas retains the 88 IAU line paths and Latin
+names, removes illustrations, image anchors, boundaries, translations and
+Stellarium runtime fields, and resolves the 691 referenced HIP vertices to
+ICRS/J2000 coordinates using the pinned HYG v4.1 snapshot. The resulting 674
+segments are distributed separately as `data/western-constellations.json` and
+`western-constellations.js` under GPL-2.0-or-later. The imported source
+snapshot SHA-256 is
+`d206983eee84a73279324845c1e7a5b114317a59042f8bc3af83b18651c6e065`.
+
+No sky-culture illustration is included. Redistribution must retain this
+notice, the attribution, modification statement and
+`licenses/Stellarium-GPL-2.0.txt`.
+
 ## Stellarium DSO cross-index supplement
 
 The separate public historical DSO supplement is derived from the standard

@@ -1,7 +1,7 @@
 try {
   importScripts("./dso-images.js");
 } catch (e) {}
-const CACHE = "celestia-atlas-offline-v32";
+const CACHE = "celestia-atlas-offline-v33";
 // Keep the survey schema independent from routine app-shell cache releases.
 const SURVEY_CACHE = "celestia-atlas-survey-v1";
 const SURVEY_CACHE_LIMIT = 512;
@@ -22,6 +22,7 @@ const CORE = [
   "./dso-images.js",
   "./catalog.js",
   "./hyg-star-catalog.js",
+  "./western-constellations.js",
   "./dso-catalog.js",
   "./abell-pn-catalog.js",
   "./stellarium-supplement.js",
@@ -43,6 +44,7 @@ const CORE = [
   "./src/core/catalog-filters.js",
   "./src/core/catalog-identifiers.js",
   "./src/core/catalog-layers.js",
+  "./src/core/constellations.js",
   "./src/core/sky-survey.js",
   "./src/core/sky-survey-webgl.js",
   "./data/comets.js",

@@ -32,7 +32,7 @@ const viewer = createCelestiaAtlasViewer({
 | `container`           | `HTMLElement`                            | Required host element                            |
 | `catalog`             | `DeepSkyCatalogueObject[]`               | Deep-sky catalogue                               |
 | `stars`               | `StarCatalogueObject[]`                  | Star catalogue                                   |
-| `constellations`      | `Record<string, Array<[string,string]>>` | Constellation line data                          |
+| `constellations`      | `WesternConstellationData` | Complete image-free Western line figures (88 IAU constellations, HIP paths and fixed ICRS vertices); the legacy named-pair object remains accepted for compatibility |
 | `observer`            | `Observer`                               | Initial observer                                 |
 | `utcMs`               | `number`                                 | Initial UTC Unix timestamp                       |
 | `devicePixelRatioCap` | `number`                                 | Maximum render DPR                               |

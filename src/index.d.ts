@@ -279,11 +279,28 @@ export interface CelestiaAtlasViewer {
   ): Array<CatalogueTarget | SolarSystemObject | CometObject>;
   getState(): CelestiaAtlasState;
 }
+export interface WesternConstellationData {
+  meta?: {
+    schemaVersion?: number;
+    frame?: "ICRS";
+    constellationCount?: number;
+    vertexCount?: number;
+    segmentCount?: number;
+    [key: string]: unknown;
+  };
+  vertices: Record<string, [number, number]>;
+  constellations: Array<{
+    iau: string;
+    name: string;
+    lines: number[][];
+  }>;
+}
 export function createCelestiaAtlasViewer(options: {
   container: HTMLElement;
   catalog?: DeepSkyCatalogueObject[];
   stars?: StarCatalogueObject[];
-  constellations?: Record<string, Array<[string, string]>>;
+  /** Atlas-native HIP paths, or the legacy named-pair compatibility format. */
+  constellations?: WesternConstellationData | Record<string, Array<[string, string]>>;
   observer?: Observer;
   utcMs?: number;
   devicePixelRatioCap?: number;

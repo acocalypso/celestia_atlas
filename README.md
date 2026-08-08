@@ -60,6 +60,7 @@ Use localhost or HTTPS rather than `file://`. Module loading, service workers, C
 </style>
 
 <script type="module">
+  import westernConstellationData from "./data/western-constellations.json" with { type: "json" };
   import {
     createCelestiaAtlasViewer,
     DEFAULT_DSS_SKY_SURVEY_SOURCE,
@@ -69,7 +70,7 @@ Use localhost or HTTPS rather than `file://`. Module loading, service workers, C
     container: document.querySelector("#atlas"),
     catalog: [],
     stars: [],
-    constellations: {},
+    constellations: westernConstellationData,
     observer: {
       latitudeDeg: 52.52,
       longitudeDeg: 13.405,

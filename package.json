@@ -18,6 +18,7 @@
     "./openngc-catalog-data": "./data/openngc-catalog.json",
     "./openngc-viewer-catalog-data": "./data/openngc-viewer-catalog.json",
     "./bright-sky-data": "./data/bright-sky.json",
+    "./western-constellation-data": "./data/western-constellations.json",
     "./comet-data": "./data/comets.json"
   },
   "types": "./src/index.d.ts",
