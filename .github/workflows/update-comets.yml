@@ -193,6 +193,7 @@ jobs:
           }
 
           const ids = new Set();
+          const duplicateIds = new Map();
 
           for (const [index, object] of objects.entries()) {
             if (!object || typeof object !== "object") {
@@ -203,10 +204,18 @@ jobs:
               throw new Error(`Object ${index} has no valid id.`);
             }
 
+            // The repository's current builder derives IDs solely from the
+            // comet display name. MPC can legitimately publish more than one
+            // orbital record with the same display name, so duplicate IDs are
+            // possible and must not make the refresh fail.
             if (ids.has(object.id)) {
-              throw new Error(`Duplicate comet id: ${object.id}`);
+              duplicateIds.set(
+                object.id,
+                (duplicateIds.get(object.id) ?? 1) + 1
+              );
+            } else {
+              ids.add(object.id);
             }
-            ids.add(object.id);
 
             if (typeof object.name !== "string" || !object.name) {
               throw new Error(`Object ${object.id} has no valid name.`);
@@ -234,6 +243,19 @@ jobs:
             if (object.eccentricity < 0) {
               throw new Error(`Object ${object.id} has negative eccentricity.`);
             }
+          }
+
+          if (duplicateIds.size > 0) {
+            const examples = [...duplicateIds.entries()]
+              .slice(0, 10)
+              .map(([id, count]) => `${id} (${count} records)`)
+              .join(", ");
+
+            console.log(
+              `::warning::Generated catalogue contains ${duplicateIds.size} duplicate ID(s). ` +
+              `This is allowed because the current builder derives IDs from display names. ` +
+              `Examples: ${examples}`
+            );
           }
 
           const previousCount = Number(process.env.PREVIOUS_COUNT ?? 0);
