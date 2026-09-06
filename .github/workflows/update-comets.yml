@@ -1,0 +1,355 @@
+name: Update live comet data
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Every 6 hours, at minute 17 (UTC).
+    # Using a non-zero minute avoids the busiest top-of-hour period.
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: comet-data-live
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: comet-data-live
+  RELEASE_TITLE: Live comet data
+  MPC_COMETELS_URL: https://www.minorplanetcenter.net/iau/MPCORB/CometEls.txt
+  MIN_COMET_RECORDS: "1000"
+
+jobs:
+  update-comets:
+    name: Refresh MPC comet release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Fetch latest MPC comet elements
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          curl \
+            --fail \
+            --location \
+            --silent \
+            --show-error \
+            --retry 5 \
+            --retry-delay 5 \
+            --retry-all-errors \
+            --connect-timeout 30 \
+            --max-time 180 \
+            "$MPC_COMETELS_URL" \
+            --output /tmp/CometEls.txt
+
+          test -s /tmp/CometEls.txt
+
+          record_count="$(grep -cve '^[[:space:]]*$' /tmp/CometEls.txt)"
+          if [ "$record_count" -lt "$MIN_COMET_RECORDS" ]; then
+            echo "::error::MPC CometEls download contains only ${record_count} non-empty records; expected at least ${MIN_COMET_RECORDS}."
+            exit 1
+          fi
+
+          source_sha="$(sha256sum /tmp/CometEls.txt | awk '{print $1}')"
+
+          echo "MPC records: $record_count"
+          echo "MPC SHA-256: $source_sha"
+
+          echo "SOURCE_SHA=$source_sha" >> "$GITHUB_ENV"
+          echo "SOURCE_RECORD_COUNT=$record_count" >> "$GITHUB_ENV"
+
+      - name: Check rolling release state
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Rolling release does not exist yet; it will be created."
+            exit 0
+          fi
+
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+
+          immutable="$(
+            gh release view "$RELEASE_TAG" \
+              --json isImmutable \
+              --jq '.isImmutable'
+          )"
+
+          if [ "$immutable" = "true" ]; then
+            echo "::error::Release '$RELEASE_TAG' is immutable. A rolling release cannot replace its assets while release immutability is enabled."
+            echo "::error::Disable release immutability for this repository, or switch to timestamped/versioned comet-data releases."
+            exit 1
+          fi
+
+          mkdir -p /tmp/current-comet-release
+
+          if gh release download "$RELEASE_TAG" \
+            --pattern "comets-meta.json" \
+            --dir /tmp/current-comet-release
+          then
+            current_sha="$(
+              node --input-type=module -e '
+                import fs from "node:fs";
+                const payload = JSON.parse(
+                  fs.readFileSync("/tmp/current-comet-release/comets-meta.json", "utf8")
+                );
+                process.stdout.write(String(payload.sourceSha256 ?? ""));
+              '
+            )"
+
+            echo "Current release SHA-256: ${current_sha:-<missing>}"
+
+            if [ -n "$current_sha" ] && [ "$current_sha" = "$SOURCE_SHA" ]; then
+              echo "MPC source is unchanged; no release update is necessary."
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "Existing release has no readable comets-meta.json; rebuilding it."
+          fi
+
+      - name: Install dependencies
+        if: steps.release.outputs.changed == 'true'
+        run: npm ci
+
+      - name: Build comet catalogue
+        if: steps.release.outputs.changed == 'true'
+        run: node tools/build_comet_catalog.mjs /tmp/CometEls.txt
+
+      - name: Validate generated comet catalogue
+        if: steps.release.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+
+          const path = "data/comets.json";
+          const payload = JSON.parse(fs.readFileSync(path, "utf8"));
+          const objects = payload?.objects;
+          const meta = payload?.meta;
+
+          if (!meta || !Array.isArray(objects)) {
+            throw new Error("Generated comet catalogue is missing meta or objects.");
+          }
+
+          const minimum = Number(process.env.MIN_COMET_RECORDS);
+          if (!Number.isInteger(meta.objectCount) || meta.objectCount !== objects.length) {
+            throw new Error(
+              `meta.objectCount (${meta.objectCount}) does not match objects.length (${objects.length}).`
+            );
+          }
+
+          if (objects.length < minimum) {
+            throw new Error(
+              `Generated catalogue contains only ${objects.length} objects; expected at least ${minimum}.`
+            );
+          }
+
+          if (meta.sourceSha256 !== process.env.SOURCE_SHA) {
+            throw new Error(
+              `Generated source SHA (${meta.sourceSha256}) does not match downloaded SHA (${process.env.SOURCE_SHA}).`
+            );
+          }
+
+          const ids = new Set();
+
+          for (const [index, object] of objects.entries()) {
+            if (!object || typeof object !== "object") {
+              throw new Error(`Object ${index} is not an object.`);
+            }
+
+            if (typeof object.id !== "string" || !object.id) {
+              throw new Error(`Object ${index} has no valid id.`);
+            }
+
+            if (ids.has(object.id)) {
+              throw new Error(`Duplicate comet id: ${object.id}`);
+            }
+            ids.add(object.id);
+
+            if (typeof object.name !== "string" || !object.name) {
+              throw new Error(`Object ${object.id} has no valid name.`);
+            }
+
+            const requiredFinite = [
+              "perihelionTt",
+              "qAu",
+              "eccentricity",
+              "argumentPerihelionDeg",
+              "ascendingNodeDeg",
+              "inclinationDeg",
+            ];
+
+            for (const key of requiredFinite) {
+              if (!Number.isFinite(object[key])) {
+                throw new Error(`Object ${object.id} has invalid ${key}.`);
+              }
+            }
+
+            if (object.qAu <= 0) {
+              throw new Error(`Object ${object.id} has non-positive qAu.`);
+            }
+
+            if (object.eccentricity < 0) {
+              throw new Error(`Object ${object.id} has negative eccentricity.`);
+            }
+          }
+
+          console.log(`Validated ${objects.length} comet records.`);
+          NODE
+
+      - name: Run comet tests
+        if: steps.release.outputs.changed == 'true'
+        run: node --test tests/comets.test.js
+
+      - name: Prepare release assets
+        if: steps.release.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+
+          const source = JSON.parse(fs.readFileSync("data/comets.json", "utf8"));
+          const generatedAt = new Date().toISOString();
+
+          const meta = {
+            schemaVersion: 1,
+            generatedAt,
+            source: source.meta.source,
+            format: source.meta.format,
+            sourceUrl: process.env.MPC_COMETELS_URL,
+            sourceSha256: source.meta.sourceSha256,
+            objectCount: source.meta.objectCount,
+          };
+
+          const releasePayload = {
+            meta,
+            objects: source.objects,
+          };
+
+          fs.writeFileSync(
+            "release/comets.json",
+            `${JSON.stringify(releasePayload)}\n`,
+            "utf8",
+          );
+
+          fs.writeFileSync(
+            "release/comets-meta.json",
+            `${JSON.stringify(meta, null, 2)}\n`,
+            "utf8",
+          );
+
+          fs.writeFileSync(
+            "release/RELEASE_NOTES.md",
+            [
+              "# Celestia Atlas live comet catalogue",
+              "",
+              "Automatically refreshed from the IAU Minor Planet Center CometEls feed.",
+              "",
+              `- Generated: ${generatedAt}`,
+              `- Objects: ${meta.objectCount}`,
+              `- Source SHA-256: \`${meta.sourceSha256}\``,
+              `- Schema version: ${meta.schemaVersion}`,
+              "",
+              "Release assets:",
+              "",
+              "- `comets.json` — complete runtime comet catalogue",
+              "- `comets-meta.json` — small metadata file for update checks",
+              "- `SHA256SUMS` — SHA-256 checksums for the release assets",
+              "",
+              "The bundled catalogue in Celestia Atlas remains the offline fallback.",
+              "",
+            ].join("\n"),
+            "utf8",
+          );
+          NODE
+
+          (
+            cd release
+            sha256sum comets.json comets-meta.json > SHA256SUMS
+          )
+
+          echo "Prepared release assets:"
+          ls -lh release/comets.json release/comets-meta.json release/SHA256SUMS
+
+      - name: Create rolling comet release
+        if: steps.release.outputs.changed == 'true' && steps.release.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          gh release create "$RELEASE_TAG" \
+            release/comets.json \
+            release/comets-meta.json \
+            release/SHA256SUMS \
+            --title "$RELEASE_TITLE" \
+            --notes-file release/RELEASE_NOTES.md \
+            --target "${{ github.event.repository.default_branch }}" \
+            --prerelease \
+            --latest=false
+
+      - name: Update rolling comet release
+        if: steps.release.outputs.changed == 'true' && steps.release.outputs.exists == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # --clobber replaces assets having the same filename.
+          gh release upload "$RELEASE_TAG" \
+            release/comets.json \
+            release/comets-meta.json \
+            release/SHA256SUMS \
+            --clobber
+
+          gh release edit "$RELEASE_TAG" \
+            --title "$RELEASE_TITLE" \
+            --notes-file release/RELEASE_NOTES.md \
+            --prerelease
+
+      - name: Show published release
+        if: steps.release.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          gh release view "$RELEASE_TAG" \
+            --json tagName,name,publishedAt,isPrerelease,isImmutable,url,assets \
+            --jq '{
+              tag: .tagName,
+              name: .name,
+              publishedAt: .publishedAt,
+              prerelease: .isPrerelease,
+              immutable: .isImmutable,
+              url: .url,
+              assets: [.assets[].name]
+            }'
