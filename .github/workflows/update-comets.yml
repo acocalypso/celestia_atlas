@@ -18,7 +18,12 @@ env:
   RELEASE_TAG: comet-data-live
   RELEASE_TITLE: Live comet data
   MPC_COMETELS_URL: https://www.minorplanetcenter.net/iau/MPCORB/CometEls.txt
-  MIN_COMET_RECORDS: "1000"
+  # Only catches obviously truncated/invalid feeds.
+  # MPC's legitimate catalogue size can move above or below 1,000 records.
+  MIN_COMET_RECORDS: "500"
+  # Reject a generated catalogue if it suddenly falls below 70% of the
+  # previous rolling release's object count.
+  MIN_PREVIOUS_RATIO_PERCENT: "70"
 
 jobs:
   update-comets:
@@ -81,6 +86,7 @@ jobs:
 
           echo "exists=false" >> "$GITHUB_OUTPUT"
           echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "previous_count=0" >> "$GITHUB_OUTPUT"
 
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             echo "Rolling release does not exist yet; it will be created."
@@ -117,7 +123,19 @@ jobs:
               '
             )"
 
+            current_count="$(
+              node --input-type=module -e '
+                import fs from "node:fs";
+                const payload = JSON.parse(
+                  fs.readFileSync("/tmp/current-comet-release/comets-meta.json", "utf8")
+                );
+                process.stdout.write(String(payload.objectCount ?? 0));
+              '
+            )"
+
             echo "Current release SHA-256: ${current_sha:-<missing>}"
+            echo "Current release object count: ${current_count:-0}"
+            echo "previous_count=${current_count:-0}" >> "$GITHUB_OUTPUT"
 
             if [ -n "$current_sha" ] && [ "$current_sha" = "$SOURCE_SHA" ]; then
               echo "MPC source is unchanged; no release update is necessary."
@@ -137,6 +155,8 @@ jobs:
 
       - name: Validate generated comet catalogue
         if: steps.release.outputs.changed == 'true'
+        env:
+          PREVIOUS_COUNT: ${{ steps.release.outputs.previous_count }}
         shell: bash
         run: |
           set -euo pipefail
@@ -216,7 +236,28 @@ jobs:
             }
           }
 
-          console.log(`Validated ${objects.length} comet records.`);
+          const previousCount = Number(process.env.PREVIOUS_COUNT ?? 0);
+          const minimumRatioPercent = Number(
+            process.env.MIN_PREVIOUS_RATIO_PERCENT ?? 70
+          );
+
+          if (previousCount > 0) {
+            const minimumFromPrevious = Math.floor(
+              previousCount * minimumRatioPercent / 100
+            );
+
+            if (objects.length < minimumFromPrevious) {
+              throw new Error(
+                `Generated catalogue shrank from ${previousCount} to ${objects.length} objects, ` +
+                `below the ${minimumRatioPercent}% safety threshold (${minimumFromPrevious}).`
+              );
+            }
+          }
+
+          console.log(
+            `Validated ${objects.length} comet records` +
+            (previousCount > 0 ? ` (previous release: ${previousCount}).` : ".")
+          );
           NODE
 
       - name: Run comet tests
