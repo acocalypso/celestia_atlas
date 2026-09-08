@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added validated runtime comet-catalogue replacement to the embedded viewer,
+  allowing hosts to consume the rolling MPC release while retaining the
+  bundled offline snapshot. Consolidated the six-hour release workflow so its
+  pinned regression tests run before live data replaces the repository fixture.
 - Rendered photographic surveys at display-aware resolution and selected their
   HiPS detail order from that same resolution. Complete visible tile sets now
   fill one sharp viewport atomically, with increased parallel loading for

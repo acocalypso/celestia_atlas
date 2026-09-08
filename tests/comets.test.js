@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import cometCatalog from "../data/comets.js";
-import { getCometObjects, propagateComet } from "../src/index.js";
+import {
+  getCometObjects,
+  propagateComet,
+  validateCometElements,
+} from "../src/index.js";
 
 const BERLIN = {
   latitudeDeg: 52.52,
@@ -54,6 +58,18 @@ test("universal propagation handles elliptic, parabolic, and hyperbolic orbits",
     assert.ok(Math.abs(before.y + after.y) < 1e-11);
     assert.ok(Math.abs(before.distanceAu - after.distanceAu) < 1e-11);
   }
+});
+
+test("validates and isolates replacement comet elements", () => {
+  const source = [cometCatalog.objects[0]];
+  const validated = validateCometElements(source);
+  assert.deepEqual(validated, source);
+  assert.notEqual(validated[0], source[0]);
+  assert.throws(
+    () => validateCometElements([{ ...source[0], qAu: 0 }]),
+    /positive qAu/,
+  );
+  assert.throws(() => validateCometElements({}), /must be an array/);
 });
 
 test("matches a topocentric JPL Horizons 12P fixture within one arcminute", () => {

@@ -14,6 +14,36 @@ const SQRT_SOLAR_MU = Math.sqrt(SOLAR_MU);
 const LIGHT_DAYS_PER_AU = 499.004783836 / 86400;
 const DEG = Math.PI / 180;
 
+const REQUIRED_ELEMENT_FIELDS = [
+  "perihelionTt",
+  "qAu",
+  "eccentricity",
+  "argumentPerihelionDeg",
+  "ascendingNodeDeg",
+  "inclinationDeg",
+];
+
+export function validateCometElements(elements) {
+  if (!Array.isArray(elements))
+    throw new TypeError("Comet elements must be an array");
+  return elements.map((item, index) => {
+    if (!item || typeof item !== "object")
+      throw new TypeError(`Comet element ${index} must be an object`);
+    if (typeof item.id !== "string" || !item.id.trim())
+      throw new TypeError(`Comet element ${index} requires a non-empty id`);
+    if (typeof item.name !== "string" || !item.name.trim())
+      throw new TypeError(`Comet element ${index} requires a non-empty name`);
+    for (const field of REQUIRED_ELEMENT_FIELDS)
+      if (!Number.isFinite(item[field]))
+        throw new TypeError(`Comet element ${index} has invalid ${field}`);
+    if (item.qAu <= 0)
+      throw new TypeError(`Comet element ${index} requires positive qAu`);
+    if (item.eccentricity < 0)
+      throw new TypeError(`Comet element ${index} requires non-negative eccentricity`);
+    return { ...item };
+  });
+}
+
 function stumpff(z) {
   if (z > 1e-8) {
     const root = Math.sqrt(z);

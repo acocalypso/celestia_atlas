@@ -244,6 +244,20 @@ export interface CometObject extends SelectedTarget {
   frame: "J2000";
   epochJulianYear: 2000;
 }
+export interface CometElements {
+  id: string;
+  name: string;
+  packedDesignation?: string;
+  perihelionTt: number;
+  qAu: number;
+  eccentricity: number;
+  argumentPerihelionDeg: number;
+  ascendingNodeDeg: number;
+  inclinationDeg: number;
+  absoluteMagnitude?: number;
+  slope?: number;
+  reference?: string;
+}
 export interface ViewState {
   center: EquatorialCoordinates;
   fovDeg: number;
@@ -269,6 +283,8 @@ export interface CelestiaAtlasViewer {
   /** Replace or disable the optional progressive photographic sky survey. */
   setSkySurvey(value: SkySurveySource | null): void;
   setDisplayOptions(value: Partial<CelestiaAtlasDisplayOptions>): void;
+  /** Replace the bundled comet orbital elements for rendering and search. */
+  setCometElements(value: CometElements[]): void;
   focusTarget(
     target: CatalogueTarget | EquatorialCoordinates,
     fovDeg?: number,
@@ -308,6 +324,8 @@ export function createCelestiaAtlasViewer(options: {
   milkyWayPanoramaUrl?: string | null;
   /** Defaults to the online DSS2 Color HiPS; pass null for a local-only viewer. */
   skySurveySource?: SkySurveySource | null;
+  /** Optional live comet elements; defaults to the bundled offline snapshot. */
+  cometElements?: CometElements[];
   onSelect?: (value: SelectedTarget) => void;
   onViewChange?: (value: ViewState) => void;
   onError?: (error: Error) => void;
@@ -555,3 +573,4 @@ export function getCometObjects(
   observer: Observer,
   elements?: unknown[],
 ): CometObject[];
+export function validateCometElements(elements: unknown): CometElements[];

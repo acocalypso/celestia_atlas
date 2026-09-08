@@ -149,7 +149,14 @@ jobs:
         if: steps.release.outputs.changed == 'true'
         run: npm ci
 
-      - name: Build comet catalogue
+      # These tests intentionally verify the repository's committed/pinned
+      # catalogue, including its exact object count/SHA and historical Horizons
+      # fixture. Run them BEFORE replacing data/comets.* with the live MPC feed.
+      - name: Run pinned comet regression tests
+        if: steps.release.outputs.changed == 'true'
+        run: node --test tests/comets.test.js
+
+      - name: Build live comet catalogue
         if: steps.release.outputs.changed == 'true'
         run: node tools/build_comet_catalog.mjs /tmp/CometEls.txt
 
@@ -282,9 +289,19 @@ jobs:
           );
           NODE
 
-      - name: Run comet tests
+      # Do not run the pinned-count/SHA or pinned-Horizons tests here:
+      # those assertions are intentionally tied to the repository snapshot and
+      # will change when MPC publishes new orbital solutions.
+      #
+      # These two tests exercise the propagation engine and verify that the
+      # freshly generated catalogue can be turned into valid searchable
+      # topocentric J2000 comet targets.
+      - name: Run live catalogue smoke tests
         if: steps.release.outputs.changed == 'true'
-        run: node --test tests/comets.test.js
+        run: >-
+          node --test
+          --test-name-pattern="universal propagation handles elliptic, parabolic, and hyperbolic orbits|returns searchable topocentric J2000 comet targets"
+          tests/comets.test.js
 
       - name: Prepare release assets
         if: steps.release.outputs.changed == 'true'

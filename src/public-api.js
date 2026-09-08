@@ -18,7 +18,7 @@ import {
   getJupiterMoonObjects,
   getSolarSystemObjects,
 } from "./core/solar-system.js";
-import { getCometObjects } from "./core/comets.js";
+import { getCometObjects, validateCometElements } from "./core/comets.js";
 import {
   eclipticToEquatorial,
   galacticToEquatorial,
@@ -178,6 +178,7 @@ export function createCelestiaAtlasViewer(options) {
     devicePixelRatioCap = coarsePointer ? 1.25 : 2,
     milkyWayPanoramaUrl = DEFAULT_MILKY_WAY_URL,
     skySurveySource = DEFAULT_DSS_SKY_SURVEY_SOURCE,
+    cometElements,
   } = options ?? {};
   if (!(container instanceof HTMLElement))
     throw new TypeError("container must be an HTMLElement");
@@ -353,6 +354,8 @@ export function createCelestiaAtlasViewer(options) {
   let frameId = null;
   let clockTimer = null;
   let cometCache = { key: "", objects: [] };
+  let activeCometElements =
+    cometElements === undefined ? undefined : validateCometElements(cometElements);
   let solarSystemCache = { key: "", objects: [] };
   const renderStars = stars
     .map((star) => ({
@@ -481,7 +484,7 @@ export function createCelestiaAtlasViewer(options) {
     if (cometCache.key !== key)
       cometCache = {
         key,
-        objects: getCometObjects(timestamp, observer),
+        objects: getCometObjects(timestamp, observer, activeCometElements),
       };
     return cometCache.objects;
   };
@@ -3388,6 +3391,13 @@ export function createCelestiaAtlasViewer(options) {
                 ),
               );
       display = { ...display, ...nextDisplay };
+      scheduleQualityRefinement();
+      invalidate();
+    },
+    setCometElements(value) {
+      assertAlive();
+      activeCometElements = validateCometElements(value);
+      cometCache = { key: "", objects: [] };
       scheduleQualityRefinement();
       invalidate();
     },
