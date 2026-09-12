@@ -16,15 +16,15 @@ sys.path.insert(0, str(TOOLS))
 import build_hyg_star_catalog as builder  # noqa: E402
 
 
-HEADER = "id,hip,proper,ra,dec,mag,ci,con\n"
+HEADER = "id,hip,proper,ra,dec,mag,ci,con,hd\n"
 
 
 class HygStarBuilderTests(unittest.TestCase):
     def test_load_selects_naked_eye_non_solar_records_and_compacts_fields(self):
-        content = HEADER + """0,,Sol,0,0,-26.7,0.656,
-1,10,Named Star,1.25,-2.5,6.5,0.42,Ari
-2,,,2.5,3.5,6.49,,Tau
-3,30,Faint Star,3.5,4.5,6.51,1.1,Ori
+        content = HEADER + """0,,Sol,0,0,-26.7,0.656,,
+1,10,Named Star,1.25,-2.5,6.5,0.42,Ari,
+2,,,2.5,3.5,6.49,,Tau,
+3,30,Faint Star,3.5,4.5,6.51,1.1,Ori,
 """
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "hyg.csv"

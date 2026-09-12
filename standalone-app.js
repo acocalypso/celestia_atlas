@@ -7,6 +7,7 @@ import {
   equatorialToHorizontal,
   horizontalToEquatorial,
 } from "./src/index.js";
+import { composeStarCatalog } from "./src/core/star-catalog-layers.js";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -76,21 +77,13 @@ const layeredCatalog = combineCatalogLayers(
 globalThis.DSO_DATA = layeredCatalog.objects;
 globalThis.DSO_CATALOG_META = layeredCatalog.meta;
 
-const stars = [
-  ...(globalThis.STAR_DATA ?? []),
-  ...(globalThis.HYG_STAR_DATA ?? []),
-].map((star) => {
-  const name = star.name || star.id || star.uid;
-  return {
-    ...star,
-    id: star.id || name,
-    name,
-    aliases: uniqueStrings([star.aliases ?? [], star.alias]),
-    raDeg: Number.isFinite(star.raDeg) ? star.raDeg : star.ra * 15,
-    decDeg: Number.isFinite(star.decDeg) ? star.decDeg : star.dec,
-    frame: star.frame || "ICRS",
-    type: "Star",
-  };
+const stars = composeStarCatalog({
+  curated: globalThis.STAR_DATA ?? [],
+  hyg: globalThis.HYG_STAR_DATA ?? [],
+  curatedCrossIds: globalThis.HYG_CURATED_STAR_CROSSIDS ?? [],
+  hygSearch: globalThis.HYG_SEARCH_STAR_DATA ?? [],
+  sao: globalThis.SAO_STAR_CROSSIDS ?? [],
+  wr: globalThis.WR_STAR_DATA ?? [],
 });
 const catalog = layeredCatalog.objects.map((object) => {
   const raDeg = Number.isFinite(object.raDeg)
@@ -344,7 +337,7 @@ function sourceDescriptions(target) {
   }
   if (!descriptions.some(Boolean))
     descriptions.push(target.catalogueGroups ?? []);
-  return uniqueStrings(descriptions);
+  return uniqueStrings([descriptions, target.crossIdSources ?? []]);
 }
 
 function sourcePropertyConflictDescriptions(properties) {

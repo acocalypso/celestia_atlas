@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import unicodedata
 from typing import Any, Iterable, Sequence
 from urllib.request import Request, urlopen
 
@@ -40,6 +41,7 @@ CURATED_MATCH_RADIUS_ARCMIN = 2.0
 REQUIRED_COLUMNS = {
     "id",
     "hip",
+    "hd",
     "proper",
     "ra",
     "dec",
@@ -183,6 +185,12 @@ def load_hyg_candidates(
                 if hip_text
                 else None
             )
+            hd_text = (row.get("hd") or "").strip()
+            hd = (
+                _positive_integer(hd_text, field="HD id", row_number=row_number)
+                if hd_text
+                else None
+            )
             proper = (row.get("proper") or "").strip()
             identifier = f"HIP {hip}" if hip is not None else f"HYG {hyg_id}"
             record: dict[str, Any] = {
@@ -196,6 +204,9 @@ def load_hyg_candidates(
                 "con": (row.get("con") or "").strip(),
                 "catalogSource": "HYG",
             }
+            if hd is not None:
+                record["hd"] = hd
+                record["aliases"] = [f"HD {hd}"]
             if proper:
                 record["named"] = True
             color_index = (row.get("ci") or "").strip()
@@ -242,6 +253,55 @@ def exclude_curated_duplicates(
     return kept, excluded
 
 
+def _identity_key(value: str) -> str:
+    return "".join(character for character in unicodedata.normalize("NFKD", value).casefold()
+                   if character.isalnum())
+
+
+def curated_star_cross_ids(
+    excluded: Iterable[dict[str, Any]],
+    curated_stars: Iterable[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Transfer only unique exact identities; plotting proximity is not identity."""
+    curated = list(curated_stars)
+    excluded = list(excluded)
+
+    def keys(star: dict[str, Any]) -> set[str]:
+        values = [star.get("id", ""), star.get("name", ""), star.get("alias", ""),
+                  *star.get("aliases", [])]
+        return {_identity_key(value) for value in values if value}
+
+    curated_keys = [keys(star) for star in curated]
+    candidates: dict[int, list[dict[str, Any]]] = {}
+    for record in excluded:
+        matches = [index for index, values in enumerate(curated_keys) if keys(record) & values]
+        if len(matches) == 1:
+            candidates.setdefault(matches[0], []).append(record)
+    grouped: dict[int, dict[str, set[Any]]] = {}
+    for curated_index, records in candidates.items():
+        if len(records) != 1 or not curated[curated_index].get("name"):
+            continue
+        name_key = _identity_key(curated[curated_index]["name"])
+        if sum(_identity_key(star.get("name", "")) == name_key for star in curated) != 1:
+            continue
+        record = records[0]
+        group = grouped.setdefault(curated_index, {"aliases": set(), "hds": set()})
+        group["aliases"].add(record["id"])
+        group["aliases"].add(f"HYG {record['hyg']}")
+        if "hd" in record:
+            group["hds"].add(record["hd"])
+            group["aliases"].add(f"HD {record['hd']}")
+
+    return [
+        {
+            "curatedName": curated[index]["name"],
+            "aliases": sorted(group["aliases"], key=lambda value: (value.casefold(), value)),
+            **({"hds": sorted(group["hds"])} if group["hds"] else {}),
+        }
+        for index, group in sorted(grouped.items(), key=lambda item: curated[item[0]]["name"])
+    ]
+
+
 def metadata(
     *,
     source_sha256: str,
@@ -259,6 +319,7 @@ def metadata(
         "objectCount": len(records),
         "namedRecordCount": sum(record.get("named") is True for record in records),
         "colorIndexRecordCount": sum("bv" in record for record in records),
+        "hdRecordCount": sum("hd" in record for record in records),
         "sourceRecordCount": source_record_count,
         "eligibleRecordCount": eligible_record_count,
         "curatedRecordCount": curated_record_count,
@@ -277,13 +338,18 @@ def metadata(
         "modifications": (
             "Selected non-solar stars with apparent visual magnitude <= 6.5; "
             "excluded HYG components within 2 arcminutes of the curated STAR_DATA "
-            "layer to prevent duplicate rendering; renamed HYG ci to optional bv; "
+            "layer to prevent duplicate rendering; transferred HYG, HIP and HD "
+            "identifiers only through unique exact identities, keyed by curated "
+            "name; retained unconfirmed excluded components as search-only records; "
+            "renamed HYG ci to optional bv; "
             "serialized compact JSON and JavaScript assets."
         ),
         "fields": {
             "uid": "Stable HYG row identity (hyg:<id>)",
             "hyg": "HYG v4.1 row id",
             "id": "HIP identifier when available, otherwise HYG identifier",
+            "hd": "Optional Henry Draper identifier",
+            "aliases": "Optional searchable Henry Draper designation",
             "name": "HYG proper name, otherwise the identifier",
             "named": "Present and true only when HYG proper is non-empty",
             "ra": "J2000.0 right ascension in hours",
@@ -308,12 +374,19 @@ def _json(value: Any, *, pretty: bool = False) -> str:
     )
 
 
-def browser_script(meta: dict[str, Any], records: Sequence[dict[str, Any]]) -> str:
+def browser_script(
+    meta: dict[str, Any],
+    records: Sequence[dict[str, Any]],
+    curated_cross_ids: Sequence[dict[str, Any]] = (),
+    search_records: Sequence[dict[str, Any]] = (),
+) -> str:
     return f'''// SPDX-License-Identifier: CC-BY-SA-4.0
 // Derived from HYG v4.1; see THIRD_PARTY_NOTICES.md.
 "use strict";
 window.HYG_STAR_CATALOG_META={_json(meta)};
 window.HYG_STAR_DATA={_json(records)};
+window.HYG_CURATED_STAR_CROSSIDS={_json(curated_cross_ids)};
+window.HYG_SEARCH_STAR_DATA={_json(search_records)};
 '''
 
 
@@ -322,13 +395,18 @@ def write_outputs(
     *,
     meta: dict[str, Any],
     records: Sequence[dict[str, Any]],
+    curated_cross_ids: Sequence[dict[str, Any]] = (),
+    search_records: Sequence[dict[str, Any]] = (),
 ) -> dict[str, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     data_dir = output_dir / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     values = {
-        output_dir / "hyg-star-catalog.js": browser_script(meta, records),
-        data_dir / "hyg-star-catalog.json": _json({"meta": meta, "stars": records})
+        output_dir / "hyg-star-catalog.js": browser_script(meta, records, curated_cross_ids, search_records),
+        data_dir / "hyg-star-catalog.json": _json(
+            {"meta": meta, "stars": records, "curatedCrossIds": curated_cross_ids,
+             "searchStars": search_records}
+        )
         + "\n",
     }
     written: dict[str, Path] = {}
@@ -358,9 +436,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     curated = load_curated_stars(args.curated_file)
     candidates, source_rows = load_hyg_candidates(source)
     records, excluded = exclude_curated_duplicates(candidates, curated)
+    curated_cross_ids = curated_star_cross_ids(excluded, curated)
+    transferred = {alias for entry in curated_cross_ids for alias in entry["aliases"]}
+    search_records = [
+        {**record, "searchOnly": True}
+        for record in excluded if f"HYG {record['hyg']}" not in transferred
+    ]
+    records.sort(key=lambda record: record["hyg"])
+    search_records.sort(key=lambda record: record["hyg"])
     epoch = args.source_date_epoch
     if epoch is None and os.environ.get("SOURCE_DATE_EPOCH"):
         epoch = int(os.environ["SOURCE_DATE_EPOCH"])
+    if epoch is None:
+        epoch = 1789171200
     meta = metadata(
         source_sha256=source_sha256,
         source_record_count=source_rows,
@@ -370,7 +458,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         curated_excluded_count=len(excluded),
         source_date_epoch=epoch,
     )
-    paths = write_outputs(args.output_dir, meta=meta, records=records)
+    meta["curatedCrossIdCount"] = len(curated_cross_ids)
+    meta["searchOnlyRecordCount"] = len(search_records)
+    paths = write_outputs(
+        args.output_dir,
+        meta=meta,
+        records=records,
+        curated_cross_ids=curated_cross_ids,
+        search_records=search_records,
+    )
     print(
         f"Generated {len(records):,} HYG stars at {paths['hyg-star-catalog.js']} "
         f"({len(excluded):,} curated duplicates excluded)"

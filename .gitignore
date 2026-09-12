@@ -1,6 +1,8 @@
 __pycache__/
 *.pyc
 .cache/
+data/sources/simbad/sao-hd-crossids.tsv
+data/sources/simbad/wr-stars.tsv
 images/dso/.nasa-download-state.json
 images/dso/download-report.json
 _site/

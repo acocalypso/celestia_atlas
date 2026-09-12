@@ -1,7 +1,8 @@
 # SIMBAD snapshot licence
 
 The committed SIMBAD TAP snapshot and the separately generated A66 catalogue
-layer are made available under the **Open Data Commons Open Database License
+layer, and any generated SIMBAD SAO cross-identifiers or WR supplement,
+are made available under the **Open Data Commons Open Database License
 version 1.0 (ODbL-1.0)**.
 
 - Full legal text: <https://opendatacommons.org/licenses/odbl/1-0/>

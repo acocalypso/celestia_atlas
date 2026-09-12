@@ -25,7 +25,7 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(html, /type="module" src="standalone-app\.js"/);
   assert.match(
     html,
-    /catalog\.js[\s\S]*hyg-star-catalog\.js[\s\S]*western-constellations\.js[\s\S]*dso-catalog\.js[\s\S]*abell-pn-catalog\.js[\s\S]*stellarium-supplement\.js[\s\S]*standalone-app\.js/,
+    /catalog\.js[\s\S]*hyg-star-catalog\.js[\s\S]*sao-star-crossids\.js[\s\S]*wr-star-catalog\.js[\s\S]*western-constellations\.js[\s\S]*dso-catalog\.js[\s\S]*abell-pn-catalog\.js[\s\S]*stellarium-supplement\.js[\s\S]*standalone-app\.js/,
   );
   assert.doesNotMatch(html, /app-v8\.js|standalone-engine-bridge\.js/);
   assert.match(application, /createCelestiaAtlasViewer/);
@@ -34,11 +34,17 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(application, /globalThis\.ABELL_PN_CATALOG_DATA/);
   assert.match(application, /catalogWithAbellPlanetaryNebulae/);
   assert.match(application, /globalThis\.HYG_STAR_DATA/);
+  assert.match(application, /globalThis\.SAO_STAR_CROSSIDS/);
+  assert.match(application, /globalThis\.HYG_CURATED_STAR_CROSSIDS/);
+  assert.match(application, /globalThis\.WR_STAR_DATA/);
   assert.match(application, /globalThis\.WESTERN_CONSTELLATIONS/);
   assert.match(pagesWorkflow, /cp western-constellations\.js _site\//);
   assert.match(pagesWorkflow, /test -s _site\/western-constellations\.js/);
-  assert.match(application, /\.\.\.\(globalThis\.STAR_DATA \?\? \[\]\)/);
-  assert.match(application, /\.\.\.\(globalThis\.HYG_STAR_DATA \?\? \[\]\)/);
+  assert.match(application, /const stars = composeStarCatalog\(/);
+  for (const asset of ["sao-star-crossids.js", "wr-star-catalog.js"]) {
+    assert.ok(pagesWorkflow.includes(`cp ${asset} _site/`));
+    assert.ok(pagesWorkflow.includes(`test -s _site/${asset}`));
+  }
   assert.match(html, /id="magLimit"[\s\S]*max="6\.5"[\s\S]*value="6\.5"/);
   assert.match(application, /viewer\.setLandscape/);
   assert.match(application, /viewer\.setFieldOfView/);
@@ -210,6 +216,8 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(serviceWorker, /\.\/stellarium-supplement\.js/);
   assert.match(serviceWorker, /\.\/abell-pn-catalog\.js/);
   assert.match(serviceWorker, /\.\/hyg-star-catalog\.js/);
+  assert.match(serviceWorker, /\.\/sao-star-crossids\.js/);
+  assert.match(serviceWorker, /\.\/wr-star-catalog\.js/);
   assert.match(serviceWorker, /\.\/western-constellations\.js/);
 });
 
@@ -290,6 +298,9 @@ test("mobile renderer keeps expensive work inside bounded frame contracts", asyn
   assert.match(publicApi, /const dsoLabelBudget/);
   assert.match(publicApi, /placedDsoLabelBoxes\.some/);
   assert.match(publicApi, /const renderStars = stars[\s\S]*\.sort\(/);
+  assert.match(publicApi, /const renderStars = stars\s*\.filter\(\(star\) => star.searchOnly !== true\)/);
+  assert.match(publicApi, /renderStars.map\(\(\{ star \}\) => objectIdentity\(star\)\)/);
+  assert.match(publicApi, /selected\?\.searchOnly === true/);
   assert.match(publicApi, /function starColorFromBv\(/);
   assert.match(publicApi, /const interactionStarMagnitudeLimit/);
   assert.match(publicApi, /if \(!pendingSelectedStar\) break/);

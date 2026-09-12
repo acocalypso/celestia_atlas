@@ -48,7 +48,7 @@ Celestia Atlas selects the 8,920 non-solar records whose apparent visual
 magnitude is at most 6.5. To prevent duplicate plotting, it removes all 140 HYG
 components within 2 arcminutes of a star in the curated 130-record `STAR_DATA`
 layer. The 8,780 remaining records retain their HYG row identity, HIP identifier
-when supplied, HYG proper name when supplied, J2000.0 right ascension and
+when supplied, HD identifier when supplied, HYG proper name when supplied, J2000.0 right ascension and
 declination, visual magnitude, optional B-V colour index, constellation and a
 compact HYG source label. The `named` field is emitted only for rows with a HYG
 proper name. HYG's `ci` field is renamed to `bv`; no missing colour is invented.
@@ -64,6 +64,47 @@ data/hyg-star-catalog.json
 Redistributors must retain the attribution, source link, licence link and
 indication of the selection, field renaming, duplicate removal and compact
 serialization modifications described above.
+
+The updated builder also emits a CC BY-SA cross-identifier table keyed by
+curated name, using only unique exact identities. Positional exclusion is a
+plotting rule, not permission to transfer identities. Unconfirmed excluded
+components are retained as HYG search-only records. The generated release
+contains 8,758 HD-bearing rendered HYG records, 125 curated cross-ID transfers
+and 15 independent search-only components.
+
+## SIMBAD SAO cross-identifiers and Wolf-Rayet supplement
+
+The optional builders use the separate SIMBAD TAP queries
+`data/sources/simbad/sao-hd-crossids.adql` and `wr-stars.adql` in that directory.
+SIMBAD advertises ODbL use at <https://simbad.unistra.fr/simbad/>; this is a
+SIMBAD cross-identification layer, not a redistribution grant for the original
+full SAO catalogue or another WR source table.
+
+Generated `sao-star-crossids.js`, `data/sao-star-crossids.json`,
+`wr-star-catalog.js` and `data/wr-star-catalog.json` remain ODbL-1.0 data,
+separate from HYG CC BY-SA, Stellarium GPL and MIT application code. Pinned
+responses retrieved on 2026-09-12 from SIMBAD4 1.8 - 2026-07 are archived as
+`data/sources/simbad/sao-hd-crossids-2026-09-12.tsv` and
+`data/sources/simbad/wr-stars-vmag-2026-09-12.tsv`. The companion
+`star-catalogs-2026-09-12.meta.json` records their hashes, query hashes and counts.
+
+Modifications: retain all distinct HD/SAO pairs, flag conflicting SIMBAD object
+identities, group WR identifier rows by object ID, validate ICRS coordinates,
+retain measured SIMBAD V magnitudes where available, and serialize deterministic
+records without invented magnitudes. The SAO browser subset selects 8,850 HD
+groups used by the atlas from the complete 190,390-row response. WR contributes
+518 objects, including 230 with V measurements. Component designations retain
+their suffixes; source identity conflicts remain marked. Output
+metadata records response and query SHA-256 hashes and an optional reproducible
+generation date. A release must also preserve the response, retrieval date and
+service version to permit independent rebuilding after SIMBAD changes.
+
+Runtime composition copies aliases without rewriting the separately licensed
+assets. It retains SIMBAD labels in `crossIdSources` on enriched records.
+Exporting a combined database requires its own licence review; separation of
+files alone does not waive share-alike obligations. Retain the SIMBAD
+acknowledgement and Wenger et al. (2000) citation below, together with the ODbL
+terms in `licenses/SIMBAD-ODbL-1.0.md`.
 
 ## SIMBAD A66 planetary-nebula layer
 

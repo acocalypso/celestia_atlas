@@ -207,6 +207,10 @@ export type DeepSkyCatalogueObject = Omit<
   frame: EquatorialFrame;
 };
 export interface StarCatalogueObject {
+  /** Exclude from normal star rendering; retain search, focus and selection. */
+  searchOnly?: boolean;
+  hd?: number;
+  crossIdSources?: string[];
   id?: string;
   name: string;
   alias?: string;

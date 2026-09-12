@@ -358,6 +358,7 @@ export function createCelestiaAtlasViewer(options) {
     cometElements === undefined ? undefined : validateCometElements(cometElements);
   let solarSystemCache = { key: "", objects: [] };
   const renderStars = stars
+    .filter((star) => star.searchOnly !== true)
     .map((star) => ({
       star,
       magnitude: star.mag ?? star.magnitude,
@@ -391,7 +392,7 @@ export function createCelestiaAtlasViewer(options) {
   let deepSkyCatalogueGroupAllowlist = null;
   const objectIdentity = (object) => object?.uid ?? object?.id;
   const starIdentityKeys = new Set(
-    stars.map(objectIdentity).filter((value) => value !== undefined),
+    renderStars.map(({ star }) => objectIdentity(star)).filter((value) => value !== undefined),
   );
   const hasSameObjectIdentity = (left, right) => {
     if (!left || !right) return false;
@@ -2509,6 +2510,16 @@ export function createCelestiaAtlasViewer(options) {
       ) {
         context.font = "10px system-ui";
         context.fillText(star.name, point.x + radius + 3, point.y - 3);
+      }
+    }
+    // Search-only targets get a selection marker, never an invented magnitude.
+    if (selected?.searchOnly === true && isAboveHorizon(selected)) {
+      const point = project(selected);
+      if (point) {
+        context.strokeStyle = "#fff1bd";
+        context.beginPath();
+        context.arc(point.x, point.y, 7, 0, Math.PI * 2);
+        context.stroke();
       }
     }
     const dsoLabelCandidates = [];
