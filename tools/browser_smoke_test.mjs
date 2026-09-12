@@ -950,6 +950,31 @@ async function run() {
       y,
       interactionState.detailTitle,
     );
+    // Exercise the new stellar controls and both kinds of star hit targets.
+    const starControls = await client.send("Runtime.evaluate", {
+      expression: `(() => {
+        const groups = [...document.querySelectorAll('#starCatalogueFilters input')];
+        document.querySelector('[data-catalog-filter-kind="stars"][data-catalog-filter-action="none"]').click();
+        const none = globalThis.__CELESTIA_ATLAS_VIEWER__.getState().display.starCatalogueGroups;
+        document.querySelector('[data-catalog-filter-kind="stars"][data-catalog-filter-action="all"]').click();
+        const all = globalThis.__CELESTIA_ATLAS_VIEWER__.getState().display.starCatalogueGroups;
+        return { groups: groups.map(input => input.value), none, all,
+          max: Number(document.querySelector('#magLimit').max) };
+      })()`,
+      returnByValue: true,
+    });
+    const stellar = starControls.result?.value;
+    if (stellar?.groups.length !== 5 || stellar.none.length !== 0 ||
+        stellar.all.length !== 5 || stellar.max < 20)
+      throw new Error(`Star catalogue controls failed: ${JSON.stringify(stellar)}`);
+    for (const query of ["Sirius", "WR 99"]) {
+      const star = await focusSearchResult(client, query);
+      if (!star?.count) throw new Error(`Missing stellar test target ${query}`);
+      await delay(300);
+      await assertCentredMarkerHitTest(client, x, y, star.detailTitle);
+    }
+    await focusSearchResult(client, searchQuery);
+    await delay(300);
     const beforeDragHash = await currentHash(client);
     const beforeDragHorizontal = await currentHorizontalCenter(client);
     await startSkySurveyContinuityProbe(client);

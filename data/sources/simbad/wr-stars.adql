@@ -1,0 +1,14 @@
+SELECT b.oid AS oid,
+       wr.id AS wr_id,
+       b.main_id,
+       b.ra,
+       b.dec,
+       b.otype,
+       f.V AS vmag,
+       x.id AS identifier
+FROM ident AS wr
+JOIN basic AS b ON wr.oidref = b.oid
+LEFT JOIN allfluxes AS f ON b.oid = f.oidref
+JOIN ident AS x ON b.oid = x.oidref
+WHERE wr.id LIKE 'WR %'
+ORDER BY oid, wr_id, identifier

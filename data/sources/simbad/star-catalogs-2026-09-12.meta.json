@@ -1,0 +1,26 @@
+{
+  "retrievedAt": "2026-09-12",
+  "endpoint": "https://simbad.cds.unistra.fr/simbad/sim-tap/sync",
+  "serviceRelease": "SIMBAD4 1.8 - 2026-07",
+  "license": "ODbL-1.0",
+  "licenseUrl": "https://opendatacommons.org/licenses/odbl/1-0/",
+  "maxrec": 1000000,
+  "queryHashEncoding": "UTF-8 with LF line endings",
+  "sources": [
+    {
+      "queryFile": "sao-hd-crossids.adql",
+      "querySha256": "a6685bda2da4e25caf48e4e4ad42e21bc3b12a00e11eb48ba6287e72ea61f0dd",
+      "responseFile": "sao-hd-crossids-2026-09-12.tsv",
+      "responseSha256": "1d29a83094ef71c56de270e8f259112b669c4465dbec1297b6208e5d7ac4d4de",
+      "responseRowCount": 190390
+    },
+    {
+      "queryFile": "wr-stars.adql",
+      "querySha256": "9c7fb3fc7db5b241dea9fc4974d97cd7587f1fbcf50f028d4de96e688cf271da",
+      "responseFile": "wr-stars-vmag-2026-09-12.tsv",
+      "responseSha256": "cf4a23213c1c01f058fe6cb826cc0b18a7ebd10b42f19d5e6ba257e38f1ae995",
+      "responseRowCount": 6458,
+      "objectCount": 518
+    }
+  ]
+}

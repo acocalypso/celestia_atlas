@@ -101,6 +101,8 @@ export interface SkySurveyRuntimeState {
   > | null;
 }
 export interface CelestiaAtlasDisplayOptions {
+  /** Visible stellar identity groups. Any enabled group matches; search is unaffected. */
+  starCatalogueGroups: Array<"curated" | "hyg" | "hd" | "sao" | "wr"> | null;
   grid: boolean;
   azimuthalGrid: boolean;
   meridian: boolean;
@@ -207,6 +209,10 @@ export type DeepSkyCatalogueObject = Omit<
   frame: EquatorialFrame;
 };
 export interface StarCatalogueObject {
+  /** Exclude from normal star rendering; retain search, focus and selection. */
+  searchOnly?: boolean;
+  hd?: number;
+  crossIdSources?: string[];
   id?: string;
   name: string;
   alias?: string;

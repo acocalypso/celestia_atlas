@@ -254,10 +254,23 @@
           id="magLimit"
           type="range"
           min="-2"
-          max="6.5"
+          max="20"
           step="0.1"
           value="6.5"
         />
+        <p class="catalog-filter-empty">Raise this limit to show faint WR stars. Unknown-magnitude targets appear when selected.</p>
+        <div class="catalog-filter-group">
+          <div class="catalog-filter-heading">
+            <span id="starCatalogueLabel">Star catalogues</span>
+            <small id="starCatalogueSummary"></small>
+            <div class="catalog-filter-actions">
+              <button type="button" data-catalog-filter-kind="stars" data-catalog-filter-action="all">All</button>
+              <button type="button" data-catalog-filter-kind="stars" data-catalog-filter-action="none">None</button>
+            </div>
+          </div>
+          <div id="starCatalogueFilters" class="catalog-filter-options" role="group" aria-labelledby="starCatalogueLabel"></div>
+          <p class="catalog-filter-empty">A star may belong to several groups; any enabled group shows it. Search always includes all stars. Photographic stars without catalogue records are not selectable.</p>
+        </div>
         <label class="range-label" for="galaxyMagLimit"
           ><span>Galaxy magnitude limit</span
           ><strong id="galaxyMagValue">30.0</strong></label
@@ -636,7 +649,7 @@
         </p>
         <div class="data-stats">
           <div>
-            <strong id="starCount">—</strong><span>local stars to mag 6.5</span>
+            <strong id="starCount">—</strong><span>searchable local stars</span>
           </div>
           <div>
             <strong id="dsoCount">—</strong><span>local deep-sky objects</span>
@@ -650,7 +663,11 @@
           The public build contains OpenNGC, all 86 Abell-1966 planetary
           nebulae, Abell/ACO galaxy clusters, the LDN, Barnard, LBN, Sharpless,
           vdB, and RCW groups, plus a HYG star layer through visual magnitude
-          6.5. Catalogue coordinates are normalized to ICRS. Stars use their
+          6.5 with HD and SAO cross-identifiers, and a Wolf-Rayet catalogue.
+          Use Controls → Star catalogues to choose visible groups and raise
+          the star magnitude limit to show faint targets. Stars without a
+          measured magnitude appear as selectable markers when found in search.
+          Catalogue coordinates are normalized to ICRS. Stars use their
           available B-V colours, while galaxies and nebulae use type-specific
           symbols and scaled catalogue footprints. Faint objects appear
           progressively as you zoom in, while every bundled entry remains
@@ -662,7 +679,7 @@
         <h3>Catalogue attribution</h3>
         <p>
           OpenNGC and the HYG-derived star asset are separately distributed
-          under CC BY-SA 4.0. The pinned SIMBAD A66 snapshot is distributed
+          under CC BY-SA 4.0. The pinned SIMBAD A66, SAO and WR snapshots are distributed
           under ODbL 1.0. The Stellarium DSO supplement is distributed under
           GPL-2.0-or-later and retains Stellarium and original-catalogue credits.
           Richer tables imported locally from VizieR are not included in the
@@ -715,6 +732,8 @@
     <script src="dso-images.js"></script>
     <script src="catalog.js"></script>
     <script src="hyg-star-catalog.js"></script>
+    <script src="sao-star-crossids.js"></script>
+    <script src="wr-star-catalog.js"></script>
     <script src="western-constellations.js"></script>
     <script src="dso-catalog.js"></script>
     <script src="abell-pn-catalog.js"></script>

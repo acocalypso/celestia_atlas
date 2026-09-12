@@ -57,6 +57,7 @@ import {
   searchCatalogIndex,
 } from "./core/catalog-identifiers.js";
 import { compileConstellationSegments } from "./core/constellations.js";
+import { STAR_CATALOGUE_BITS, starCatalogueMask } from "./core/star-catalog-layers.js";
 
 const DEG = Math.PI / 180;
 const MAX_FOV_DEG = 130;
@@ -333,6 +334,7 @@ export function createCelestiaAtlasViewer(options) {
     constellations: true,
     labels: true,
     starMagnitudeLimit: 6.5,
+    starCatalogueGroups: null,
     galaxyMagnitudeLimit: 30,
     deepSkyMagnitudeLimit: 30,
     deepSkyObjectTypes: null,
@@ -358,10 +360,12 @@ export function createCelestiaAtlasViewer(options) {
     cometElements === undefined ? undefined : validateCometElements(cometElements);
   let solarSystemCache = { key: "", objects: [] };
   const renderStars = stars
+    .filter((star) => star.searchOnly !== true)
     .map((star) => ({
       star,
       magnitude: star.mag ?? star.magnitude,
       color: starColorFromBv(star.bv ?? star.colorIndex),
+      catalogueMask: starCatalogueMask(star),
     }))
     .sort((left, right) => {
       const leftMagnitude = Number.isFinite(left.magnitude)
@@ -388,10 +392,11 @@ export function createCelestiaAtlasViewer(options) {
     deepSkyUnknownMagnitudeFovLimit,
   );
   let deepSkyObjectTypeAllowlist = null;
+  let starCatalogueAllowMask = 31;
   let deepSkyCatalogueGroupAllowlist = null;
   const objectIdentity = (object) => object?.uid ?? object?.id;
   const starIdentityKeys = new Set(
-    stars.map(objectIdentity).filter((value) => value !== undefined),
+    renderStars.map(({ star }) => objectIdentity(star)).filter((value) => value !== undefined),
   );
   const hasSameObjectIdentity = (left, right) => {
     if (!left || !right) return false;
@@ -2469,6 +2474,7 @@ export function createCelestiaAtlasViewer(options) {
         if (!pendingSelectedStar) break;
         continue;
       }
+      if (!isSelectedStar && !(entry.catalogueMask & starCatalogueAllowMask)) continue;
       const point = project(star);
       if (
         !point ||
@@ -2509,6 +2515,17 @@ export function createCelestiaAtlasViewer(options) {
       ) {
         context.font = "10px system-ui";
         context.fillText(star.name, point.x + radius + 3, point.y - 3);
+      }
+    }
+    // Search-only targets get a selection marker, never an invented magnitude.
+    if (selected?.searchOnly === true && isAboveHorizon(selected)) {
+      const point = project(selected);
+      if (point) {
+        context.strokeStyle = "#fff1bd";
+        context.beginPath();
+        context.arc(point.x, point.y, 7, 0, Math.PI * 2);
+        context.stroke();
+        hitTargets.push({ x: point.x, y: point.y, object: selected });
       }
     }
     const dsoLabelCandidates = [];
@@ -3358,6 +3375,7 @@ export function createCelestiaAtlasViewer(options) {
       for (const [key, label] of [
         ["deepSkyObjectTypes", "Deep-sky object types"],
         ["deepSkyCatalogueGroups", "Deep-sky catalogue groups"],
+        ["starCatalogueGroups", "Star catalogue groups"],
       ]) {
         if (value[key] === undefined) continue;
         if (value[key] === null) {
@@ -3372,6 +3390,9 @@ export function createCelestiaAtlasViewer(options) {
           return item.trim();
         });
       }
+      if (value.starCatalogueGroups !== undefined)
+        starCatalogueAllowMask = nextDisplay.starCatalogueGroups === null ? 31 :
+          nextDisplay.starCatalogueGroups.reduce((mask, key) => mask | (STAR_CATALOGUE_BITS[key.toLowerCase()] ?? 0), 0);
       if (value.deepSkyObjectTypes !== undefined)
         deepSkyObjectTypeAllowlist =
           nextDisplay.deepSkyObjectTypes === null

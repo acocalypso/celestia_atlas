@@ -1,0 +1,7 @@
+SELECT hd.oidref AS oid,
+       hd.id AS hd_id,
+       sao.id AS sao_id
+FROM ident AS hd
+JOIN ident AS sao ON hd.oidref = sao.oidref
+WHERE hd.id LIKE 'HD %' AND sao.id LIKE 'SAO %'
+ORDER BY hd_id, sao_id

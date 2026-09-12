@@ -57,7 +57,23 @@ jobs:
         run: python tools/build_abell_pn_catalog.py
 
       - name: Build redistributable HYG naked-eye star layer
-        run: python tools/build_hyg_star_catalog.py
+        run: |
+          python tools/build_hyg_star_catalog.py
+          npm run build:wr-stars
+          npm run build:sao-stars
+          node --input-type=module - <<'JS' >> "$GITHUB_ENV"
+          import { readFileSync } from 'node:fs';
+          import vm from 'node:vm';
+          import { composeStarCatalog } from './src/core/star-catalog-layers.js';
+          const context = vm.createContext({ window: {} });
+          for (const file of ['catalog.js', 'hyg-star-catalog.js', 'sao-star-crossids.js', 'wr-star-catalog.js'])
+            vm.runInContext(readFileSync(file, 'utf8'), context);
+          const data = context.window;
+          const stars = composeStarCatalog({ curated: data.STAR_DATA, hyg: data.HYG_STAR_DATA,
+            curatedCrossIds: data.HYG_CURATED_STAR_CROSSIDS, hygSearch: data.HYG_SEARCH_STAR_DATA,
+            sao: data.SAO_STAR_CROSSIDS, wr: data.WR_STAR_DATA });
+          console.log(`SMOKE_EXPECTED_STAR_COUNT=${stars.length}`);
+          JS
 
       - name: Run catalogue and browser-core tests
         run: npm test
@@ -71,6 +87,8 @@ jobs:
           test -s stellarium-supplement.js
           test -s abell-pn-catalog.js
           test -s hyg-star-catalog.js
+          test -s sao-star-crossids.js
+          test -s wr-star-catalog.js
           test -s western-constellations.js
           test -s data/dso-catalog.json
           test -s data/dso-viewer-catalog.json
@@ -149,7 +167,6 @@ jobs:
           SMOKE_QUERY: LDN 1
           SMOKE_EXPECT_TITLE: LDN 1
           SMOKE_EXPECTED_SOURCE_FILTERS: "10"
-          SMOKE_EXPECTED_STAR_COUNT: "8910"
           SMOKE_EXPECTED_DSO_COUNT: "21192"
           SMOKE_EXPECT_DETAIL_TEXT: LDN via Stellarium
         run: npm run test:browser
@@ -159,7 +176,6 @@ jobs:
           SMOKE_QUERY: Abell 1656
           SMOKE_EXPECT_TITLE: Abell 1656
           SMOKE_EXPECTED_SOURCE_FILTERS: "10"
-          SMOKE_EXPECTED_STAR_COUNT: "8910"
           SMOKE_EXPECTED_DSO_COUNT: "21192"
           SMOKE_EXPECT_DETAIL_TEXT: Abell via Stellarium
         run: npm run test:browser
@@ -169,7 +185,6 @@ jobs:
           SMOKE_QUERY: Abell 39
           SMOKE_EXPECT_TITLE: Abell PN 39
           SMOKE_EXPECTED_SOURCE_FILTERS: "10"
-          SMOKE_EXPECTED_STAR_COUNT: "8910"
           SMOKE_EXPECTED_DSO_COUNT: "21192"
           SMOKE_EXPECT_DETAIL_TEXT: SIMBAD A66
         run: npm run test:browser
@@ -179,9 +194,22 @@ jobs:
           SMOKE_QUERY: Larawag
           SMOKE_EXPECT_TITLE: Larawag
           SMOKE_EXPECTED_SOURCE_FILTERS: "10"
-          SMOKE_EXPECTED_STAR_COUNT: "8910"
           SMOKE_EXPECTED_DSO_COUNT: "21192"
           SMOKE_EXPECT_DETAIL_TEXT: HYG
+        run: npm run test:browser
+
+      - name: Exercise SAO stellar identifiers in Chrome
+        env:
+          SMOKE_QUERY: SAO151881
+          SMOKE_EXPECT_TITLE: Sirius
+          SMOKE_EXPECT_DETAIL_TEXT: SIMBAD SAO
+        run: npm run test:browser
+
+      - name: Exercise Wolf-Rayet targets in Chrome
+        env:
+          SMOKE_QUERY: WR104
+          SMOKE_EXPECT_TITLE: WR 104
+          SMOKE_EXPECT_DETAIL_TEXT: SIMBAD WR
         run: npm run test:browser
 
       - name: Exercise optional catalogue objects in Chrome
@@ -189,7 +217,6 @@ jobs:
           SMOKE_CATALOG_BUNDLE: .cache/catalog-browser-fixture/dso-catalog.js
           SMOKE_QUERY: Sh 2-1
           SMOKE_EXPECTED_SOURCE_FILTERS: "12"
-          SMOKE_EXPECTED_STAR_COUNT: "8910"
           SMOKE_EXPECT_DETAIL_TEXT: VII/20
         run: |
           python tools/build_catalog_browser_fixture.py
@@ -207,6 +234,8 @@ jobs:
           cp milky-way-renderer.js _site/
           cp catalog.js _site/
           cp hyg-star-catalog.js _site/
+          cp sao-star-crossids.js _site/
+          cp wr-star-catalog.js _site/
           cp western-constellations.js _site/
           cp dso-catalog.js _site/
           cp abell-pn-catalog.js _site/
@@ -247,6 +276,8 @@ jobs:
 
           test -s _site/licenses/Stellarium-GPL-2.0.txt
           test -s _site/western-constellations.js
+          test -s _site/sao-star-crossids.js
+          test -s _site/wr-star-catalog.js
           test -s _site/licenses/HYG-CC-BY-SA-4.0.md
           test -s _site/licenses/SIMBAD-ODbL-1.0.md
 

@@ -41,7 +41,7 @@ test("generated HYG layer is complete, compact, and independently licensed", asy
   assert.equal(context.window.HYG_STAR_CATALOG_META.objectCount, 8_780);
   assert.match(script, /SPDX-License-Identifier: CC-BY-SA-4\.0/);
   assert.doesNotMatch(script, /window\.STAR_DATA\s*=/);
-  assert.ok(fileInfo.size < 1_500_000, `HYG browser layer is ${fileInfo.size} bytes`);
+  assert.ok(fileInfo.size < 1_700_000, `HYG browser layer is ${fileInfo.size} bytes`);
 
   const uids = new Set();
   const ids = new Set();

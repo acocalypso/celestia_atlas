@@ -7,6 +7,7 @@ import {
   equatorialToHorizontal,
   horizontalToEquatorial,
 } from "./src/index.js";
+import { composeStarCatalog, STAR_CATALOGUE_BITS, starCatalogueMask } from "./src/core/star-catalog-layers.js";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -76,21 +77,13 @@ const layeredCatalog = combineCatalogLayers(
 globalThis.DSO_DATA = layeredCatalog.objects;
 globalThis.DSO_CATALOG_META = layeredCatalog.meta;
 
-const stars = [
-  ...(globalThis.STAR_DATA ?? []),
-  ...(globalThis.HYG_STAR_DATA ?? []),
-].map((star) => {
-  const name = star.name || star.id || star.uid;
-  return {
-    ...star,
-    id: star.id || name,
-    name,
-    aliases: uniqueStrings([star.aliases ?? [], star.alias]),
-    raDeg: Number.isFinite(star.raDeg) ? star.raDeg : star.ra * 15,
-    decDeg: Number.isFinite(star.decDeg) ? star.decDeg : star.dec,
-    frame: star.frame || "ICRS",
-    type: "Star",
-  };
+const stars = composeStarCatalog({
+  curated: globalThis.STAR_DATA ?? [],
+  hyg: globalThis.HYG_STAR_DATA ?? [],
+  curatedCrossIds: globalThis.HYG_CURATED_STAR_CROSSIDS ?? [],
+  hygSearch: globalThis.HYG_SEARCH_STAR_DATA ?? [],
+  sao: globalThis.SAO_STAR_CROSSIDS ?? [],
+  wr: globalThis.WR_STAR_DATA ?? [],
 });
 const catalog = layeredCatalog.objects.map((object) => {
   const raDeg = Number.isFinite(object.raDeg)
@@ -152,6 +145,7 @@ const catalogueGroupLabels = new Map([
 ]);
 
 const state = {
+  starCatalogueGroups: Object.keys(STAR_CATALOGUE_BITS),
   mode: "horizontal",
   observer: { latitudeDeg: 52.52, longitudeDeg: 13.405, elevationM: 0 },
   grid: true,
@@ -344,7 +338,7 @@ function sourceDescriptions(target) {
   }
   if (!descriptions.some(Boolean))
     descriptions.push(target.catalogueGroups ?? []);
-  return uniqueStrings(descriptions);
+  return uniqueStrings([descriptions, target.crossIdSources ?? []]);
 }
 
 function sourcePropertyConflictDescriptions(properties) {
@@ -526,6 +520,7 @@ function applyDisplayOptions() {
     hideBelowHorizon: state.hideBelowHorizon,
     nightMode: state.nightMode,
     starMagnitudeLimit: state.starMagnitudeLimit,
+    starCatalogueGroups: state.starCatalogueGroups,
     galaxyMagnitudeLimit: state.galaxyMagnitudeLimit,
     deepSkyMagnitudeLimit: state.deepSkyMagnitudeLimit,
     deepSkyObjectTypes: state.deepSkyObjectTypes,
@@ -667,6 +662,13 @@ function updateToggle(button, enabled) {
 }
 
 const catalogueFilterConfigs = {
+  stars: {
+    containerId: "starCatalogueFilters",
+    summaryId: "starCatalogueSummary",
+    stateKey: "starCatalogueGroups",
+    values: Object.keys(STAR_CATALOGUE_BITS),
+    label: (value) => ({ curated: "Named stars", hyg: "HYG / HIP", hd: "Henry Draper (HD)", sao: "SAO", wr: "Wolf-Rayet (WR)" })[value],
+  },
   types: {
     containerId: "dsoTypeFilters",
     summaryId: "dsoTypeFilterSummary",
@@ -716,6 +718,10 @@ function renderCatalogueFilter(kind) {
     };
     const label = document.createElement("span");
     label.textContent = config.label(value);
+    if (kind === "stars") {
+      const count = stars.filter((star) => starCatalogueMask(star) & STAR_CATALOGUE_BITS[value]).length;
+      label.textContent += ` (${count.toLocaleString()})`;
+    }
     if (config.label(value) !== value) label.title = value;
     option.append(checkbox, label);
     container.append(option);
