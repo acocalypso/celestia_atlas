@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { readFile } from "node:fs/promises";
-import { composeStarCatalog, STAR_CATALOGUE_BITS, starCatalogueMask } from "../src/core/star-catalog-layers.js";
+import { composeStarCatalog, STAR_CATALOGUE_BITS, starCatalogueMask } from "../src/index.js";
 import { createCatalogSearchIndex, searchCatalogIndex } from "../src/core/catalog-identifiers.js";
 
 const sirius = { name: "Sirius", ra: 6.7525, dec: -16.7161, mag: -1.46 };

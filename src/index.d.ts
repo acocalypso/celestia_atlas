@@ -225,6 +225,18 @@ export interface StarCatalogueObject {
   magnitude?: number;
   [key: string]: unknown;
 }
+export type StarCatalogueGroup = "curated" | "hyg" | "hd" | "sao" | "wr";
+export const STAR_CATALOGUE_BITS: Readonly<Record<StarCatalogueGroup, number>>;
+export function starCatalogueMask(star: Partial<StarCatalogueObject>): number;
+/** Compose licensed stellar layers without mutating them; merge only exact, unique identities. */
+export function composeStarCatalog(options: {
+  curated?: Partial<StarCatalogueObject>[];
+  hyg?: Partial<StarCatalogueObject>[];
+  hygSearch?: Partial<StarCatalogueObject>[];
+  curatedCrossIds?: Array<{ curatedName: string; aliases?: string[] }>;
+  sao?: Array<{ hd?: number; hdDesignation?: string; sao?: number; saos?: number[]; ambiguous?: boolean }>;
+  wr?: StarCatalogueObject[];
+}): StarCatalogueObject[];
 export type CatalogueTarget =
   SelectedTarget | DeepSkyCatalogueObject | StarCatalogueObject;
 export interface SolarSystemObject extends SelectedTarget {

@@ -1,5 +1,15 @@
 # Celestia Atlas
 
+Embedded hosts can import `composeStarCatalog`, `starCatalogueMask` and
+`STAR_CATALOGUE_BITS` from the public package entry point. Compose the
+`bright-sky-data` stars, `hyg-star-data` stars/curatedCrossIds/searchStars,
+`sao-star-crossids` crossIds and `wr-star-data` stars using the corresponding
+`curated`, `hyg`, `curatedCrossIds`, `hygSearch`, `sao` and `wr` options.
+Pass the result to the viewer's `stars` option. `starCatalogueMask` returns
+overlapping group bits for host filter counts; `setDisplayOptions` accepts
+`starCatalogueGroups` (`null` = all, `[]` = none) and `starMagnitudeLimit`.
+Search and selected targets remain available independently of group filters.
+
 **An offline-first browser planetarium and embeddable JavaScript sky-atlas renderer.**
 
 [![Deploy Celestia Atlas](https://github.com/acocalypso/celestia_atlas/actions/workflows/pages.yml/badge.svg)](https://github.com/acocalypso/celestia_atlas/actions/workflows/pages.yml)
