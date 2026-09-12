@@ -2518,8 +2518,9 @@ export function createCelestiaAtlasViewer(options) {
       }
     }
     // Search-only targets get a selection marker, never an invented magnitude.
-    if (selected?.searchOnly === true && isAboveHorizon(selected)) {
-      const point = project(selected);
+    const selectedCoordinates = selected?.coordinates ?? selected;
+    if (selected?.searchOnly === true && isAboveHorizon(selectedCoordinates)) {
+      const point = project(selectedCoordinates);
       if (point) {
         context.strokeStyle = "#fff1bd";
         context.beginPath();

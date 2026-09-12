@@ -970,6 +970,14 @@ async function run() {
     for (const query of ["Sirius", "WR 99"]) {
       const star = await focusSearchResult(client, query);
       if (!star?.count) throw new Error(`Missing stellar test target ${query}`);
+      // Embedded hosts use the documented nested SelectedTarget coordinates.
+      if (query === "WR 99") await client.send("Runtime.evaluate", {
+        expression: `(() => {
+          const viewer = globalThis.__CELESTIA_ATLAS_VIEWER__;
+          const { raDeg, decDeg, frame, ...target } = viewer.search('WR 99')[0];
+          viewer.select({ ...target, coordinates: { raDeg, decDeg, frame } });
+        })()`,
+      });
       await delay(300);
       await assertCentredMarkerHitTest(client, x, y, star.detailTitle);
     }
