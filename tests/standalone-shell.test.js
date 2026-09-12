@@ -45,7 +45,7 @@ test("standalone shell boots the shared public viewer", async () => {
     assert.ok(pagesWorkflow.includes(`cp ${asset} _site/`));
     assert.ok(pagesWorkflow.includes(`test -s _site/${asset}`));
   }
-  assert.match(html, /id="magLimit"[\s\S]*max="6\.5"[\s\S]*value="6\.5"/);
+  assert.match(html, /id="magLimit"[\s\S]*max="20"[\s\S]*value="6\.5"/);
   assert.match(application, /viewer\.setLandscape/);
   assert.match(application, /viewer\.setFieldOfView/);
   assert.match(application, /calculateCameraFieldOfView/);

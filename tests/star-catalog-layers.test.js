@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { readFile } from "node:fs/promises";
-import { composeStarCatalog } from "../src/core/star-catalog-layers.js";
+import { composeStarCatalog, STAR_CATALOGUE_BITS, starCatalogueMask } from "../src/core/star-catalog-layers.js";
 import { createCatalogSearchIndex, searchCatalogIndex } from "../src/core/catalog-identifiers.js";
 
 const sirius = { name: "Sirius", ra: 6.7525, dec: -16.7161, mag: -1.46 };
@@ -10,6 +10,16 @@ const crossIds = { curatedName: "Sirius", aliases: ["HD 48915", "HIP 32349", "HY
 const wr = { uid: "simbad-wr:42", id: "WR 104", name: "WR 104", aliases: ["HD 164270"],
   raDeg: 273, decDeg: -23, frame: "ICRS", searchOnly: true };
 const search = (stars, query) => searchCatalogIndex(createCatalogSearchIndex(stars), query);
+
+test("stellar visibility groups retain overlapping catalogue identities", () => {
+  const bits = STAR_CATALOGUE_BITS;
+  const [target] = composeStarCatalog({ curated: [sirius], curatedCrossIds: [crossIds],
+    sao: [{ hd: 48915, saos: [151881] }] });
+  assert.equal(starCatalogueMask(target), bits.curated | bits.hyg | bits.hd | bits.sao);
+  assert.equal(starCatalogueMask({ uid: "hyg:1", id: "HIP 1", hd: 2 }), bits.hyg | bits.hd);
+  assert.equal(starCatalogueMask({ ...wr, catalogSource: "SIMBAD WR" }), bits.wr | bits.hd);
+  assert.equal(starCatalogueMask({ ...wr, catalogSource: "SIMBAD WR", aliases: [] }), bits.wr);
+});
 
 test("cross-identifiers find one curated target after reordering without mutating source layers", () => {
   const options = { curated: [{ name: "Other", ra: 0, dec: 0 }, sirius],

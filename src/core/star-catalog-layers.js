@@ -12,6 +12,19 @@ const identityKeys = (star) => designations(star)
   .map((value) => String(value).toLowerCase().replace(/\s/g, ""))
   .filter((key) => /^hd\d+[a-z]*$|^(hip|hyg)\d+$|^wr\d[\da-z-]*$/.test(key));
 
+export const STAR_CATALOGUE_BITS = Object.freeze({ curated: 1, hyg: 2, hd: 4, sao: 8, wr: 16 });
+
+/** Computed once per star; catalogue visibility uses a bit test in the draw loop. */
+export function starCatalogueMask(star) {
+  const keys = identityKeys(star);
+  let mask = !String(star.uid ?? "").startsWith("hyg:") && star.catalogSource !== "SIMBAD WR" ? 1 : 0;
+  if (keys.some((key) => /^(hyg|hip)\d+$/.test(key))) mask |= 2;
+  if (keys.some((key) => /^hd\d/.test(key))) mask |= 4;
+  if (designations(star).some((value) => /^sao\s*\d+$/i.test(value))) mask |= 8;
+  if (keys.some((key) => /^wr\d/.test(key))) mask |= 16;
+  return mask;
+}
+
 /** Compose search metadata once, without modifying separately licensed inputs. */
 export function composeStarCatalog({ curated = [], hyg = [], curatedCrossIds = [],
   hygSearch = [], sao = [], wr = [] } = {}) {
