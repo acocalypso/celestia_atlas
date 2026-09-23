@@ -27,11 +27,12 @@ The project includes a standalone Progressive Web App and a framework-neutral Ja
 ## Highlights
 
 - Offline catalogue search, navigation, coordinate transforms, and celestial calculations
-- 8,910 stars and 21,192 deep-sky catalogue markers in the current public build
+- 9,437 searchable stars and 21,192 deep-sky catalogue markers in the current public build
 - All 110 Messier designations, with catalogue number and common name labels
 - Local positions for the Sun, Moon, planets, Pluto, Galilean moons, and comets
 - Horizontal and equatorial viewing modes
-- Constellations, grids, meridian, ecliptic, labels, and cardinal directions
+- All 88 Western constellation line figures, grids, meridian, ecliptic, labels, and cardinal directions
+- An always-visible view-centre compass with a saved on/off control
 - Custom horizon profiles and HEALPix landscape support
 - Camera field-of-view and mosaic overlays
 - Progressive DSS2 Color HiPS imagery at narrow fields of view

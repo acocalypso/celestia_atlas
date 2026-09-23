@@ -443,6 +443,12 @@
           ></label>
         </div>
         <div class="toggle-row">
+          <span>View compass</span
+          ><label class="switch"
+            ><input id="compassSwitch" type="checkbox" checked aria-label="View compass" /><i></i
+          ></label>
+        </div>
+        <div class="toggle-row">
           <span>Ecliptic</span
           ><label class="switch"
             ><input id="eclipticSwitch" type="checkbox" aria-label="Ecliptic" /><i></i
@@ -580,6 +586,20 @@
         <span class="quick-label">TOUR</span>
         <div id="quickTour" class="tour-scroller"></div>
       </section>
+
+      <div id="viewCompass" class="view-compass glass" role="img" aria-label="View compass">
+        <div class="compass-dial" aria-hidden="true">
+          <span class="compass-north">N</span>
+          <span class="compass-east">E</span>
+          <span class="compass-south">S</span>
+          <span class="compass-west">W</span>
+          <span id="compassNeedle" class="compass-needle"></span>
+        </div>
+        <div class="compass-readout">
+          <small>VIEW CENTRE</small>
+          <strong id="compassHeading">N 0°</strong>
+        </div>
+      </div>
 
       <section
         id="detailsPanel"

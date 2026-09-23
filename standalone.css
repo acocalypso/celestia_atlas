@@ -14,6 +14,105 @@
   cursor: grabbing;
 }
 
+.view-compass {
+  position: absolute;
+  z-index: 7;
+  bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+  left: calc(18px + env(safe-area-inset-left, 0px));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 8px 8px;
+  border-radius: 16px;
+  pointer-events: none;
+}
+
+.view-compass[hidden] {
+  display: none;
+}
+
+.compass-dial {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  flex: 0 0 76px;
+  border: 1px solid rgba(151, 177, 222, 0.32);
+  border-radius: 50%;
+  background: rgba(2, 6, 14, 0.62);
+}
+
+.compass-dial span:not(.compass-needle) {
+  position: absolute;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.compass-dial .compass-north {
+  top: 5px;
+  left: 50%;
+  color: var(--cyan) !important;
+  transform: translateX(-50%);
+}
+
+.compass-east {
+  top: 50%;
+  right: 5px;
+  transform: translateY(-50%);
+}
+
+.compass-south {
+  bottom: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.compass-west {
+  top: 50%;
+  left: 5px;
+  transform: translateY(-50%);
+}
+
+.compass-needle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 26px;
+  background: linear-gradient(to bottom, var(--cyan) 0 45%, transparent 45%);
+  transform-origin: 50% 50%;
+}
+
+.compass-needle::after {
+  content: "";
+  position: absolute;
+  top: 11px;
+  left: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cyan);
+}
+
+.compass-readout {
+  display: grid;
+  gap: 4px;
+  min-width: 62px;
+}
+
+.compass-readout small {
+  color: var(--muted);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+}
+
+.compass-readout strong {
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .atlas-viewer-host .celestia-atlas-survey-credit {
   right: auto !important;
   bottom: calc(6rem + env(safe-area-inset-bottom, 0px)) !important;
@@ -108,6 +207,18 @@
 }
 
 @media (max-width: 560px) {
+  .view-compass {
+    left: calc(9px + env(safe-area-inset-left, 0px));
+    gap: 7px;
+    padding-right: 9px;
+  }
+
+  .compass-dial {
+    width: 64px;
+    height: 64px;
+    flex-basis: 64px;
+  }
+
   .topbar {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 7px;

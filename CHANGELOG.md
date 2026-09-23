@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added a persistent lower-screen compass showing the view centre's geographic bearing, with an on/off control in the standalone sky settings. Corrected the About panel's constellation count and the README's searchable-star count.
+- Kept visible constellation line portions drawn when one endpoint falls behind the geometric or custom horizon, and checked the standalone constellation asset against the package data.
 - Added validated runtime comet-catalogue replacement to the embedded viewer,
   allowing hosts to consume the rolling MPC release while retaining the
   bundled offline snapshot. Consolidated the six-hour release workflow so its

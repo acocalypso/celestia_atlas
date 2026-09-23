@@ -1,7 +1,7 @@
 try {
   importScripts("./dso-images.js");
 } catch (e) {}
-const CACHE = "celestia-atlas-offline-v37";
+const CACHE = "celestia-atlas-offline-v38";
 // Keep the survey schema independent from routine app-shell cache releases.
 const SURVEY_CACHE = "celestia-atlas-survey-v1";
 const SURVEY_CACHE_LIMIT = 512;

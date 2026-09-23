@@ -15,6 +15,7 @@ Open `http://localhost:8000`.
 - Click an object for details.
 - Search by name, alias, or catalogue identifier.
 - Change observer location and time through the controls.
+- Read the lower-screen compass for the view centre's geographic bearing; toggle it with **Controls → View compass**. The setting is saved in this browser.
 
 ### Keyboard shortcuts
 

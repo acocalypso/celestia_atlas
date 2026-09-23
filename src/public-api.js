@@ -56,7 +56,10 @@ import {
   normalizeCatalogIdentifier,
   searchCatalogIndex,
 } from "./core/catalog-identifiers.js";
-import { compileConstellationSegments } from "./core/constellations.js";
+import {
+  clipConstellationSegment,
+  compileConstellationSegments,
+} from "./core/constellations.js";
 import { STAR_CATALOGUE_BITS, starCatalogueMask } from "./core/star-catalog-layers.js";
 
 const DEG = Math.PI / 180;
@@ -2443,9 +2446,14 @@ export function createCelestiaAtlasViewer(options) {
       : "rgba(125,151,255,.32)";
     if (display.constellations)
       for (const [start, end] of constellationSegments) {
-          if (!isAboveHorizon(start) || !isAboveHorizon(end)) continue;
-          const startPoint = start && project(start);
-          const endPoint = end && project(end);
+          const visibleSegment = clipConstellationSegment(
+            start,
+            end,
+            isAboveHorizon,
+          );
+          if (!visibleSegment) continue;
+          const startPoint = project(visibleSegment[0]);
+          const endPoint = project(visibleSegment[1]);
           if (!startPoint || !endPoint) continue;
           if (
             Math.hypot(startPoint.x - endPoint.x, startPoint.y - endPoint.y) >

@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import westernConstellations from "../data/western-constellations.json" with { type: "json" };
-import { compileConstellationSegments } from "../src/core/constellations.js";
+import { clipConstellationSegment, compileConstellationSegments } from "../src/core/constellations.js";
 
 test("Western catalogue contains complete image-free IAU line figures", () => {
   assert.equal(westernConstellations.meta.constellationCount, 88);
@@ -30,6 +31,28 @@ test("native paths compile to finite fixed-sky segments", () => {
     for (const point of segment) {
       assert.ok(Number.isFinite(point.raDeg));
       assert.ok(Number.isFinite(point.decDeg));
+      assert.ok(point.raDeg >= 0 && point.raDeg < 360);
+      assert.ok(point.decDeg >= -90 && point.decDeg <= 90);
       assert.equal(point.frame, "ICRS");
     }
+});
+
+test("standalone and package constellation assets contain identical figures", async () => {
+  const script = await readFile(new URL("../western-constellations.js", import.meta.url), "utf8");
+  const payload = JSON.parse(script.slice(script.indexOf("=") + 1).trim().replace(/;$/, ""));
+  assert.deepEqual(payload, westernConstellations);
+});
+
+test("constellation segments remain visible up to the horizon", () => {
+  const west = { raDeg: 350, decDeg: -10, frame: "ICRS" };
+  const east = { raDeg: 10, decDeg: 10, frame: "ICRS" };
+  const above = ({ decDeg }) => decDeg >= 0;
+  const visible = clipConstellationSegment(west, east, above);
+  assert.ok(visible);
+  assert.equal(visible[1], east);
+  assert.ok(visible[0].decDeg >= 0 && visible[0].decDeg < 0.01);
+  assert.ok(visible[0].raDeg < 0.01 || visible[0].raDeg > 359.99);
+  assert.deepEqual(clipConstellationSegment(east, west, above).map(({ raDeg }) => raDeg), [east.raDeg, visible[0].raDeg]);
+  assert.deepEqual(clipConstellationSegment(east, east, above), [east, east]);
+  assert.equal(clipConstellationSegment(west, west, above), null);
 });

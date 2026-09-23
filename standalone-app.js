@@ -155,6 +155,7 @@ const state = {
   milkyWay: true,
   skySurvey: localStorage.getItem("celestia-atlas.sky-survey") !== "false",
   cardinals: true,
+  compass: localStorage.getItem("celestia-atlas.compass") !== "false",
   ecliptic: false,
   meridian: false,
   atmosphere: true,
@@ -597,6 +598,17 @@ function updateStatus() {
     state.observer,
     time,
   );
+  const azimuth = ((horizontal.azimuthDeg % 360) + 360) % 360;
+  const directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  const direction = directions[Math.round(azimuth / 45) % directions.length];
+  const heading = `${direction} ${azimuth.toFixed(1)}°`;
+  $("#compassHeading").textContent = heading;
+  $("#compassNeedle").style.transform =
+    `translate(-50%, -50%) rotate(${azimuth}deg)`;
+  $("#viewCompass").setAttribute(
+    "aria-label",
+    `View centre bearing ${heading}`,
+  );
   $("#coordReadout").textContent =
     state.mode === "horizontal"
       ? `Az ${horizontal.azimuthDeg.toFixed(1)}° · Alt ${horizontal.altitudeDeg.toFixed(1)}°`
@@ -916,6 +928,13 @@ function installControls() {
       state[key] = event.target.checked;
       applyDisplayOptions();
     };
+  $("#compassSwitch").checked = state.compass;
+  $("#viewCompass").hidden = !state.compass;
+  $("#compassSwitch").onchange = (event) => {
+    state.compass = event.target.checked;
+    $("#viewCompass").hidden = !state.compass;
+    localStorage.setItem("celestia-atlas.compass", String(state.compass));
+  };
   $("#skySurveySwitch").checked = state.skySurvey;
   $("#skySurveySwitch").onchange = (event) => {
     state.skySurvey = event.target.checked;
@@ -1050,7 +1069,8 @@ function initialize() {
   $("#starCount").textContent = stars.length.toLocaleString();
   $("#dsoCount").textContent = catalog.length.toLocaleString();
   $("#constCount").textContent =
-    Object.keys(constellations).length.toLocaleString();
+    (constellations.constellations?.length ??
+      Object.keys(constellations).length).toLocaleString();
   $("#catalogReadout").textContent =
     `${catalogVersion} · ${catalog.length.toLocaleString()} DSOs`;
   $("#statusText").textContent = "Offline atlas ready · DSS imagery on demand";
