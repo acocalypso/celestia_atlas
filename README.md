@@ -1,46 +1,29 @@
 # Celestia Atlas
 
-Embedded hosts can import `composeStarCatalog`, `starCatalogueMask` and
-`STAR_CATALOGUE_BITS` from the public package entry point. Compose the
-`bright-sky-data` stars, `hyg-star-data` stars/curatedCrossIds/searchStars,
-`sao-star-crossids` crossIds and `wr-star-data` stars using the corresponding
-`curated`, `hyg`, `curatedCrossIds`, `hygSearch`, `sao` and `wr` options.
-Pass the result to the viewer's `stars` option. `starCatalogueMask` returns
-overlapping group bits for host filter counts; `setDisplayOptions` accepts
-`starCatalogueGroups` (`null` = all, `[]` = none) and `starMagnitudeLimit`.
-Search and selected targets remain available independently of group filters.
-
-**An offline-first browser planetarium and embeddable JavaScript sky-atlas renderer.**
+**An offline-first sky atlas for the browser and an embeddable JavaScript viewer.**
 
 [![Deploy Celestia Atlas](https://github.com/acocalypso/celestia_atlas/actions/workflows/pages.yml/badge.svg)](https://github.com/acocalypso/celestia_atlas/actions/workflows/pages.yml)
-[![License: MIT](https://img.shields.io/badge/Code%20License-MIT-blue.svg)](LICENSE)
+[![Code license: MIT](https://img.shields.io/badge/code%20license-MIT-blue.svg)](LICENSE)
 
-[Live atlas](https://acocalypso.github.io/celestia_atlas/) ·
-[Documentation](docs/README.md) ·
-[Catalogue documentation](docs/CATALOGUES.md) ·
-[Third-party notices](THIRD_PARTY_NOTICES.md)
+[Open the atlas](https://acocalypso.github.io/celestia_atlas/) · [Documentation](docs/README.md) · [Changelog](CHANGELOG.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-Celestia Atlas combines local astronomical catalogues, offline celestial calculations, a packaged Milky Way panorama, optional deep-sky previews, horizon-aware rendering, and on-demand DSS2 photographic imagery.
+Celestia Atlas combines local star and deep-sky catalogues with observer-based sky calculations, constellation lines, a horizon panorama, and camera-framing tools. The standalone application runs as a Progressive Web App; the same rendering engine can be embedded in another browser application.
 
-The project includes a standalone Progressive Web App and a framework-neutral JavaScript viewer that can be embedded in other browser applications.
+Core search and sky calculations run locally. An optional DSS2 Color photographic layer loads imagery on demand when a network connection is available.
 
-## Highlights
+## What you can do
 
-- Offline catalogue search, navigation, coordinate transforms, and celestial calculations
-- 9,437 searchable stars and 21,192 deep-sky catalogue markers in the current public build
-- All 110 Messier designations, with catalogue number and common name labels
-- Local positions for the Sun, Moon, planets, Pluto, Galilean moons, and comets
-- Horizontal and equatorial viewing modes
-- All 88 Western constellation line figures, grids, meridian, ecliptic, labels, and cardinal directions
-- A view-centre compass showing geographic bearing, with a saved on/off control
-- The Touch'N'Stars landscape as the default offline horizon panorama
-- Custom horizon profiles and HEALPix landscape support
-- Camera field-of-view and mosaic overlays
-- Progressive DSS2 Color HiPS imagery at narrow fields of view
-- Bounded mobile and desktop memory usage
-- No analytics, remote fonts, runtime API keys, or remote catalogue queries
+- Explore the sky in horizontal or equatorial mode, change the observer location and time, and search stars or deep-sky objects by name and catalogue identifier.
+- Display all 88 Western constellation line figures, coordinate grids, cardinal directions, the Sun, Moon, planets, Pluto, Galilean moons, and comets.
+- Use the lower-screen compass to read the view centre's geographic bearing. Its visibility setting is saved in the browser.
+- View the Touch'N'Stars landscape by default. Embedded hosts can provide a custom horizon or another HEALPix landscape.
+- Overlay a camera field of view or mosaic and zoom into optional DSS2 Color photographic imagery.
 
-## Quick start
+The public build includes 9,437 searchable stars and 21,192 deep-sky catalogue markers, including all 110 Messier designations. The catalogues and their source terms are documented in [CATALOGUES.md](docs/CATALOGUES.md).
+
+## Run the standalone atlas
+
+Try the [live atlas](https://acocalypso.github.io/celestia_atlas/), or serve a local checkout:
 
 ```bash
 git clone https://github.com/acocalypso/celestia_atlas.git
@@ -48,114 +31,53 @@ cd celestia_atlas
 python serve.py
 ```
 
-Open:
+Open **http://localhost:8000**. The preview server listens on your computer only. Python is sufficient to run the checked-in standalone application; Node.js is needed for development tests.
 
-```text
-http://localhost:8000
-```
+Drag to pan, use the mouse wheel or pinch to zoom, click an object for details, and search from the top bar. The initial observer location is Berlin until you change it or apply device location. The compass can be switched off under **Controls → View compass**. See [USAGE.md](docs/USAGE.md) for shortcuts and the rest of the controls.
 
-Use localhost or HTTPS rather than `file://`. Module loading, service workers, CORS, and persistent survey caching require an HTTP origin.
+Use `localhost` or HTTPS. ES modules, the service worker, and persistent browser caching do not work reliably from `file://`.
 
 ## Embed the viewer
 
-```html
-<div id="atlas"></div>
+The public entry point is [`src/index.js`](src/index.js). A minimal local-only viewer can use the packaged bright-star and constellation data:
 
-<style>
-  #atlas {
-    position: relative;
-    width: 100%;
-    height: 70vh;
-    min-height: 420px;
-    background: #030812;
-  }
-</style>
+```html
+<div id="atlas" style="position: relative; width: 100%; height: 70vh"></div>
 
 <script type="module">
-  import westernConstellationData from "./data/western-constellations.json" with { type: "json" };
-  import {
-    createCelestiaAtlasViewer,
-    DEFAULT_DSS_SKY_SURVEY_SOURCE,
-  } from "./src/index.js";
+  import { createCelestiaAtlasViewer } from "./src/index.js";
+  import brightSky from "./data/bright-sky.json" with { type: "json" };
+  import constellations from "./data/western-constellations.json" with { type: "json" };
 
   const viewer = createCelestiaAtlasViewer({
     container: document.querySelector("#atlas"),
-    catalog: [],
-    stars: [],
-    constellations: westernConstellationData,
-    observer: {
-      latitudeDeg: 52.52,
-      longitudeDeg: 13.405,
-      elevationM: 0,
-    },
+    stars: brightSky.stars,
+    constellations,
+    observer: { latitudeDeg: 52.52, longitudeDeg: 13.405, elevationM: 0 },
     utcMs: Date.now(),
-    skySurveySource: DEFAULT_DSS_SKY_SURVEY_SOURCE,
-    onSelect: (target) => console.log(target),
-    onError: (error) => console.error(error),
+    skySurveySource: null,
   });
 
-  viewer.setView({
-    center: {
-      raDeg: 10.6847,
-      decDeg: 41.269,
-      frame: "ICRS",
-    },
-    fovDeg: 8,
-  });
-
+  viewer.setCoordinateMode("horizontal");
   viewer.resume();
 </script>
 ```
 
-New viewers start paused. Apply the initial state and call `resume()` when rendering should begin.
+New viewers start paused. The host controls their size, lifecycle, catalogues, observer, and display options. Add deep-sky records through `catalog`, or use `composeStarCatalog` to combine curated, HYG, and WR stars with HD and SAO identifiers. The public `starCatalogueMask` and `STAR_CATALOGUE_BITS` helpers support source filters; search remains available when a layer is hidden.
 
-See [docs/USAGE.md](docs/USAGE.md) and [docs/API.md](docs/API.md) for complete examples.
+See [USAGE.md](docs/USAGE.md) for a larger example, [API.md](docs/API.md) for the viewer contract, and [`src/index.d.ts`](src/index.d.ts) for types. The package is marked private in `package.json`; embedded hosts currently consume the source or a pinned Git revision.
 
-## Photographic sky survey
+## Offline and photographic imagery
 
-The default photographic layer uses DSS2 Color image HiPS tiles from a CDS-listed MAST mirror.
+The application shell, bundled catalogues, sky calculations, Milky Way panorama, and default landscape are local. After the app has loaded, its service worker caches the standalone assets for offline use. Browser storage policies can still evict cached data.
 
-- It begins blending in below a 20° field of view.
-- It reaches full opacity at approximately 10°.
-- Only visible JPEG tiles are requested.
-- Viewed fields may remain available offline through Cache Storage.
-- The complete survey is not bundled or redistributed by this repository.
+The optional DSS2 Color layer starts blending in below a 20° field of view and reaches full opacity near 10°. It requests only imagery needed for the visible field. Previously viewed fields may be cached; unseen fields need a connection. The full photographic survey is not bundled. Embedded hosts can disable network imagery with `skySurveySource: null` or supply their own survey source.
 
-Embedded applications can keep a packaged survey visible at wide fields by setting
-`blendStartFovDeg` and `blendFullFovDeg` on their `skySurveySource`. Set
-`milkyWayPanoramaUrl: null` and disable the `milkyWay` display option when the
-photographic survey replaces the synthetic panorama entirely.
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for rendering, HiPS tiles, caching, and memory limits.
 
-Disable the survey:
+## Develop and contribute
 
-```js
-viewer.setDisplayOptions({ skySurvey: false });
-```
-
-Create a strictly local viewer:
-
-```js
-const viewer = createCelestiaAtlasViewer({
-  container,
-  skySurveySource: null,
-});
-```
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for survey loading and caching details.
-
-## Documentation
-
-| Document                                         | Contents                                                      |
-| ------------------------------------------------ | ------------------------------------------------------------- |
-| [docs/README.md](docs/README.md)                 | Documentation index                                           |
-| [docs/USAGE.md](docs/USAGE.md)                   | Standalone and embedded usage                                 |
-| [docs/API.md](docs/API.md)                       | Public viewer API                                             |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)     | Rendering, data flow, HiPS, caching, and offline design       |
-| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)       | Setup, catalogue builds, tests, images, and deployment        |
-| [docs/CATALOGUES.md](docs/CATALOGUES.md)         | Schemas, transformations, source policy, and catalogue rights |
-| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Attribution and redistribution terms                          |
-
-## Development
+Development uses Node.js 22, Python 3.11 or newer, and Chrome or Chromium for browser smoke tests:
 
 ```bash
 npm ci
@@ -164,39 +86,18 @@ npm test
 npm run test:browser
 ```
 
-Build the primary generated data layers:
+The repository contains generated catalogue files. Read [DEVELOPMENT.md](docs/DEVELOPMENT.md) before changing source versions, builders, or generated output. It also covers local preview, test suites, and GitHub Pages deployment.
 
-```bash
-python tools/build_dso_catalog.py --catalogues openngc
-python tools/build_stellarium_supplement.py --version v26.2
-python tools/build_abell_pn_catalog.py
-python tools/build_hyg_star_catalog.py
-```
+| Guide | Purpose |
+| --- | --- |
+| [USAGE.md](docs/USAGE.md) | Standalone controls and embedding examples |
+| [API.md](docs/API.md) | Public viewer API |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Rendering and offline design |
+| [DEVELOPMENT.md](docs/DEVELOPMENT.md) | Setup, testing, catalogue builds, and deployment |
+| [CATALOGUES.md](docs/CATALOGUES.md) | Data provenance, schemas, and source rights |
 
-Read [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) before changing pinned sources or generated catalogue files.
+## Licensing and accuracy
 
-## Data and licensing
+The application code is [MIT licensed](LICENSE). **Bundled and generated data do not all share that licence.** OpenNGC and HYG-derived assets use CC BY-SA 4.0; the SIMBAD A66-derived asset uses ODbL 1.0; the Stellarium-derived supplement and Western constellation lines use GPL-2.0-or-later. DSS2 imagery and optional object previews retain their respective source terms. Review [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [`licenses/`](licenses/) before redistributing data or imagery.
 
-The application source code is licensed under the [MIT License](LICENSE).
-
-Generated data and external imagery retain separate licence boundaries:
-
-| Component                         | Licence or terms                 |
-| --------------------------------- | -------------------------------- |
-| Celestia Atlas source code        | MIT                              |
-| OpenNGC-derived catalogue assets  | CC BY-SA 4.0                     |
-| HYG-derived star assets           | CC BY-SA 4.0                     |
-| SIMBAD A66-derived asset          | ODbL 1.0                         |
-| Stellarium-derived DSO supplement | GPL-2.0-or-later                 |
-| DSS2 photographic imagery         | External STScI/MAST survey terms |
-| NASA image previews               | Per-source metadata and rights   |
-
-Do not assume generated catalogues or downloaded images inherit the MIT licence.
-
-Review [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), [`licenses/`](licenses/), and [docs/CATALOGUES.md](docs/CATALOGUES.md) before redistributing data, changing survey endpoints, or publishing optional local catalogue builds.
-
-## Limitations
-
-Celestia Atlas is intended for visualization, search, observing preparation, and camera framing. It is not a replacement for precision astrometry or a telescope mount model.
-
-The runtime does not ingest live IERS Earth-orientation parameters, DUT1, polar motion, or atmospheric refraction data.
+Celestia Atlas is intended for visualization, search, observing preparation, and camera framing. It does not ingest live IERS Earth-orientation parameters, DUT1, polar motion, or atmospheric refraction data and should not be used as a precision astrometry or mount model.
