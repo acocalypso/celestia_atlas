@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## v9
 
+- Copied the Touch'N'Stars HEALPix panorama into the standalone atlas and made it the default, including offline caching.
+- Kept the standalone compass synchronized with the viewer's live camera and observer while panning, independently of deferred view-change callbacks. Added a north-horizon projection fixture and a browser check that compares the compass bearing with the rendered view after dragging.
 - Added a persistent lower-screen compass showing the view centre's geographic bearing, with an on/off control in the standalone sky settings. Corrected the About panel's constellation count and the README's searchable-star count.
 - Kept visible constellation line portions drawn when one endpoint falls behind the geometric or custom horizon, and checked the standalone constellation asset against the package data.
 - Added validated runtime comet-catalogue replacement to the embedded viewer,

@@ -537,8 +537,8 @@ async function applyLandscape() {
     return;
   }
   await viewer.setLandscape({
-    url: new URL("./assets/landscapes/guereins", location.href).href,
-    key: "guereins",
+    url: new URL("./assets/landscapes/touchnstars", location.href).href,
+    key: "touchnstars",
   });
 }
 
@@ -590,12 +590,11 @@ function applyFieldOfView() {
   }
 }
 
-function updateStatus() {
-  const time = viewer.getTime();
-  if (state.timeRate) viewer.setTime(time);
+function updateCompass(atlasState = viewer.getState(), time = viewer.getTime()) {
+  // Read the live camera; onViewChange can be deferred during a gesture.
   const horizontal = equatorialToHorizontal(
-    currentView.center,
-    state.observer,
+    atlasState.view.center,
+    atlasState.observer,
     time,
   );
   const azimuth = ((horizontal.azimuthDeg % 360) + 360) % 360;
@@ -609,6 +608,15 @@ function updateStatus() {
     "aria-label",
     `View centre bearing ${heading}`,
   );
+  return horizontal;
+}
+
+function updateStatus() {
+  const atlasState = viewer.getState();
+  currentView = atlasState.view;
+  const time = viewer.getTime();
+  if (state.timeRate) viewer.setTime(time);
+  const horizontal = updateCompass(atlasState, time);
   $("#coordReadout").textContent =
     state.mode === "horizontal"
       ? `Az ${horizontal.azimuthDeg.toFixed(1)}° · Alt ${horizontal.altitudeDeg.toFixed(1)}°`
@@ -1077,6 +1085,9 @@ function initialize() {
   setMode(state.mode);
   updateStatus();
   setInterval(updateStatus, 1000);
+  setInterval(() => {
+    if (state.compass && !document.hidden) updateCompass();
+  }, 100);
   setTimeout(() => $("#loadingScreen").classList.add("hidden"), 300);
   if ("serviceWorker" in navigator && location.protocol.startsWith("http"))
     navigator.serviceWorker.register("service-worker.js").catch(() => {});

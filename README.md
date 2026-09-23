@@ -32,7 +32,8 @@ The project includes a standalone Progressive Web App and a framework-neutral Ja
 - Local positions for the Sun, Moon, planets, Pluto, Galilean moons, and comets
 - Horizontal and equatorial viewing modes
 - All 88 Western constellation line figures, grids, meridian, ecliptic, labels, and cardinal directions
-- An always-visible view-centre compass with a saved on/off control
+- A view-centre compass showing geographic bearing, with a saved on/off control
+- The Touch'N'Stars landscape as the default offline horizon panorama
 - Custom horizon profiles and HEALPix landscape support
 - Camera field-of-view and mosaic overlays
 - Progressive DSS2 Color HiPS imagery at narrow fields of view

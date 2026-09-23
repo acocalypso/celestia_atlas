@@ -9,7 +9,7 @@ import {
   projectEquatorial,
   unprojectEquatorial,
 } from "../src/core/projection.js";
-import { horizontalToEquatorial } from "../src/core/coordinates.js";
+import { equatorialToHorizontal, horizontalToEquatorial } from "../src/core/coordinates.js";
 
 const view = { center: { raDeg: 359, decDeg: 30, frame: "ICRS" }, fovDeg: 60 };
 
@@ -524,6 +524,33 @@ test("aligns local altitude vertically and azimuth horizontally", () => {
     assert.ok(Math.abs(across.y - 300) < 1e-3);
     assert.ok(across.x > 400);
   }
+});
+
+test("aligns the compass bearing and north marker for the reported Berlin view", () => {
+  const observer = { latitudeDeg: 52.52, longitudeDeg: 13.405, elevationM: 0 };
+  const timestampUtcMs = Date.UTC(2026, 8, 23, 15, 50);
+  const center = { raDeg: 72.60318, decDeg: 48.46581, frame: "ICRS" };
+  const bearing = equatorialToHorizontal(center, observer, timestampUtcMs);
+  assert.ok(Math.abs(bearing.azimuthDeg - 0.2) < 0.1);
+  const view = alignViewToHorizon(
+    { center, fovDeg: 69.273 },
+    observer,
+    timestampUtcMs,
+  );
+  const northMarker = projectEquatorial(
+    horizontalToEquatorial(
+      { azimuthDeg: 0, altitudeDeg: 0 },
+      observer,
+      timestampUtcMs,
+      "ICRS",
+    ),
+    view,
+    1209,
+    877,
+  );
+  assert.ok(northMarker);
+  assert.ok(Math.abs(northMarker.x - 604.5) < 5);
+  assert.ok(northMarker.y > 438.5);
 });
 
 test("uses natural observer-sky handedness around the eastern horizon", () => {

@@ -1012,6 +1012,21 @@ async function run() {
     assertSkySurveyContinuity(dragSurveyContinuity, "Desktop drag release");
     const afterDragHash = await currentHash(client);
     const afterDragHorizontal = await currentHorizontalCenter(client);
+    const compass = await client.send("Runtime.evaluate", {
+      expression: `(() => {
+        const text = document.querySelector('#compassHeading')?.textContent || '';
+        return { text, bearing: Number(text.match(/([\\d.]+)°/)?.[1]) };
+      })()`,
+      returnByValue: true,
+    });
+    const compassBearing = compass.result?.value?.bearing;
+    const bearingError = Math.abs(
+      ((compassBearing - afterDragHorizontal.azimuthDeg + 540) % 360) - 180,
+    );
+    if (!Number.isFinite(bearingError) || bearingError > 0.5)
+      throw new Error(
+        `Compass did not track the rendered view after panning: ${JSON.stringify({ compass: compass.result?.value, afterDragHorizontal })}`,
+      );
     assertViewChanged(beforeDragHash, afterDragHash, {
       center: true,
     });

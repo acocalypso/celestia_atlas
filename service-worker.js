@@ -1,7 +1,7 @@
 try {
   importScripts("./dso-images.js");
 } catch (e) {}
-const CACHE = "celestia-atlas-offline-v38";
+const CACHE = "celestia-atlas-offline-v39";
 // Keep the survey schema independent from routine app-shell cache releases.
 const SURVEY_CACHE = "celestia-atlas-survey-v1";
 const SURVEY_CACHE_LIMIT = 512;
@@ -53,19 +53,20 @@ const CORE = [
   "./data/comets.js",
   "./manifest.webmanifest",
   "./assets/milky-way.webp",
-  "./assets/landscapes/guereins/properties",
-  "./assets/landscapes/guereins/Norder0/Dir0/Npix0.webp",
-  "./assets/landscapes/guereins/Norder0/Dir0/Npix1.webp",
-  "./assets/landscapes/guereins/Norder0/Dir0/Npix2.webp",
-  "./assets/landscapes/guereins/Norder0/Dir0/Npix3.webp",
-  "./assets/landscapes/guereins/Norder0/Dir0/Npix4.webp",
-  "./assets/landscapes/guereins/Norder0/Dir0/Npix5.webp",
-  "./assets/landscapes/guereins/Norder0/Dir0/Npix6.webp",
-  "./assets/landscapes/guereins/Norder0/Dir0/Npix7.webp",
-  "./assets/landscapes/guereins/Norder0/Dir0/Npix8.webp",
-  "./assets/landscapes/guereins/Norder0/Dir0/Npix9.webp",
-  "./assets/landscapes/guereins/Norder0/Dir0/Npix10.webp",
-  "./assets/landscapes/guereins/Norder0/Dir0/Npix11.webp",
+  "./assets/landscapes/touchnstars/properties",
+  "./assets/landscapes/touchnstars/Norder0/Allsky.webp",
+  "./assets/landscapes/touchnstars/Norder0/Dir0/Npix0.webp",
+  "./assets/landscapes/touchnstars/Norder0/Dir0/Npix1.webp",
+  "./assets/landscapes/touchnstars/Norder0/Dir0/Npix2.webp",
+  "./assets/landscapes/touchnstars/Norder0/Dir0/Npix3.webp",
+  "./assets/landscapes/touchnstars/Norder0/Dir0/Npix4.webp",
+  "./assets/landscapes/touchnstars/Norder0/Dir0/Npix5.webp",
+  "./assets/landscapes/touchnstars/Norder0/Dir0/Npix6.webp",
+  "./assets/landscapes/touchnstars/Norder0/Dir0/Npix7.webp",
+  "./assets/landscapes/touchnstars/Norder0/Dir0/Npix8.webp",
+  "./assets/landscapes/touchnstars/Norder0/Dir0/Npix9.webp",
+  "./assets/landscapes/touchnstars/Norder0/Dir0/Npix10.webp",
+  "./assets/landscapes/touchnstars/Norder0/Dir0/Npix11.webp",
 ];
 const IMAGES = Array.isArray(globalThis.DSO_IMAGE_FILES)
   ? globalThis.DSO_IMAGE_FILES
