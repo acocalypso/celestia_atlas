@@ -2,6 +2,10 @@
 
 ## v9
 
+- Added an offline GCVS 5.1 search layer with 63,291 positioned named variable
+  stars, familiar-name aliases, variability classes, magnitude ranges, and
+  reported periods. Variable entries are searchable without duplicate plotting.
+
 - Copied the Touch'N'Stars HEALPix panorama into the standalone atlas and made it the default, including offline caching.
 - Kept the standalone compass synchronized with the viewer's live camera and observer while panning, independently of deferred view-change callbacks. Added a north-horizon projection fixture and a browser check that compares the compass bearing with the rendered view after dragging.
 - Added a persistent lower-screen compass showing the view centre's geographic bearing, with an on/off control in the standalone sky settings. Corrected the About panel's constellation count and the README's searchable-star count.

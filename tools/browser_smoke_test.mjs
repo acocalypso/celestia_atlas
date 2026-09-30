@@ -981,6 +981,17 @@ async function run() {
       await delay(300);
       await assertCentredMarkerHitTest(client, x, y, star.detailTitle);
     }
+    for (const [query, name, type] of [["RR Lyr", "RR Lyr", "RRAB"], ["Mira", "omi Cet", "M"]]) {
+      const variable = await focusSearchResult(client, query);
+      if (!variable?.count) throw new Error(`Missing variable star ${query}`);
+      const detail = await client.send("Runtime.evaluate", {
+        expression: `document.querySelector('#detailsContent')?.textContent`,
+        returnByValue: true,
+      });
+      const content = detail.result?.value || "";
+      if (!content.includes(name) || !content.includes(type) || !content.includes("Catalogue magnitude range"))
+        throw new Error(`Variable star metadata failed for ${query}: ${content}`);
+    }
     await focusSearchResult(client, searchQuery);
     await delay(300);
     const beforeDragHash = await currentHash(client);

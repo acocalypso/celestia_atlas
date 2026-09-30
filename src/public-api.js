@@ -61,6 +61,7 @@ import {
   compileConstellationSegments,
 } from "./core/constellations.js";
 import { STAR_CATALOGUE_BITS, starCatalogueMask } from "./core/star-catalog-layers.js";
+import { decodeVariableStars } from "./core/variable-stars.js";
 
 const DEG = Math.PI / 180;
 const MAX_FOV_DEG = 130;
@@ -175,6 +176,7 @@ export function createCelestiaAtlasViewer(options) {
     container,
     catalog = [],
     stars = [],
+    variableStars = null,
     constellations = {},
     onSelect,
     onViewChange,
@@ -379,7 +381,7 @@ export function createCelestiaAtlasViewer(options) {
         : Number.POSITIVE_INFINITY;
       return leftMagnitude - rightMagnitude;
     });
-  const searchableObjects = [...stars, ...catalog];
+  const searchableObjects = [...decodeVariableStars(variableStars), ...stars, ...catalog];
   const searchableObjectIndex = createCatalogSearchIndex(searchableObjects);
   const galaxyCatalogFlags = Uint8Array.from(catalog, (object) =>
     isGalaxyObject(object) ? 1 : 0,

@@ -14,3 +14,4 @@ export * from "./core/catalog-filters.js";
 export * from "./core/catalog-identifiers.js";
 export * from "./core/catalog-layers.js";
 export * from "./core/star-catalog-layers.js";
+export * from "./core/variable-stars.js";

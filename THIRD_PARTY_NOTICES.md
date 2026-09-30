@@ -27,6 +27,19 @@ Solar-system positions, illumination and visual magnitudes are calculated with
 Astronomy Engine is distributed under the MIT licence. Its copyright and
 permission notice are available in the upstream project.
 
+## General Catalogue of Variable Stars 5.1
+
+The separate named-variable search layer is derived from the General
+Catalogue of Variable Stars (GCVS), maintained by the GCVS team at the
+Sternberg Astronomical Institute, Moscow State University. Source:
+http://www.sai.msu.su/gcvs/gcvs/gcvs5/gcvs5.txt, snapshot dated 2026-07-11,
+SHA-256 `dc2a9b886a3243f4f4896d13d237ec1aa8c41615e7457c71459b2a4952439aba`.
+Reference: Samus et al. (2017), *Astronomy Reports* 61, 80-88. The Atlas
+normalizes 63,291 positioned named-variable records and adds positional
+crossmatches to its existing named-star layer for search. The source's
+redistribution terms were not stated in the source file; this notice does not
+grant a licence to redistribute the derived data.
+
 ## HYG v4.1 naked-eye star layer
 
 The separate star supplement is derived from the **HYG Database** by David Nash

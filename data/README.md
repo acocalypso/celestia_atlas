@@ -1,5 +1,13 @@
 # Generated catalogue data
 
+Build the compact offline GCVS 5.1 named-variable search layer with
+`npm run build:variables`. The builder pins the 2026-07-11 official source file
+by SHA-256 and writes `gcvs-variable-stars.json` plus
+`../gcvs-variable-stars.js`. Its 63,291 positioned entries are searchable but
+do not create a second plotted star layer. The 182 source rows without usable
+positions are excluded. The asset is documented in
+[`../docs/CATALOGUES.md`](../docs/CATALOGUES.md).
+
 Install the pinned build dependency and create the public OpenNGC bundle:
 
 ```bash

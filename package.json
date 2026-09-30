@@ -17,6 +17,7 @@
     "./hyg-star-data": "./data/hyg-star-catalog.json",
     "./sao-star-crossids": "./data/sao-star-crossids.json",
     "./wr-star-data": "./data/wr-star-catalog.json",
+    "./variable-star-data": "./data/gcvs-variable-stars.json",
     "./openngc-catalog-data": "./data/openngc-catalog.json",
     "./openngc-viewer-catalog-data": "./data/openngc-viewer-catalog.json",
     "./bright-sky-data": "./data/bright-sky.json",
@@ -35,6 +36,7 @@
     "build:hyg-stars": "python tools/build_hyg_star_catalog.py",
     "build:sao-stars": "python tools/build_sao_star_crossids.py --target-catalogue data/hyg-star-catalog.json --target-catalogue data/wr-star-catalog.json",
     "build:wr-stars": "python tools/build_wr_star_catalog.py",
+    "build:variables": "python tools/build_gcvs_variable_stars.py",
     "fetch:catalog-sources": "python tools/fetch_catalog_sources.py --acknowledge-rights-review",
     "build:bright-sky": "node tools/build_bright_sky_catalog.mjs",
     "build:comets": "node tools/build_comet_catalog.mjs"

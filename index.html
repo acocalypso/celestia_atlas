@@ -683,11 +683,15 @@
           The public build contains OpenNGC, all 86 Abell-1966 planetary
           nebulae, Abell/ACO galaxy clusters, the LDN, Barnard, LBN, Sharpless,
           vdB, and RCW groups, plus a HYG star layer through visual magnitude
-          6.5 with HD and SAO cross-identifiers, and a Wolf-Rayet catalogue.
+          6.5 with HD and SAO cross-identifiers, a Wolf-Rayet catalogue, and
+          63,291 GCVS named-variable entries available in offline search.
           Use Controls → Star catalogues to choose visible groups and raise
           the star magnitude limit to show faint targets. Stars without a
           measured magnitude appear as selectable markers when found in search.
-          Catalogue coordinates are normalized to ICRS. Stars use their
+          GCVS variable entries use J2000 coordinates and carry catalogue
+          magnitude ranges and periods where available; they do not predict
+          current brightness or add duplicate plotted stars. Catalogue
+          coordinates use J2000/ICRS frames. Plotted stars use their
           available B-V colours, while galaxies and nebulae use type-specific
           symbols and scaled catalogue footprints. Faint objects appear
           progressively as you zoom in, while every bundled entry remains
@@ -754,6 +758,7 @@
     <script src="hyg-star-catalog.js"></script>
     <script src="sao-star-crossids.js"></script>
     <script src="wr-star-catalog.js"></script>
+    <script src="gcvs-variable-stars.js"></script>
     <script src="western-constellations.js"></script>
     <script src="dso-catalog.js"></script>
     <script src="abell-pn-catalog.js"></script>

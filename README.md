@@ -13,13 +13,13 @@ Core search and sky calculations run locally. An optional DSS2 Color photographi
 
 ## What you can do
 
-- Explore the sky in horizontal or equatorial mode, change the observer location and time, and search stars or deep-sky objects by name and catalogue identifier.
+- Explore the sky in horizontal or equatorial mode, change the observer location and time, and search stars or deep-sky objects by name and catalogue identifier. Search the offline GCVS named-variable catalogue by designation, GCVS number, or matched familiar name.
 - Display all 88 Western constellation line figures, coordinate grids, cardinal directions, the Sun, Moon, planets, Pluto, Galilean moons, and comets.
 - Use the lower-screen compass to read the view centre's geographic bearing. Its visibility setting is saved in the browser.
 - View the Touch'N'Stars landscape by default. Embedded hosts can provide a custom horizon or another HEALPix landscape.
 - Overlay a camera field of view or mosaic and zoom into optional DSS2 Color photographic imagery.
 
-The public build includes 9,437 searchable stars and 21,192 deep-sky catalogue markers, including all 110 Messier designations. The catalogues and their source terms are documented in [CATALOGUES.md](docs/CATALOGUES.md).
+The public build includes 9,437 plotted searchable stars, 63,291 additional searchable GCVS variable-star entries, and 21,192 deep-sky catalogue markers, including all 110 Messier designations. Variable entries are search targets with catalogue magnitude ranges and periods where available; their brightness is not animated. The catalogues and their source terms are documented in [CATALOGUES.md](docs/CATALOGUES.md).
 
 ## Run the standalone atlas
 
@@ -63,7 +63,7 @@ The public entry point is [`src/index.js`](src/index.js). A minimal local-only v
 </script>
 ```
 
-New viewers start paused. The host controls their size, lifecycle, catalogues, observer, and display options. Add deep-sky records through `catalog`, or use `composeStarCatalog` to combine curated, HYG, and WR stars with HD and SAO identifiers. The public `starCatalogueMask` and `STAR_CATALOGUE_BITS` helpers support source filters; search remains available when a layer is hidden.
+New viewers start paused. The host controls their size, lifecycle, catalogues, observer, and display options. Add deep-sky records through `catalog`, use `composeStarCatalog` to combine curated, HYG, and WR stars with HD and SAO identifiers, and pass the packaged `variable-star-data` to `variableStars` for offline named-variable search. The public `starCatalogueMask` and `STAR_CATALOGUE_BITS` helpers support source filters; search remains available when a layer is hidden.
 
 See [USAGE.md](docs/USAGE.md) for a larger example, [API.md](docs/API.md) for the viewer contract, and [`src/index.d.ts`](src/index.d.ts) for types. The package is marked private in `package.json`; embedded hosts currently consume the source or a pinned Git revision.
 
@@ -98,6 +98,6 @@ The repository contains generated catalogue files. Read [DEVELOPMENT.md](docs/DE
 
 ## Licensing and accuracy
 
-The application code is [MIT licensed](LICENSE). **Bundled and generated data do not all share that licence.** OpenNGC and HYG-derived assets use CC BY-SA 4.0; the SIMBAD A66-derived asset uses ODbL 1.0; the Stellarium-derived supplement and Western constellation lines use GPL-2.0-or-later. DSS2 imagery and optional object previews retain their respective source terms. Review [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [`licenses/`](licenses/) before redistributing data or imagery.
+The application code is [MIT licensed](LICENSE). **Bundled and generated data do not all share that licence.** OpenNGC and HYG-derived assets use CC BY-SA 4.0; the SIMBAD A66-derived asset uses ODbL 1.0; the Stellarium-derived supplement and Western constellation lines use GPL-2.0-or-later. The GCVS-derived variable-star asset has a separate source attribution; no redistribution licence is asserted for it. DSS2 imagery and optional object previews retain their respective source terms. Review [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [`licenses/`](licenses/) before redistributing data or imagery.
 
 Celestia Atlas is intended for visualization, search, observing preparation, and camera framing. It does not ingest live IERS Earth-orientation parameters, DUT1, polar motion, or atmospheric refraction data and should not be used as a precision astrometry or mount model.

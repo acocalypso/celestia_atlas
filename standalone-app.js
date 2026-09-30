@@ -85,6 +85,7 @@ const stars = composeStarCatalog({
   sao: globalThis.SAO_STAR_CROSSIDS ?? [],
   wr: globalThis.WR_STAR_DATA ?? [],
 });
+const variableStars = globalThis.GCVS_VARIABLE_STAR_DATA ?? null;
 const catalog = layeredCatalog.objects.map((object) => {
   const raDeg = Number.isFinite(object.raDeg)
     ? object.raDeg
@@ -438,6 +439,13 @@ function showDetails(value) {
   const colorClass = properties.colorClass ?? target.colorClass;
   const areaSquareDeg = properties.areaSquareDeg ?? target.areaSquareDeg;
   const notes = uniqueStrings([properties.notes, target.description]);
+  const variableMagnitude = [
+    target.maxMagnitude ?? target.maxMagnitudeText,
+    target.minMagnitude ?? target.minMagnitudeText,
+  ].filter((value) => value !== undefined && value !== null && value !== "").join("–");
+  const variableRange = variableMagnitude
+    ? `${variableMagnitude}${target.magnitudeBand ? ` ${target.magnitudeBand}` : ""}`
+    : undefined;
   $("#detailsContent").innerHTML = `
     <p class="object-kicker">${escapeHtml(target.objectType || target.typeCode || "Sky object")}</p>
     <h2 class="object-title">${escapeHtml(target.displayName || target.name)}</h2>
@@ -446,7 +454,10 @@ function showDetails(value) {
       ${detailCell("Right ascension", formatRa(raDeg))}
       ${detailCell("Declination", formatDec(decDeg))}
       ${detailCell("Altitude now", `${horizontal.altitudeDeg.toFixed(1)}°`)}
-      ${detailCell("Magnitude", Number.isFinite(target.magnitude) ? target.magnitude.toFixed(2) : "Not available")}
+      ${detailCell("Magnitude", Number.isFinite(target.magnitude) ? target.magnitude.toFixed(2) : target.variabilityType ? "Variable" : "Not available")}
+      ${detailCell("Variability class", target.variabilityType)}
+      ${detailCell("Catalogue magnitude range", variableRange)}
+      ${detailCell("Catalogue period", Number.isFinite(target.periodDays) ? `${target.periodDays} days` : undefined)}
       ${detailCell("Dimensions", shape.dimensions)}
       ${detailCell("Shape", shape.kind)}
       ${detailCell("Position angle", Number.isFinite(shape.positionAngleDeg) ? `${Number(shape.positionAngleDeg.toFixed(1))}°` : undefined)}
@@ -1048,6 +1059,7 @@ function initialize() {
     container: $("#viewerHost"),
     catalog,
     stars,
+    variableStars,
     constellations,
     observer: state.observer,
     utcMs: Date.now(),
@@ -1074,7 +1086,7 @@ function initialize() {
   initializeTour();
   $("#latitudeInput").value = state.observer.latitudeDeg.toFixed(4);
   $("#longitudeInput").value = state.observer.longitudeDeg.toFixed(4);
-  $("#starCount").textContent = stars.length.toLocaleString();
+  $("#starCount").textContent = (stars.length + (variableStars?.rows.length ?? 0)).toLocaleString();
   $("#dsoCount").textContent = catalog.length.toLocaleString();
   $("#constCount").textContent =
     (constellations.constellations?.length ??

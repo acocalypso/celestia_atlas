@@ -65,6 +65,7 @@ python tools/build_dso_catalog.py --catalogues openngc
 python tools/build_stellarium_supplement.py --version v26.2
 python tools/build_abell_pn_catalog.py
 python tools/build_hyg_star_catalog.py
+python tools/build_gcvs_variable_stars.py
 ```
 
 Compatibility command:
@@ -82,6 +83,7 @@ dso-catalog.js
 stellarium-supplement.js
 abell-pn-catalog.js
 hyg-star-catalog.js
+gcvs-variable-stars.js
 
 data/dso-catalog.json
 data/dso-viewer-catalog.json
@@ -94,6 +96,7 @@ data/stellarium-dso-supplement.json
 data/stellarium-supplement-meta.json
 data/abell-pn-catalog.json
 data/hyg-star-catalog.json
+data/gcvs-variable-stars.json
 ```
 
 Regenerate affected outputs when changing a builder, source version, normalization rule, or runtime schema.

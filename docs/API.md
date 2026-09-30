@@ -13,6 +13,7 @@ const viewer = createCelestiaAtlasViewer({
   container,
   catalog,
   stars,
+  variableStars,
   constellations,
   observer,
   utcMs,
@@ -32,6 +33,7 @@ const viewer = createCelestiaAtlasViewer({
 | `container`           | `HTMLElement`                            | Required host element                            |
 | `catalog`             | `DeepSkyCatalogueObject[]`               | Deep-sky catalogue                               |
 | `stars`               | `StarCatalogueObject[]`                  | Star catalogue                                   |
+| `variableStars`       | `VariableStarCatalogueData \| null`      | Compact GCVS named-variable search layer; package export `./variable-star-data` |
 | `constellations`      | `WesternConstellationData` | Complete image-free Western line figures (88 IAU constellations, HIP paths and fixed ICRS vertices); the legacy named-pair object remains accepted for compatibility |
 | `observer`            | `Observer`                               | Initial observer                                 |
 | `utcMs`               | `number`                                 | Initial UTC Unix timestamp                       |

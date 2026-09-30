@@ -1,4 +1,27 @@
-# Deep-sky catalogue pipeline
+# Catalogue pipeline
+
+## GCVS named variable stars
+
+The separate `data/gcvs-variable-stars.json` asset comes from the official
+[General Catalogue of Variable Stars 5.1](http://www.sai.msu.su/gcvs/gcvs/gcvs5/gcvs5.txt)
+file dated 2026-07-11 (SHA-256
+`dc2a9b886a3243f4f4896d13d237ec1aa8c41615e7457c71459b2a4952439aba`).
+The build preserves 63,291 of 63,473 rows with usable J2000 coordinates;
+182 rows without positions cannot be centered in the atlas. Names, GCVS
+numeric identifiers, variability classes, reported magnitude extrema,
+photometric bands, and periods are carried when supplied. Strict positional
+matching against the existing curated and HYG named-star layers adds familiar
+names such as Algol, Mira, and Betelgeuse as search aliases.
+
+The layer is search-only. Existing curated/HYG/WR stars remain the plotted
+stars, so a variable also present there is not drawn twice. A reported
+period is descriptive metadata and does not imply a current light curve or
+predicted magnitude. GCVS named variables are a compact offline subset of
+the much larger variable-star survey population. Rebuild the pinned asset
+with `npm run build:variables`; use `--offline` after the source is cached.
+The project attributes GCVS and its compilers in
+[THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md); no redistribution
+licence is asserted for this source.
 
 Celestia Atlas builds its browser catalogue ahead of time. The browser never
 queries VizieR, SIMBAD, OpenNGC, or another astronomy service at runtime.

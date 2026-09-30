@@ -87,6 +87,7 @@ jobs:
           test -s stellarium-supplement.js
           test -s abell-pn-catalog.js
           test -s hyg-star-catalog.js
+          test -s gcvs-variable-stars.js
           test -s sao-star-crossids.js
           test -s wr-star-catalog.js
           test -s western-constellations.js
@@ -99,6 +100,7 @@ jobs:
           test -s data/stellarium-supplement-meta.json
           test -s data/abell-pn-catalog.json
           test -s data/hyg-star-catalog.json
+          test -s data/gcvs-variable-stars.json
           test -s data/sources/simbad/a66-2026-07-15.tsv
           test -s data/sources/simbad/a66-2026-07-15.adql
           test -s data/sources/simbad/a66-2026-07-15.meta.json
@@ -236,6 +238,7 @@ jobs:
           cp hyg-star-catalog.js _site/
           cp sao-star-crossids.js _site/
           cp wr-star-catalog.js _site/
+          cp gcvs-variable-stars.js _site/
           cp western-constellations.js _site/
           cp dso-catalog.js _site/
           cp abell-pn-catalog.js _site/

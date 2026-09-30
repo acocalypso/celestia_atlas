@@ -225,6 +225,21 @@ export interface StarCatalogueObject {
   magnitude?: number;
   [key: string]: unknown;
 }
+export interface VariableStarCatalogueData {
+  meta: {
+    catalogue: string;
+    sourceDate: string;
+    sourceUrl: string;
+    sourceSha256: string;
+    sourceRows: number;
+    searchableStars: number;
+    excludedWithoutCoordinates: number;
+    reference: string;
+  };
+  columns: string[];
+  rows: Array<[string, string, number, number, ...unknown[]]>;
+}
+export function decodeVariableStars(data: VariableStarCatalogueData | null): StarCatalogueObject[];
 export type StarCatalogueGroup = "curated" | "hyg" | "hd" | "sao" | "wr";
 export const STAR_CATALOGUE_BITS: Readonly<Record<StarCatalogueGroup, number>>;
 export function starCatalogueMask(star: Partial<StarCatalogueObject>): number;
@@ -333,6 +348,8 @@ export function createCelestiaAtlasViewer(options: {
   container: HTMLElement;
   catalog?: DeepSkyCatalogueObject[];
   stars?: StarCatalogueObject[];
+  /** Compact GCVS search layer; entries are searchable without adding duplicate plotted stars. */
+  variableStars?: VariableStarCatalogueData | null;
   /** Atlas-native HIP paths, or the legacy named-pair compatibility format. */
   constellations?: WesternConstellationData | Record<string, Array<[string, string]>>;
   observer?: Observer;
