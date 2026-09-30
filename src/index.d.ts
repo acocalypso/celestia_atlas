@@ -117,6 +117,7 @@ export interface CelestiaAtlasDisplayOptions {
   galaxyMagnitudeLimit: number;
   deepSkyMagnitudeLimit: number;
   deepSkyObjectTypes: string[] | null;
+  /** DSO source groups plus "gcvs" for named-variable search; null includes all. */
   deepSkyCatalogueGroups: string[] | null;
   starScale: number;
   deepSkyObjects: boolean;

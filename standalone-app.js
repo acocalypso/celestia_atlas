@@ -121,7 +121,7 @@ const availableObjectTypes = uniqueStrings(
   catalog.map((object) => object.typeCode),
 ).sort((left, right) => left.localeCompare(right));
 const availableCatalogueGroups = uniqueStrings(
-  catalog.map((object) => object.catalogueGroups),
+  [...catalog.map((object) => object.catalogueGroups), ...(variableStars ? ["gcvs"] : [])],
 ).sort((left, right) => left.localeCompare(right));
 const objectTypeLabels = new Map(
   catalog.map((object) => [
@@ -141,6 +141,7 @@ const catalogueGroupLabels = new Map([
   ["sharpless", "Sharpless 2"],
   ["vdb", "vdB"],
   ["rcw", "RCW"],
+  ["gcvs", "GCVS variable stars"],
   ["dcld", "Southern Dark Clouds"],
   ["feitzinger", "Feitzinger-Stuewe"],
 ]);

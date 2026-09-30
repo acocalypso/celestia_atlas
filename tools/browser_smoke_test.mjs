@@ -755,7 +755,9 @@ async function run() {
         search.dispatchEvent(new Event('input', { bubbles: true }));
         document.querySelector('.search-result')?.click();
         const sourceValues = [...document.querySelectorAll('#dsoSourceFilters input')].map(input => input.value.toLowerCase()).sort();
-        const metadataGroups = [...(globalThis.DSO_CATALOG_META?.catalogueGroups || [])].map(value => String(value).toLowerCase()).sort();
+        const metadataGroups = [...(globalThis.DSO_CATALOG_META?.catalogueGroups || []),
+          ...(globalThis.GCVS_VARIABLE_STAR_DATA?.rows?.length ? ['gcvs'] : [])]
+          .map(value => String(value).toLowerCase()).sort();
         return {
           controlsInitiallyClosed,
           controlsOpen: !document.querySelector('#controlPanel')?.classList.contains('closed'),
@@ -989,9 +991,25 @@ async function run() {
         returnByValue: true,
       });
       const content = detail.result?.value || "";
-      if (!content.includes(name) || !content.includes(type) || !content.includes("Catalogue magnitude range"))
+      if (!content.includes(name) || !content.includes(type) ||
+          !content.includes("Catalogue magnitude range") || !content.includes("GCVS 5.1"))
         throw new Error(`Variable star metadata failed for ${query}: ${content}`);
     }
+    const gcvsToggle = await client.send("Runtime.evaluate", {
+      expression: `(() => {
+        const input = document.querySelector('#dsoSourceFilters input[value="gcvs"]');
+        const viewer = globalThis.__CELESTIA_ATLAS_VIEWER__;
+        if (!input || !viewer.search('GCVS 520010').length) return { available: false };
+        input.click();
+        const hidden = viewer.search('GCVS 520010').length === 0;
+        input.click();
+        return { available: true, hidden, restored: viewer.search('GCVS 520010').length > 0 };
+      })()`,
+      returnByValue: true,
+    });
+    if (!gcvsToggle.result?.value?.available || !gcvsToggle.result?.value?.hidden ||
+        !gcvsToggle.result?.value?.restored)
+      throw new Error(`GCVS source filter failed: ${JSON.stringify(gcvsToggle.result?.value)}`);
     await focusSearchResult(client, searchQuery);
     await delay(300);
     const beforeDragHash = await currentHash(client);

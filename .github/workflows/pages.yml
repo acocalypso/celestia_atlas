@@ -169,7 +169,7 @@ jobs:
         env:
           SMOKE_QUERY: LDN 1
           SMOKE_EXPECT_TITLE: LDN 1
-          SMOKE_EXPECTED_SOURCE_FILTERS: "10"
+          SMOKE_EXPECTED_SOURCE_FILTERS: "11"
           SMOKE_EXPECTED_DSO_COUNT: "21192"
           SMOKE_EXPECT_DETAIL_TEXT: LDN via Stellarium
         run: npm run test:browser
@@ -178,7 +178,7 @@ jobs:
         env:
           SMOKE_QUERY: Abell 1656
           SMOKE_EXPECT_TITLE: Abell 1656
-          SMOKE_EXPECTED_SOURCE_FILTERS: "10"
+          SMOKE_EXPECTED_SOURCE_FILTERS: "11"
           SMOKE_EXPECTED_DSO_COUNT: "21192"
           SMOKE_EXPECT_DETAIL_TEXT: Abell via Stellarium
         run: npm run test:browser
@@ -187,7 +187,7 @@ jobs:
         env:
           SMOKE_QUERY: Abell 39
           SMOKE_EXPECT_TITLE: Abell PN 39
-          SMOKE_EXPECTED_SOURCE_FILTERS: "10"
+          SMOKE_EXPECTED_SOURCE_FILTERS: "11"
           SMOKE_EXPECTED_DSO_COUNT: "21192"
           SMOKE_EXPECT_DETAIL_TEXT: SIMBAD A66
         run: npm run test:browser
@@ -196,7 +196,7 @@ jobs:
         env:
           SMOKE_QUERY: Larawag
           SMOKE_EXPECT_TITLE: Larawag
-          SMOKE_EXPECTED_SOURCE_FILTERS: "10"
+          SMOKE_EXPECTED_SOURCE_FILTERS: "11"
           SMOKE_EXPECTED_DSO_COUNT: "21192"
           SMOKE_EXPECT_DETAIL_TEXT: HYG
         run: npm run test:browser
@@ -219,7 +219,7 @@ jobs:
         env:
           SMOKE_CATALOG_BUNDLE: .cache/catalog-browser-fixture/dso-catalog.js
           SMOKE_QUERY: Sh 2-1
-          SMOKE_EXPECTED_SOURCE_FILTERS: "12"
+          SMOKE_EXPECTED_SOURCE_FILTERS: "13"
           SMOKE_EXPECT_DETAIL_TEXT: VII/20
         run: |
           python tools/build_catalog_browser_fixture.py

@@ -17,7 +17,9 @@ The layer is search-only. Existing curated/HYG/WR stars remain the plotted
 stars, so a variable also present there is not drawn twice. A reported
 period is descriptive metadata and does not imply a current light curve or
 predicted magnitude. GCVS named variables are a compact offline subset of
-the much larger variable-star survey population. Rebuild the pinned asset
+the much larger variable-star survey population. The **Source catalogues**
+control includes GCVS as its eleventh source; turning it off excludes GCVS
+search results while retaining other stars. Rebuild the pinned asset
 with `npm run build:variables`; use `--offline` after the source is cached.
 The project attributes GCVS and its compilers in
 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md); no redistribution
@@ -418,7 +420,7 @@ cross-index selection, FK5/J2000, FK4 and Galactic transforms, aliases,
 area-derived shapes, missing optional fields, malformed rows, explicit and
 ambiguous cross-identifications, manual overrides, and byte-stable output.
 Chrome smoke coverage loads the deployable OpenNGC, A66, Stellarium, and HYG
-assets, asserts the nine expected DSO source filters, and verifies that
+assets, asserts the DSO and GCVS source filters, and verifies that
 supplement objects and HYG stars can be searched, drawn, and selected directly
 from their canvas markers.
 Focused A66 tests additionally verify the committed snapshot/query hashes, all

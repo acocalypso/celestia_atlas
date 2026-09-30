@@ -21,6 +21,7 @@ export function decodeVariableStars(data) {
       frame: "J2000",
       type: "Variable star",
       catalogueSource: "GCVS 5.1",
+      catalogueId: `GCVS ${number}`,
       searchOnly: true,
     };
     if (aliases) {

@@ -33,6 +33,7 @@ test("variable designations, GCVS IDs and matched proper names lead to GCVS meta
   assert.equal(mira.periodDays, 328.8);
   assert.equal(mira.maxMagnitude, 1.9);
   assert.equal(mira.minMagnitude, 10.4);
+  assert.equal(mira.catalogueId, "GCVS 219015");
 });
 
 test("the compact decoder rejects malformed coordinates", () => {

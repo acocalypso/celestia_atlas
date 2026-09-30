@@ -381,8 +381,8 @@ export function createCelestiaAtlasViewer(options) {
         : Number.POSITIVE_INFINITY;
       return leftMagnitude - rightMagnitude;
     });
-  const searchableObjects = [...decodeVariableStars(variableStars), ...stars, ...catalog];
-  const searchableObjectIndex = createCatalogSearchIndex(searchableObjects);
+  const variableStarSearchIndex = createCatalogSearchIndex(decodeVariableStars(variableStars));
+  const searchableObjectIndex = createCatalogSearchIndex([...stars, ...catalog]);
   const galaxyCatalogFlags = Uint8Array.from(catalog, (object) =>
     isGalaxyObject(object) ? 1 : 0,
   );
@@ -3472,7 +3472,14 @@ export function createCelestiaAtlasViewer(options) {
         ...comets,
       ]);
       return searchCatalogIndex(
-        [...dynamicSearchIndex, ...searchableObjectIndex],
+        [
+          ...dynamicSearchIndex,
+          ...(display.deepSkyCatalogueGroups === null ||
+          display.deepSkyCatalogueGroups.some((group) => group.toLowerCase() === "gcvs")
+            ? variableStarSearchIndex
+            : []),
+          ...searchableObjectIndex,
+        ],
         query,
         20,
       ).map((object) => ({

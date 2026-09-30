@@ -63,7 +63,7 @@ The public entry point is [`src/index.js`](src/index.js). A minimal local-only v
 </script>
 ```
 
-New viewers start paused. The host controls their size, lifecycle, catalogues, observer, and display options. Add deep-sky records through `catalog`, use `composeStarCatalog` to combine curated, HYG, and WR stars with HD and SAO identifiers, and pass the packaged `variable-star-data` to `variableStars` for offline named-variable search. The public `starCatalogueMask` and `STAR_CATALOGUE_BITS` helpers support source filters; search remains available when a layer is hidden.
+New viewers start paused. The host controls their size, lifecycle, catalogues, observer, and display options. Add deep-sky records through `catalog`, use `composeStarCatalog` to combine curated, HYG, and WR stars with HD and SAO identifiers, and pass the packaged `variable-star-data` to `variableStars` for offline named-variable search. The public `starCatalogueMask` and `STAR_CATALOGUE_BITS` helpers support star filters. Star visibility filters leave search available; the GCVS option under **Source catalogues** includes or excludes its variable-star search results.
 
 See [USAGE.md](docs/USAGE.md) for a larger example, [API.md](docs/API.md) for the viewer contract, and [`src/index.d.ts`](src/index.d.ts) for types. The package is marked private in `package.json`; embedded hosts currently consume the source or a pinned Git revision.
 
