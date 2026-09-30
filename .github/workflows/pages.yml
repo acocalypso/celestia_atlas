@@ -72,7 +72,8 @@ jobs:
           const stars = composeStarCatalog({ curated: data.STAR_DATA, hyg: data.HYG_STAR_DATA,
             curatedCrossIds: data.HYG_CURATED_STAR_CROSSIDS, hygSearch: data.HYG_SEARCH_STAR_DATA,
             sao: data.SAO_STAR_CROSSIDS, wr: data.WR_STAR_DATA });
-          console.log(`SMOKE_EXPECTED_STAR_COUNT=${stars.length}`);
+          const variables = JSON.parse(readFileSync('data/gcvs-variable-stars.json', 'utf8'));
+          console.log(`SMOKE_EXPECTED_STAR_COUNT=${stars.length + variables.rows.length}`);
           JS
 
       - name: Run catalogue and browser-core tests
