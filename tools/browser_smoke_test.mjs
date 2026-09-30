@@ -133,8 +133,8 @@ async function closeStaticServer(server) {
   });
 }
 
-async function devtoolsTarget(port) {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
+async function devtoolsTarget(port, chrome, stderr) {
+  for (let attempt = 0; attempt < 300; attempt += 1) {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/json/list`);
       const targets = await response.json();
@@ -143,9 +143,11 @@ async function devtoolsTarget(port) {
     } catch {
       // Chrome may still be starting.
     }
+    if (chrome.exitCode !== null || chrome.signalCode !== null)
+      throw new Error(`Chrome exited before DevTools was ready: ${stderr().slice(-2000)}`);
     await delay(100);
   }
-  throw new Error("Chrome DevTools endpoint did not become ready");
+  throw new Error(`Chrome DevTools endpoint did not become ready: ${stderr().slice(-2000)}`);
 }
 
 function cdpClient(webSocketUrl, onEvent) {
@@ -638,7 +640,7 @@ async function run() {
   let offlineDocumentFromServiceWorker = false;
   let client;
   try {
-    const target = await devtoolsTarget(debugPort);
+    const target = await devtoolsTarget(debugPort, chrome, () => chromeStderr);
     trace("Chrome DevTools ready");
     client = cdpClient(target.webSocketDebuggerUrl, (method, params) => {
       if (
@@ -829,16 +831,21 @@ async function run() {
       );
     if (!liveSurvey) {
       await waitForSkySurvey(client, { settled: true });
-      const persistentSurvey = await client.send("Runtime.evaluate", {
-        expression: `(async () => {
-          const cache = await caches.open('celestia-atlas-survey-v1');
-          const keys = await cache.keys();
-          return keys.filter(request => request.url.includes('/__survey__/Norder0/')).length;
-        })()`,
-        awaitPromise: true,
-        returnByValue: true,
-      });
-      if (!(persistentSurvey.result.value > 0))
+      let persistentSurveyTileCount = 0;
+      for (let attempt = 0; attempt < 100 && !persistentSurveyTileCount; attempt += 1) {
+        const persistentSurvey = await client.send("Runtime.evaluate", {
+          expression: `(async () => {
+            const cache = await caches.open('celestia-atlas-survey-v1');
+            const keys = await cache.keys();
+            return keys.filter(request => request.url.includes('/__survey__/Norder0/')).length;
+          })()`,
+          awaitPromise: true,
+          returnByValue: true,
+        });
+        persistentSurveyTileCount = persistentSurvey.result?.value ?? 0;
+        if (!persistentSurveyTileCount) await delay(100);
+      }
+      if (!persistentSurveyTileCount)
         throw new Error("The viewer did not persist its loaded survey tiles");
 
       const rotationTarget = await client.send("Runtime.evaluate", {
