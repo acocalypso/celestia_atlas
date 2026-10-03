@@ -75,6 +75,26 @@ The optional DSS2 Color layer starts blending in below a 20° field of view and 
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for rendering, HiPS tiles, caching, and memory limits.
 
+### Northern Sky Narrowband Survey
+
+In Atlas settings, **Sky survey source** switches between **DSS2 Color (HiPS,
+default)** and **Northern Sky Narrowband Survey**. Both use the HiPS renderer;
+the selected source is remembered in this browser. The existing photographic
+sky toggle controls visibility, and imagery blends in below a 20° field of view.
+Changing source preserves the view and zoom.
+
+The [Northern Sky Narrowband Survey DR0.2](https://www.simg.de/nebulae3/dr0_2/)
+OHS composite maps [OIII] to red, Hα to green, and [SII] to blue. Coverage extends
+to declination −16°; imagery is absent outside the surveyed region. Tiles are
+loaded on demand over HTTPS and may be cached. The data are not bundled or
+relicensed under Atlas's MIT licence: Stefan Ziegenbalg provides them under
+[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/).
+
+Embedded viewers can use the exported `NORTHERN_SKY_NARROWBAND_SURVEY_SOURCE`
+with `skySurveySource` or `viewer.setSkySurvey(...)`. The default remains
+DSS2 Color. Standalone host overrides via `CELESTIA_ATLAS_SKY_SURVEY_SOURCE`
+retain control and disable the source selector.
+
 ## Develop and contribute
 
 Development uses Node.js 22, Python 3.11 or newer, and Chrome or Chromium for browser smoke tests:

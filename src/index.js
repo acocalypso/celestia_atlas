@@ -1,6 +1,7 @@
 export {
   createCelestiaAtlasViewer,
   DEFAULT_DSS_SKY_SURVEY_SOURCE,
+  NORTHERN_SKY_NARROWBAND_SURVEY_SOURCE,
 } from "./public-api.js";
 export * from "./core/coordinates.js";
 export * from "./core/projection.js";

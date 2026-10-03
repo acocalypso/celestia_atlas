@@ -114,7 +114,7 @@ test("precaches the offline app core without precaching remote survey tiles", as
   const harness = createHarness();
   await harness.dispatch("install");
 
-  const core = harness.stores.get("celestia-atlas-offline-v40");
+  const core = harness.stores.get("celestia-atlas-offline-v41");
   assert.ok(core);
   for (const path of ["sao-star-crossids.js", "wr-star-catalog.js", "src/core/star-catalog-layers.js"])
     assert.ok(core.entries.has(`${APP_BASE}${path}`));
@@ -166,6 +166,22 @@ test("serves DSS tiles cache-first without reloading viewed imagery", async () =
   assert.equal(await (await runtime.match(newUrl)).text(), "new-tile");
 });
 
+test("NSNS PNG tiles use the bounded survey cache and remain available offline", async () => {
+  let offline = false;
+  const harness = createHarness(async () => {
+    if (offline) throw new Error("Offline");
+    return new Response("narrowband-tile");
+  });
+  const tile = "https://www.simg.de/nebulae3/dr0_2/ohs8/Norder4/Dir0/Npix12.png";
+  const first = await harness.dispatch("fetch", { request: new Request(tile) });
+  assert.equal(first.responded, true);
+  assert.equal(await first.response.text(), "narrowband-tile");
+  offline = true;
+  const second = await harness.dispatch("fetch", { request: new Request(tile) });
+  assert.equal(await second.response.text(), "narrowband-tile");
+  assert.equal(await harness.stores.get("celestia-atlas-offline-v41")?.match(tile), undefined);
+});
+
 test("stores same-origin HiPS tiles only in the bounded survey cache", async () => {
   const surveyUrl = `${APP_BASE}surveys/custom/Norder7/Dir0/Npix1.webp`;
   const harness = createHarness(async () => new Response("local-survey"));
@@ -179,7 +195,7 @@ test("stores same-origin HiPS tiles only in the bounded survey cache", async () 
   const survey = harness.stores.get("celestia-atlas-survey-v1");
   assert.equal(await (await survey.match(surveyUrl)).text(), "local-survey");
   assert.equal(
-    await harness.stores.get("celestia-atlas-offline-v40")?.match(surveyUrl),
+    await harness.stores.get("celestia-atlas-offline-v41")?.match(surveyUrl),
     undefined,
   );
 });
@@ -266,7 +282,7 @@ test("leaves other cross-origin requests alone and keeps landscapes in the core 
   assert.equal(landscape.responded, true);
   assert.equal(await landscape.response.text(), "precache");
   assert.equal(networkRequests, 0);
-  const core = harness.stores.get("celestia-atlas-offline-v40");
+  const core = harness.stores.get("celestia-atlas-offline-v41");
   assert.equal(await (await core.match(landscapeUrl)).text(), "precache");
   assert.equal(
     await harness.stores.get("celestia-atlas-survey-v1")?.match(landscapeUrl),
@@ -284,7 +300,7 @@ test("activation removes only superseded Atlas caches", async () => {
     "celestia-atlas-offline-v37",
     "celestia-atlas-offline-v38",
     "celestia-atlas-offline-v39",
-    "celestia-atlas-offline-v40",
+    "celestia-atlas-offline-v41",
     "celestia-atlas-survey-v29",
     "celestia-atlas-survey-v1",
     "another-app-cache-v1",
@@ -303,6 +319,6 @@ test("activation removes only superseded Atlas caches", async () => {
     "celestia-atlas-survey-v29",
   ]);
   assert.equal(harness.stores.has("another-app-cache-v1"), true);
-  assert.equal(harness.stores.has("celestia-atlas-offline-v40"), true);
+  assert.equal(harness.stores.has("celestia-atlas-offline-v41"), true);
   assert.equal(harness.stores.has("celestia-atlas-survey-v1"), true);
 });

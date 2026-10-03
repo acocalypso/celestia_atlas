@@ -3,6 +3,7 @@ import {
   combineCatalogLayers,
   createCelestiaAtlasViewer,
   DEFAULT_DSS_SKY_SURVEY_SOURCE,
+  NORTHERN_SKY_NARROWBAND_SURVEY_SOURCE,
   deepSkyObjectLabel,
   equatorialToHorizontal,
   horizontalToEquatorial,
@@ -11,6 +12,11 @@ import { composeStarCatalog, STAR_CATALOGUE_BITS, starCatalogueMask } from "./sr
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
+const SURVEY_SOURCES = {
+  dss: DEFAULT_DSS_SKY_SURVEY_SOURCE,
+  nsns: NORTHERN_SKY_NARROWBAND_SURVEY_SOURCE,
+};
+let selectedSurveyKey = localStorage.getItem("celestia-atlas.sky-survey-source") === "nsns" ? "nsns" : "dss";
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const escapeHtml = (value) =>
   String(value ?? "")
@@ -648,7 +654,7 @@ function updateStatus() {
         ? `${survey.source?.label ?? "Sky survey"} imagery · offline cache when browser storage permits`
         : survey.lastError
           ? "Offline atlas ready · photographic imagery unavailable"
-          : "Offline atlas ready · DSS imagery on demand";
+          : `Offline atlas ready · ${survey.source?.label ?? "Sky survey"} imagery on demand`;
 }
 
 function saveHash() {
@@ -956,6 +962,24 @@ function installControls() {
     localStorage.setItem("celestia-atlas.compass", String(state.compass));
   };
   $("#skySurveySwitch").checked = state.skySurvey;
+  const surveySelect = $("#skySurveySourceSelect");
+  surveySelect.value = selectedSurveyKey;
+  // Embedding overrides remain host-controlled, including explicit null.
+  surveySelect.disabled = Object.hasOwn(globalThis, "CELESTIA_ATLAS_SKY_SURVEY_SOURCE");
+  const updateSurveyDescription = () => {
+    $("#skySurveySourceNote").textContent = selectedSurveyKey === "nsns"
+      ? "DR0.2 OHS: [OIII] red, Hα green, [SII] blue. Coverage north of declination −16°. Stefan Ziegenbalg · CC BY-NC-SA 4.0."
+      : "DSS2 Color photographic sky (HiPS). STScI/NASA · CDS. Zoom below 20° to reveal imagery.";
+  };
+  updateSurveyDescription();
+  surveySelect.onchange = () => {
+    if (surveySelect.disabled || !Object.hasOwn(SURVEY_SOURCES, surveySelect.value)) return;
+    selectedSurveyKey = surveySelect.value;
+    viewer.setSkySurvey(SURVEY_SOURCES[selectedSurveyKey]);
+    localStorage.setItem("celestia-atlas.sky-survey-source", selectedSurveyKey);
+    updateSurveyDescription();
+    updateStatus();
+  };
   $("#skySurveySwitch").onchange = (event) => {
     state.skySurvey = event.target.checked;
     localStorage.setItem("celestia-atlas.sky-survey", String(state.skySurvey));
@@ -1055,7 +1079,7 @@ function initialize() {
     "CELESTIA_ATLAS_SKY_SURVEY_SOURCE",
   )
     ? globalThis.CELESTIA_ATLAS_SKY_SURVEY_SOURCE
-    : DEFAULT_DSS_SKY_SURVEY_SOURCE;
+    : SURVEY_SOURCES[selectedSurveyKey];
   viewer = createCelestiaAtlasViewer({
     container: $("#viewerHost"),
     catalog,
@@ -1094,7 +1118,7 @@ function initialize() {
       Object.keys(constellations).length).toLocaleString();
   $("#catalogReadout").textContent =
     `${catalogVersion} · ${catalog.length.toLocaleString()} DSOs`;
-  $("#statusText").textContent = "Offline atlas ready · DSS imagery on demand";
+  updateStatus();
   setMode(state.mode);
   updateStatus();
   setInterval(updateStatus, 1000);

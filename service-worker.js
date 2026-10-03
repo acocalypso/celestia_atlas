@@ -1,7 +1,7 @@
 try {
   importScripts("./dso-images.js");
 } catch (e) {}
-const CACHE = "celestia-atlas-offline-v40";
+const CACHE = "celestia-atlas-offline-v41";
 // Keep the survey schema independent from routine app-shell cache releases.
 const SURVEY_CACHE = "celestia-atlas-survey-v1";
 const SURVEY_CACHE_LIMIT = 512;
@@ -151,6 +151,9 @@ function isPackagedLandscapeTile(url) {
 function isSurveyTile(url) {
   return (
     isDssSurveyTile(url) ||
+    (url.origin === "https://www.simg.de" &&
+      url.pathname.startsWith("/nebulae3/dr0_2/ohs8/") &&
+      HIPS_IMAGE_PATH.test(url.pathname)) ||
     (url.origin === self.location.origin &&
       HIPS_IMAGE_PATH.test(url.pathname) &&
       !isPackagedLandscapeTile(url))

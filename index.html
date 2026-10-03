@@ -420,10 +420,18 @@
           ></label>
         </div>
         <div class="toggle-row">
-          <span>DSS photographic sky</span
+          <span>Photographic sky survey</span
           ><label class="switch"
-            ><input id="skySurveySwitch" type="checkbox" checked aria-label="DSS photographic sky survey" /><i></i
+            ><input id="skySurveySwitch" type="checkbox" checked aria-label="Photographic sky survey" /><i></i
           ></label>
+        </div>
+        <div class="sky-survey-selector">
+          <label for="skySurveySourceSelect">Sky survey source</label>
+          <select id="skySurveySourceSelect">
+            <option value="dss">DSS2 Color (HiPS, default)</option>
+            <option value="nsns">Northern Sky Narrowband Survey</option>
+          </select>
+          <p id="skySurveySourceNote" class="catalog-filter-empty"></p>
         </div>
         <div class="toggle-row">
           <span>DSO image previews</span

@@ -369,6 +369,8 @@ export function createCelestiaAtlasViewer(options: {
 export const DEFAULT_DSS_SKY_SURVEY_SOURCE: Readonly<
   Required<Omit<SkySurveySource, "frame">> & { frame: "ICRS" }
 >;
+/** Northern Sky Narrowband Survey DR0.2 OHS colour HiPS, CC BY-NC-SA 4.0. */
+export const NORTHERN_SKY_NARROWBAND_SURVEY_SOURCE: Readonly<SkySurveySource>;
 export function validateSkySurveyConfig(
   value: SkySurveySource,
 ): Readonly<

@@ -102,6 +102,22 @@ export const DEFAULT_DSS_SKY_SURVEY_SOURCE = Object.freeze({
     "https://outerspace.stsci.edu/spaces/MASTDATA/pages/176435492/Photographic+Sky+Surveys",
 });
 
+// Metadata verified against the publisher's DR0.2 ohs8/properties.
+export const NORTHERN_SKY_NARROWBAND_SURVEY_SOURCE = Object.freeze({
+  key: "nsns-dr0.2-ohs",
+  label: "Northern Sky Narrowband Survey",
+  url: "https://www.simg.de/nebulae3/dr0_2/ohs8",
+  frame: "ICRS",
+  minOrder: 0,
+  maxOrder: 6,
+  tileWidth: 512,
+  format: "png",
+  creditLabel: "Northern Sky Narrowband Survey DR0.2 — Stefan Ziegenbalg · CC BY-NC-SA 4.0",
+  attribution: "Northern Sky Narrowband Survey by Stefan Ziegenbalg. Hα background correction and intensity calibration use WHAM data.",
+  attributionUrl: "https://www.simg.de/nebulae3/dr0_2/",
+  rightsUrl: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+});
+
 function normalizeSkySurveySource(
   value,
   decodedTileByteBudget = Number.POSITIVE_INFINITY,
