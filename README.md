@@ -71,7 +71,7 @@ See [USAGE.md](docs/USAGE.md) for a larger example, [API.md](docs/API.md) for th
 
 The application shell, bundled catalogues, sky calculations, Milky Way panorama, and default landscape are local. After the app has loaded, its service worker caches the standalone assets for offline use. Browser storage policies can still evict cached data.
 
-The optional DSS2 Color layer starts blending in below a 20° field of view and reaches full opacity near 10°. It requests only imagery needed for the visible field. Previously viewed fields may be cached; unseen fields need a connection. The full photographic survey is not bundled. Embedded hosts can disable network imagery with `skySurveySource: null` or supply their own survey source.
+The optional DSS2 Color layer starts blending in below a 20° field of view and reaches full opacity near 10°. It requests only imagery needed for the visible field. At sufficiently wide fields, the Allsky preview supplies the image without detail tile requests. WebGL detail tiles decode through ImageBitmap where supported. The shared persistent cache holds up to 4096 survey resources. Previously viewed fields may be cached; unseen fields need a connection. The full photographic survey is not bundled. Embedded hosts can disable network imagery with `skySurveySource: null` or supply their own survey source.
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for rendering, HiPS tiles, caching, and memory limits.
 

@@ -1,10 +1,10 @@
 try {
   importScripts("./dso-images.js");
 } catch (e) {}
-const CACHE = "celestia-atlas-offline-v41";
+const CACHE = "celestia-atlas-offline-v42";
 // Keep the survey schema independent from routine app-shell cache releases.
 const SURVEY_CACHE = "celestia-atlas-survey-v1";
-const SURVEY_CACHE_LIMIT = 512;
+const SURVEY_CACHE_LIMIT = 4096;
 const ATLAS_CACHE_PREFIXES = [
   "celestia-atlas-offline-",
   "celestia-atlas-survey-",
@@ -161,7 +161,11 @@ function isSurveyTile(url) {
 }
 
 let surveyTrimQueue = Promise.resolve();
+let surveyWritesSinceTrim = 64;
 function trimSurveyCache(cache) {
+  // Amortize key enumeration during a burst; retain at most 63 extra entries.
+  if (++surveyWritesSinceTrim < 64) return surveyTrimQueue;
+  surveyWritesSinceTrim = 0;
   surveyTrimQueue = surveyTrimQueue
     .catch(() => {})
     .then(async () => {

@@ -8,6 +8,7 @@
  * and zooming, and inspects console, runtime, log, and resource failures.
  */
 import { spawn } from "node:child_process";
+import { deflateSync } from "node:zlib";
 import { createServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import { existsSync } from "node:fs";
@@ -83,10 +84,61 @@ function chromeExecutable() {
   return executable;
 }
 
+function surveyFixturePng(width, height) {
+  const chunk = (type, data) => {
+    const body = Buffer.concat([Buffer.from(type), data]);
+    let crc = 0xffffffff;
+    for (const byte of body) {
+      crc ^= byte;
+      for (let bit = 0; bit < 8; bit++)
+        crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+    const result = Buffer.alloc(data.length + 12);
+    result.writeUInt32BE(data.length);
+    body.copy(result, 4);
+    result.writeUInt32BE((crc ^ 0xffffffff) >>> 0, result.length - 4);
+    return result;
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 6;
+  const pixels = Buffer.alloc((width * 4 + 1) * height);
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      const offset = y * (width * 4 + 1) + 1 + x * 4;
+      pixels[offset] = x % 64 < 32 ? 220 : 30;
+      pixels[offset + 1] = y % 64 < 32 ? 40 : 210;
+      pixels[offset + 2] = 100;
+      pixels[offset + 3] = 255;
+    }
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk("IHDR", header),
+    chunk("IDAT", deflateSync(pixels)),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
 async function staticServer(port = 0) {
+  const perfAllsky = surveyFixturePng(27 * 64, 29 * 64);
+  const perfTile = surveyFixturePng(512, 512);
   const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? "/", "http://localhost");
+      if (url.pathname.startsWith("/__perf_survey__/")) {
+        response.writeHead(200, {
+          "content-type": "image/png",
+          "cache-control": "no-store",
+        });
+        response.end(
+          url.pathname.includes("Allsky") && !url.pathname.includes("missing")
+            ? perfAllsky
+            : perfTile,
+        );
+        return;
+      }
       const requested = decodeURIComponent(
         url.pathname === "/" ? "/index.html" : url.pathname,
       );
@@ -144,10 +196,14 @@ async function devtoolsTarget(port, chrome, stderr) {
       // Chrome may still be starting.
     }
     if (chrome.exitCode !== null || chrome.signalCode !== null)
-      throw new Error(`Chrome exited before DevTools was ready: ${stderr().slice(-2000)}`);
+      throw new Error(
+        `Chrome exited before DevTools was ready: ${stderr().slice(-2000)}`,
+      );
     await delay(100);
   }
-  throw new Error(`Chrome DevTools endpoint did not become ready: ${stderr().slice(-2000)}`);
+  throw new Error(
+    `Chrome DevTools endpoint did not become ready: ${stderr().slice(-2000)}`,
+  );
 }
 
 function cdpClient(webSocketUrl, onEvent) {
@@ -832,7 +888,11 @@ async function run() {
     if (!liveSurvey) {
       await waitForSkySurvey(client, { settled: true });
       let persistentSurveyTileCount = 0;
-      for (let attempt = 0; attempt < 100 && !persistentSurveyTileCount; attempt += 1) {
+      for (
+        let attempt = 0;
+        attempt < 100 && !persistentSurveyTileCount;
+        attempt += 1
+      ) {
         const persistentSurvey = await client.send("Runtime.evaluate", {
           expression: `(async () => {
             const cache = await caches.open('celestia-atlas-survey-v1');
@@ -940,6 +1000,100 @@ async function run() {
       });
       await waitForSkySurvey(client, { settled: true });
     }
+    if (!liveSurvey) {
+      const probe = await client.send("Runtime.evaluate", {
+        awaitPromise: true,
+        returnByValue: true,
+        expression: `(async () => {
+          const { createCelestiaAtlasViewer } = await import('/src/public-api.js');
+          const main = globalThis.__CELESTIA_ATLAS_VIEWER__;
+          main.pause();
+          const container = document.createElement('div');
+          container.style.cssText = 'position:fixed;left:0;top:0;width:128px;height:128px;z-index:9999';
+          document.body.append(container);
+          const originalBitmap = globalThis.createImageBitmap;
+          const originalRead = CanvasRenderingContext2D.prototype.getImageData;
+          const originalUrl = URL.createObjectURL;
+          let decoded = 0, closed = 0, reads = 0, urls = 0;
+          globalThis.createImageBitmap = async (...args) => {
+            const bitmap = await originalBitmap(...args); decoded++;
+            const close = bitmap.close.bind(bitmap);
+            bitmap.close = () => { closed++; close(); };
+            return bitmap;
+          };
+          const instrumentBitmap = globalThis.createImageBitmap;
+          CanvasRenderingContext2D.prototype.getImageData = function(...args) { reads++; return originalRead.apply(this,args); };
+          URL.createObjectURL = (...args) => { urls++; return originalUrl(...args); };
+          const source = { key: 'performance-probe', url: location.origin + '/__perf_survey__',
+            frame: 'ICRS', minOrder: 3, maxOrder: 3, tileWidth: 512, format: 'png',
+            blendStartFovDeg: 140, blendFullFovDeg: 130 };
+          const viewer = createCelestiaAtlasViewer({ container, skySurveySource: source, milkyWayPanoramaUrl: null });
+          const canvas = container.querySelector('canvas');
+          viewer.setCoordinateMode('equatorial');
+          viewer.setDisplayOptions({ grid: false, atmosphere: false, milkyWay: false, hideBelowHorizon: false });
+          viewer.setTimeRate(0);
+          const wait = async (predicate) => {
+            for (let i=0;i<250;i++) { if(predicate()) return; await new Promise(r=>setTimeout(r,40)); }
+            throw new Error('Performance probe timed out: ' + JSON.stringify(viewer.getState().skySurvey));
+          };
+          try {
+            viewer.setView({ center: { raDeg: 35, decDeg: 20, frame: 'ICRS' }, fovDeg: 130 }); viewer.resume();
+            await wait(()=>viewer.getState().skySurvey.active);
+            await new Promise(r=>setTimeout(r,300));
+            const wide = performance.getEntriesByType('resource').filter(e=>e.name.includes('/__perf_survey__/'));
+            const wideDetails = wide.filter(e=>e.name.includes('/Npix')).length;
+            const before = { decoded, reads, urls };
+            viewer.setView({ ...viewer.getView(), fovDeg: 8 });
+            await wait(()=>viewer.getState().skySurvey.pendingTiles===0 && decoded>before.decoded);
+            await new Promise(r=>setTimeout(r,200));
+            const detail = { bitmaps: decoded-before.decoded, pixelReads: reads-before.reads, objectUrls: urls-before.urls };
+            const pixels = originalRead.call(canvas.getContext('2d'),0,0,canvas.width,canvas.height).data;
+            viewer.setSkySurvey(null);
+            const releasedOnReset = closed === decoded;
+            globalThis.createImageBitmap = undefined;
+            viewer.setSkySurvey(source);
+            await wait(()=>viewer.getState().skySurvey.active && viewer.getState().skySurvey.pendingTiles===0);
+            await new Promise(r=>setTimeout(r,200));
+            const fallbackPixels = originalRead.call(canvas.getContext('2d'),0,0,canvas.width,canvas.height).data;
+            let difference=0; for(let i=0;i<pixels.length;i++) difference+=Math.abs(pixels[i]-fallbackPixels[i]);
+            const orientationMeanError = difference/pixels.length;
+            globalThis.createImageBitmap = instrumentBitmap;
+            viewer.setSkySurvey(null); viewer.setSkySurvey(source);
+            await wait(()=>viewer.getState().skySurvey.active && viewer.getState().skySurvey.pendingTiles===0);
+            viewer.setView({ ...viewer.getView(), fovDeg: 130 });
+            viewer.setSkySurvey({ ...source, url: source.url + '/missing' });
+            const beforeMissing = decoded;
+            await wait(()=>viewer.getState().skySurvey.active && viewer.getState().skySurvey.pendingTiles===0 && decoded>beforeMissing);
+            viewer.destroy();
+            return { wideDetails, wideResources: wide.length, detail, releasedOnReset, releasedOnDestroy: closed===decoded, missingAllskyFallback: decoded>beforeMissing, orientationMeanError };
+          } finally {
+            viewer.destroy(); container.remove(); main.resume();
+            globalThis.createImageBitmap = originalBitmap;
+            CanvasRenderingContext2D.prototype.getImageData = originalRead; URL.createObjectURL = originalUrl;
+          }
+        })()`,
+      });
+      const metrics = probe.result?.value;
+      if (
+        probe.exceptionDetails ||
+        !metrics ||
+        metrics.wideDetails !== 0 ||
+        metrics.wideResources !== 1 ||
+        metrics.detail.bitmaps < 1 ||
+        metrics.detail.pixelReads !== 0 ||
+        metrics.detail.objectUrls !== 0 ||
+        !metrics.releasedOnReset ||
+        !metrics.releasedOnDestroy ||
+        !metrics.missingAllskyFallback ||
+        metrics.orientationMeanError > 1
+      )
+        throw new Error(
+          `Survey performance regression: ${JSON.stringify(probe)}`,
+        );
+      console.log(
+        `Survey performance regression passed: ${JSON.stringify(metrics)}`,
+      );
+    }
     trace("initial survey checks complete");
 
     const box = await client.send("Runtime.evaluate", {
@@ -973,24 +1127,34 @@ async function run() {
       returnByValue: true,
     });
     const stellar = starControls.result?.value;
-    if (stellar?.groups.length !== 5 || stellar.none.length !== 0 ||
-        stellar.all.length !== 5 || stellar.max < 20)
-      throw new Error(`Star catalogue controls failed: ${JSON.stringify(stellar)}`);
+    if (
+      stellar?.groups.length !== 5 ||
+      stellar.none.length !== 0 ||
+      stellar.all.length !== 5 ||
+      stellar.max < 20
+    )
+      throw new Error(
+        `Star catalogue controls failed: ${JSON.stringify(stellar)}`,
+      );
     for (const query of ["Sirius", "WR 99"]) {
       const star = await focusSearchResult(client, query);
       if (!star?.count) throw new Error(`Missing stellar test target ${query}`);
       // Embedded hosts use the documented nested SelectedTarget coordinates.
-      if (query === "WR 99") await client.send("Runtime.evaluate", {
-        expression: `(() => {
+      if (query === "WR 99")
+        await client.send("Runtime.evaluate", {
+          expression: `(() => {
           const viewer = globalThis.__CELESTIA_ATLAS_VIEWER__;
           const { raDeg, decDeg, frame, ...target } = viewer.search('WR 99')[0];
           viewer.select({ ...target, coordinates: { raDeg, decDeg, frame } });
         })()`,
-      });
+        });
       await delay(300);
       await assertCentredMarkerHitTest(client, x, y, star.detailTitle);
     }
-    for (const [query, name, type] of [["RR Lyr", "RR Lyr", "RRAB"], ["Mira", "omi Cet", "M"]]) {
+    for (const [query, name, type] of [
+      ["RR Lyr", "RR Lyr", "RRAB"],
+      ["Mira", "omi Cet", "M"],
+    ]) {
       const variable = await focusSearchResult(client, query);
       if (!variable?.count) throw new Error(`Missing variable star ${query}`);
       const detail = await client.send("Runtime.evaluate", {
@@ -998,9 +1162,15 @@ async function run() {
         returnByValue: true,
       });
       const content = detail.result?.value || "";
-      if (!content.includes(name) || !content.includes(type) ||
-          !content.includes("Catalogue magnitude range") || !content.includes("GCVS 5.1"))
-        throw new Error(`Variable star metadata failed for ${query}: ${content}`);
+      if (
+        !content.includes(name) ||
+        !content.includes(type) ||
+        !content.includes("Catalogue magnitude range") ||
+        !content.includes("GCVS 5.1")
+      )
+        throw new Error(
+          `Variable star metadata failed for ${query}: ${content}`,
+        );
     }
     const gcvsToggle = await client.send("Runtime.evaluate", {
       expression: `(() => {
@@ -1014,9 +1184,14 @@ async function run() {
       })()`,
       returnByValue: true,
     });
-    if (!gcvsToggle.result?.value?.available || !gcvsToggle.result?.value?.hidden ||
-        !gcvsToggle.result?.value?.restored)
-      throw new Error(`GCVS source filter failed: ${JSON.stringify(gcvsToggle.result?.value)}`);
+    if (
+      !gcvsToggle.result?.value?.available ||
+      !gcvsToggle.result?.value?.hidden ||
+      !gcvsToggle.result?.value?.restored
+    )
+      throw new Error(
+        `GCVS source filter failed: ${JSON.stringify(gcvsToggle.result?.value)}`,
+      );
     await focusSearchResult(client, searchQuery);
     await delay(300);
     const beforeDragHash = await currentHash(client);

@@ -68,7 +68,7 @@ The default source is DSS2 Color image HiPS.
 
 ### Startup
 
-The viewer attempts to load the standard order-3 `Allsky.jpg` mosaic as a low-resolution continuity layer.
+The viewer attempts to load the standard order-3 Allsky mosaic as a low-resolution continuity layer. When its preview pixels meet the current display resolution, it draws only Allsky and suppresses detail requests and prefetch. For 512-pixel tiles with 64-pixel previews this means an unclamped required order at or below 0. Higher-density viewports or closer zoom request detail normally; a missing or invalid Allsky falls back to regular tiles.
 
 ### Tile selection
 
@@ -88,8 +88,7 @@ Norder{order}/Dir{group}/Npix{tileIndex}.{format}
 
 ### Fetch and rendering
 
-The browser checks Cache Storage before fetching a tile and decodes it once into
-RGBA pixels. The normal renderer uploads each decoded tile to one WebGL texture
+The browser checks Cache Storage before fetching a tile. On WebGL-capable browsers, detail responses decode directly from Blob to ImageBitmap and upload to one WebGL texture without object URLs or canvas pixel readback. Bitmaps retain the existing HEALPix orientation, count against the decoded memory budget, and are closed on eviction, cancellation, source changes and destruction. Canvas-only renderers, unsupported bitmap decoders and the shared Allsky mosaic retain the RGBA path. The renderer
 and projects it on a tessellated, curved HEALPix mesh. Moving the view changes
 the small mesh, not a viewport-sized bitmap.
 
@@ -117,7 +116,7 @@ The viewer and service worker share:
 celestia-atlas-survey-v1
 ```
 
-The cache is limited to approximately 512 survey resources. Storage and quota failures are non-fatal.
+The cache is limited to 4096 compressed survey resources shared across survey sources (an entry limit, not a byte limit). The service worker batches trimming every 64 writes, allowing at most 63 extra resources between passes; the viewer also debounces maintenance. Storage and quota failures are non-fatal.
 
 ## Offline behavior
 

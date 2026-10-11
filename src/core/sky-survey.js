@@ -135,7 +135,7 @@ export function skySurveyBlendOpacity(
 }
 
 /** Select the first order whose survey pixel is no larger than a view pixel. */
-export function selectSkySurveyOrder(surveyValue, fovDeg, viewportWidthPixels) {
+export function skySurveyExactOrder(surveyValue, fovDeg, viewportWidthPixels) {
   const survey = validateSkySurveyConfig(surveyValue);
   if (!Number.isFinite(fovDeg) || fovDeg <= 0 || fovDeg >= 180)
     throw new RangeError("Survey field of view must be in (0, 180) degrees");
@@ -144,10 +144,30 @@ export function selectSkySurveyOrder(surveyValue, fovDeg, viewportWidthPixels) {
 
   const planeStep = (2 * Math.tan((fovDeg * DEG) / 2)) / viewportWidthPixels;
   const viewPixelDeg = Math.atan(planeStep) * RAD;
-  const exactOrder = Math.log2(
+  return Math.log2(
     HIPS_BASE_CELL_RESOLUTION_DEG /
       (survey.tileWidth * Math.max(Number.EPSILON, viewPixelDeg)),
   );
+}
+
+export function skySurveyAllskySufficient(
+  survey,
+  fovDeg,
+  width,
+  previewWidth = 64,
+) {
+  if (!Number.isFinite(previewWidth) || previewWidth < 2)
+    throw new RangeError("Allsky preview width must be at least two pixels");
+  const config = validateSkySurveyConfig(survey);
+  return (
+    skySurveyExactOrder(config, fovDeg, width) <=
+    3 - Math.log2(config.tileWidth / previewWidth) + 1e-12
+  );
+}
+
+export function selectSkySurveyOrder(surveyValue, fovDeg, viewportWidthPixels) {
+  const survey = validateSkySurveyConfig(surveyValue);
+  const exactOrder = skySurveyExactOrder(survey, fovDeg, viewportWidthPixels);
   // Remove floating-point noise when the requested scale lies exactly on an
   // order boundary, then choose the finer order for all other fractional cases.
   const selected = Math.ceil(exactOrder - 1e-12);

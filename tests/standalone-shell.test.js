@@ -20,7 +20,10 @@ test("standalone shell boots the shared public viewer", async () => {
     readFile(new URL("../src/public-api.js", import.meta.url), "utf8"),
     readFile(new URL("../src/index.d.ts", import.meta.url), "utf8"),
     readFile(new URL("../service-worker.js", import.meta.url), "utf8"),
-    readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8"),
+    readFile(
+      new URL("../.github/workflows/pages.yml", import.meta.url),
+      "utf8",
+    ),
   ]);
   assert.match(html, /type="module" src="standalone-app\.js"/);
   assert.match(
@@ -166,7 +169,7 @@ test("standalone shell boots the shared public viewer", async () => {
     publicApi,
     /SKY_SURVEY_PERSISTENT_CACHE = "celestia-atlas-survey-v1"/,
   );
-  assert.match(publicApi, /SKY_SURVEY_PERSISTENT_CACHE_LIMIT = 512/);
+  assert.match(publicApi, /SKY_SURVEY_PERSISTENT_CACHE_LIMIT = 4096/);
   assert.match(
     publicApi,
     /globalThis\.caches\.open\(SKY_SURVEY_PERSISTENT_CACHE\)/,
@@ -212,7 +215,7 @@ test("standalone shell boots the shared public viewer", async () => {
   assert.match(serviceWorker, /\.\/src\/core\/sky-survey\.js/);
   assert.match(serviceWorker, /\.\/src\/core\/sky-survey-webgl\.js/);
   assert.match(serviceWorker, /celestia-atlas-survey-v1/);
-  assert.match(serviceWorker, /SURVEY_CACHE_LIMIT\s*=\s*512/);
+  assert.match(serviceWorker, /SURVEY_CACHE_LIMIT\s*=\s*4096/);
   assert.match(serviceWorker, /\.\/stellarium-supplement\.js/);
   assert.match(serviceWorker, /\.\/abell-pn-catalog\.js/);
   assert.match(serviceWorker, /\.\/hyg-star-catalog\.js/);
@@ -298,8 +301,14 @@ test("mobile renderer keeps expensive work inside bounded frame contracts", asyn
   assert.match(publicApi, /const dsoLabelBudget/);
   assert.match(publicApi, /placedDsoLabelBoxes\.some/);
   assert.match(publicApi, /const renderStars = stars[\s\S]*\.sort\(/);
-  assert.match(publicApi, /const renderStars = stars\s*\.filter\(\(star\) => star.searchOnly !== true\)/);
-  assert.match(publicApi, /renderStars.map\(\(\{ star \}\) => objectIdentity\(star\)\)/);
+  assert.match(
+    publicApi,
+    /const renderStars = stars\s*\.filter\(\(star\) => star.searchOnly !== true\)/,
+  );
+  assert.match(
+    publicApi,
+    /renderStars\s*\.map\(\(\{ star \}\) => objectIdentity\(star\)\)/,
+  );
   assert.match(publicApi, /selected\?\.searchOnly === true/);
   assert.match(publicApi, /function starColorFromBv\(/);
   assert.match(publicApi, /const interactionStarMagnitudeLimit/);

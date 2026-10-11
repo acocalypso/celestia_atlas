@@ -9,6 +9,7 @@ import {
   rasterizeSkySurvey,
   rasterizeSkySurveyAsync,
   selectSkySurveyOrder,
+  skySurveyAllskySufficient,
   skySurveyBlendOpacity,
   skySurveyAllskyTileKey,
   skySurveyPixelAngularSizeDeg,
@@ -234,6 +235,26 @@ test("normalizes HiPS identifiers independently of the browser locale", () => {
   } finally {
     String.prototype.toLocaleLowerCase = localeLowerCase;
   }
+});
+
+test("Allsky resolution uses the unclamped order at wide fields", () => {
+  const survey = fixtureSurvey({ minOrder: 3, maxOrder: 8, tileWidth: 512 });
+  const width = 128;
+  const previewPixel = skySurveyPixelAngularSizeDeg(3, 64);
+  const boundary =
+    2 * Math.atan((width * Math.tan(previewPixel * DEG)) / 2) * RAD;
+  assert.equal(selectSkySurveyOrder(survey, 130, width), 3);
+  assert.equal(skySurveyAllskySufficient(survey, 130, width), true);
+  assert.equal(skySurveyAllskySufficient(survey, boundary, width), true);
+  assert.equal(
+    skySurveyAllskySufficient(survey, boundary * 0.99, width),
+    false,
+  );
+  assert.equal(skySurveyAllskySufficient(survey, boundary, width * 2), false);
+  assert.equal(
+    skySurveyAllskySufficient(survey, boundary, width * 2, 128),
+    true,
+  );
 });
 
 test("selects the first HiPS order fine enough for a gnomonic view pixel", () => {
