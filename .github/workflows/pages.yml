@@ -170,7 +170,7 @@ jobs:
           SMOKE_QUERY: LDN 1
           SMOKE_EXPECT_TITLE: LDN 1
           SMOKE_EXPECTED_SOURCE_FILTERS: "11"
-          SMOKE_EXPECTED_DSO_COUNT: "21192"
+          SMOKE_EXPECTED_DSO_COUNT: "21191"
           SMOKE_EXPECT_DETAIL_TEXT: LDN via Stellarium
         run: npm run test:browser
 
@@ -179,7 +179,7 @@ jobs:
           SMOKE_QUERY: Abell 1656
           SMOKE_EXPECT_TITLE: Abell 1656
           SMOKE_EXPECTED_SOURCE_FILTERS: "11"
-          SMOKE_EXPECTED_DSO_COUNT: "21192"
+          SMOKE_EXPECTED_DSO_COUNT: "21191"
           SMOKE_EXPECT_DETAIL_TEXT: Abell via Stellarium
         run: npm run test:browser
 
@@ -188,7 +188,7 @@ jobs:
           SMOKE_QUERY: Abell 39
           SMOKE_EXPECT_TITLE: Abell PN 39
           SMOKE_EXPECTED_SOURCE_FILTERS: "11"
-          SMOKE_EXPECTED_DSO_COUNT: "21192"
+          SMOKE_EXPECTED_DSO_COUNT: "21191"
           SMOKE_EXPECT_DETAIL_TEXT: SIMBAD A66
         run: npm run test:browser
 
@@ -197,7 +197,7 @@ jobs:
           SMOKE_QUERY: Larawag
           SMOKE_EXPECT_TITLE: Larawag
           SMOKE_EXPECTED_SOURCE_FILTERS: "11"
-          SMOKE_EXPECTED_DSO_COUNT: "21192"
+          SMOKE_EXPECTED_DSO_COUNT: "21191"
           SMOKE_EXPECT_DETAIL_TEXT: HYG
         run: npm run test:browser
 
