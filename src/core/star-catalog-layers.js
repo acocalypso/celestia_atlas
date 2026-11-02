@@ -1,10 +1,17 @@
 import { normalizeCatalogIdentifier } from "./catalog-identifiers.js";
 
-const unique = (values) => [...new Set(values.flat().filter(Boolean))];
+const unique = (values) => {
+  const seen = new Set();
+  return values.flat().filter(Boolean).filter(value => {
+    const key = String(value).toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+};
 const designations = (star) => unique([
   star.id, star.name, star.alias, star.aliases ?? [],
   ...["hd", "hip", "hyg"].map((key) =>
-    Number.isSafeInteger(star[key]) && star[key] > 0 ? `${key} ${star[key]}` : ""),
+    Number.isSafeInteger(star[key]) && star[key] > 0 ? `${key.toUpperCase()} ${star[key]}` : ""),
 ]);
 const identityKeys = (star) => designations(star)
   // WR component separators carry identity (WR 20-1 is not WR 201).
@@ -28,6 +35,13 @@ export function starCatalogueMask(star) {
 /** Compose search metadata once, without modifying separately licensed inputs. */
 export function composeStarCatalog({ curated = [], hyg = [], curatedCrossIds = [],
   hygSearch = [], sao = [], wr = [] } = {}) {
+  for (const [label, records] of Object.entries({ curated, hyg, curatedCrossIds, hygSearch, sao, wr })) {
+    if (!Array.isArray(records)) throw new TypeError(`${label} must be an array`);
+    records.forEach((record, index) => {
+      if (!record || typeof record !== "object" || Array.isArray(record))
+        throw new TypeError(`${label}[${index}] must be a star record`);
+    });
+  }
   const byName = new Map();
   for (const entry of curatedCrossIds) {
     if (!entry.curatedName) continue;

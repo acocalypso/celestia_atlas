@@ -63,7 +63,7 @@ function createHarness(fetchImplementation = async () => new Response("live")) {
     },
   };
   const self = {
-    location: { origin: APP_ORIGIN },
+    location: { origin: APP_ORIGIN, href: `${APP_BASE}service-worker.js` },
     clients: { claim: async () => {} },
     skipWaiting: async () => {},
     addEventListener(type, handler) {
@@ -72,6 +72,9 @@ function createHarness(fetchImplementation = async () => new Response("live")) {
   };
   const context = vm.createContext({
     Array,
+    AbortController,
+    setTimeout,
+    clearTimeout,
     Promise,
     Request,
     Response,
@@ -114,7 +117,7 @@ test("precaches the offline app core without precaching remote survey tiles", as
   const harness = createHarness();
   await harness.dispatch("install");
 
-  const core = harness.stores.get("celestia-atlas-offline-v42");
+  const core = harness.stores.get("celestia-atlas-offline-v43");
   assert.ok(core);
   for (const path of [
     "sao-star-crossids.js",
@@ -216,7 +219,7 @@ test("NSNS PNG tiles use the bounded survey cache and remain available offline",
   });
   assert.equal(await second.response.text(), "narrowband-tile");
   assert.equal(
-    await harness.stores.get("celestia-atlas-offline-v42")?.match(tile),
+    await harness.stores.get("celestia-atlas-offline-v43")?.match(tile),
     undefined,
   );
 });
@@ -234,7 +237,7 @@ test("stores same-origin HiPS tiles only in the bounded survey cache", async () 
   const survey = harness.stores.get("celestia-atlas-survey-v1");
   assert.equal(await (await survey.match(surveyUrl)).text(), "local-survey");
   assert.equal(
-    await harness.stores.get("celestia-atlas-offline-v42")?.match(surveyUrl),
+    await harness.stores.get("celestia-atlas-offline-v43")?.match(surveyUrl),
     undefined,
   );
 });
@@ -321,7 +324,7 @@ test("leaves other cross-origin requests alone and keeps landscapes in the core 
   assert.equal(landscape.responded, true);
   assert.equal(await landscape.response.text(), "precache");
   assert.equal(networkRequests, 0);
-  const core = harness.stores.get("celestia-atlas-offline-v42");
+  const core = harness.stores.get("celestia-atlas-offline-v43");
   assert.equal(await (await core.match(landscapeUrl)).text(), "precache");
   assert.equal(
     await harness.stores.get("celestia-atlas-survey-v1")?.match(landscapeUrl),
@@ -339,7 +342,7 @@ test("activation removes only superseded Atlas caches", async () => {
     "celestia-atlas-offline-v37",
     "celestia-atlas-offline-v38",
     "celestia-atlas-offline-v39",
-    "celestia-atlas-offline-v42",
+    "celestia-atlas-offline-v43",
     "celestia-atlas-survey-v29",
     "celestia-atlas-survey-v1",
     "another-app-cache-v1",
@@ -358,6 +361,34 @@ test("activation removes only superseded Atlas caches", async () => {
     "celestia-atlas-survey-v29",
   ]);
   assert.equal(harness.stores.has("another-app-cache-v1"), true);
-  assert.equal(harness.stores.has("celestia-atlas-offline-v42"), true);
+  assert.equal(harness.stores.has("celestia-atlas-offline-v43"), true);
   assert.equal(harness.stores.has("celestia-atlas-survey-v1"), true);
+});
+
+
+test("serves cached scripts without network and rejects captive-portal HTML", async () => {
+  let calls = 0;
+  const harness = createHarness(async () => {
+    calls++;
+    return new Response("<html>login</html>", { headers: { "content-type": "text/html" } });
+  });
+  const core = await harness.caches.open("celestia-atlas-offline-v43");
+  const url = `${APP_BASE}src/index.js`;
+  await core.put(url, new Response("export {}", { headers: { "content-type": "text/javascript" } }));
+  const cached = await harness.dispatch("fetch", { request: new Request(url) });
+  assert.equal(await cached.response.text(), "export {}");
+  assert.equal(calls, 0);
+  const missing = `${APP_BASE}src/missing.js`;
+  await harness.dispatch("fetch", { request: new Request(missing) });
+  assert.equal(await core.match(missing), undefined);
+});
+
+test("navigation uses the cached shell on HTTP failure", async () => {
+  const harness = createHarness(async () => new Response("unavailable", { status: 503 }));
+  const core = await harness.caches.open("celestia-atlas-offline-v43");
+  await core.put(`${APP_BASE}index.html`, new Response("offline shell"));
+  const result = await harness.dispatch("fetch", {
+    request: { url: APP_BASE, method: "GET", mode: "navigate" },
+  });
+  assert.equal(await result.response.text(), "offline shell");
 });

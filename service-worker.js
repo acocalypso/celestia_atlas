@@ -1,7 +1,7 @@
 try {
   importScripts("./dso-images.js");
 } catch (e) {}
-const CACHE = "celestia-atlas-offline-v42";
+const CACHE = "celestia-atlas-offline-v43";
 // Keep the survey schema independent from routine app-shell cache releases.
 const SURVEY_CACHE = "celestia-atlas-survey-v1";
 const SURVEY_CACHE_LIMIT = 4096;
@@ -55,6 +55,8 @@ const CORE = [
   "./data/comets.js",
   "./manifest.webmanifest",
   "./assets/milky-way.webp",
+  "./assets/icon-192.png",
+  "./assets/icon-512.png",
   "./assets/landscapes/touchnstars/properties",
   "./assets/landscapes/touchnstars/Norder0/Allsky.webp",
   "./assets/landscapes/touchnstars/Norder0/Dir0/Npix0.webp",
@@ -78,7 +80,7 @@ self.addEventListener("install", (event) =>
   event.waitUntil(
     (async () => {
       const cache = await caches.open(CACHE);
-      await cache.addAll(CORE);
+      await cache.addAll(CORE.map(url => new Request(new URL(url, self.location.href), { cache: "reload" })));
       await Promise.allSettled(IMAGES.map((file) => cache.add(file)));
       await self.skipWaiting();
     })(),
@@ -104,18 +106,37 @@ self.addEventListener("activate", (event) =>
   ),
 );
 
+function validShellResponse(request, response) {
+  if (!response?.ok) return false;
+  const path = new URL(request.url).pathname;
+  const type = response.headers.get("content-type") ?? "";
+  if (/\.m?js$/.test(path)) return /(?:javascript|ecmascript)/i.test(type);
+  if (/\.css$/.test(path)) return /text\/css/i.test(type);
+  if (/\.(?:json|webmanifest)$/.test(path)) return /(?:json|manifest)/i.test(type);
+  if (request.mode === "navigate" || /\.html$/.test(path)) return /text\/html/i.test(type);
+  return true;
+}
+
 async function networkFirst(request, fallback) {
   const cache = await caches.open(CACHE);
+  const controller = new AbortController();
+  let timeout;
   try {
-    const response = await fetch(request, { cache: "no-store" });
-    if (response && response.ok) await cache.put(request, response.clone());
+    const response = await Promise.race([
+      fetch(request, { signal: controller.signal }),
+      new Promise((_, reject) => { timeout = setTimeout(() => {
+        controller.abort();
+        reject(new Error("Navigation timed out"));
+      }, 3000); }),
+    ]);
+    if (!validShellResponse(request, response)) throw new Error("Invalid shell response");
+    try { await cache.put(request, response.clone()); } catch { /* Storage is optional. */ }
     return response;
-  } catch (error) {
-    return (
-      (await cache.match(request)) ||
-      (fallback ? await cache.match(fallback) : undefined) ||
-      Response.error()
-    );
+  } catch {
+    return (await cache.match(request)) ||
+      (fallback ? await cache.match(fallback) : undefined) || Response.error();
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -125,9 +146,11 @@ async function cacheFirst(request) {
   if (cached) return cached;
   try {
     const response = await fetch(request);
-    if (response && response.ok) await cache.put(request, response.clone());
+    if (validShellResponse(request, response)) {
+      try { await cache.put(request, response.clone()); } catch { /* Storage is optional. */ }
+    }
     return response;
-  } catch (error) {
+  } catch {
     return Response.error();
   }
 }
@@ -232,5 +255,5 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(cacheFirst(event.request));
     return;
   }
-  event.respondWith(networkFirst(event.request));
+  event.respondWith(cacheFirst(event.request));
 });

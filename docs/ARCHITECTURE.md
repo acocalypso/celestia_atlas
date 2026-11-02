@@ -29,6 +29,11 @@ Local catalogues + optional image HiPS
 | `src/core/sky-survey-webgl.js`    | Progressive GPU HiPS tile compositor                        |
 | `src/core/catalog-identifiers.js` | Ranked normalized search                                    |
 | `src/core/catalog-layers.js`      | Catalogue normalization and composition                     |
+| `src/core/catalog-filters.js` | Catalogue visibility and marker classification |
+| `src/core/star-catalog-layers.js` | Exact stellar cross-identities |
+| `src/core/variable-stars.js` | Compact GCVS decoding |
+| `src/core/constellations.js` | Constellation line compilation and clipping |
+| `src/core/reference-lines.js` | Galactic/ecliptic reference coordinates |
 | `src/core/optics.js`              | Imaging-train calculations                                  |
 
 ## Render pipeline
@@ -42,8 +47,9 @@ A frame combines:
 5. Stars
 6. Deep-sky objects
 7. Solar System objects and comets
-8. Horizon and landscape
-9. Labels, selections, and imaging overlays
+8. Celestial labels (painted with their object layers)
+9. Horizon and landscape
+10. Cardinal labels, mount marker, and imaging overlays
 
 The landscape is a foreground occluder rather than a translucent sky layer.
 Its twelve order-0 HEALPix tiles use the same curved WebGL mesh compositor as
@@ -107,6 +113,9 @@ path and keeps its last complete raster visible during interaction.
 | -------------- | --------------------------------: |
 | Coarse pointer |                            64 MiB |
 | Fine pointer   |                           128 MiB |
+
+The budget covers decoded survey data only. GPU textures, canvas backing stores,
+Milky Way/landscape rasters, and catalogue/search objects are additional.
 
 ## Persistent cache
 

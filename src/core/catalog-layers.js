@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-const NGC_IC_IDENTITY = /^(ngc|ic)\s*:?\s*0*(\d+)\s*([a-z]?)$/i;
+const NGC_IC_IDENTITY = /^(ngc|ic|m)\s*:?\s*0*(\d+)\s*([a-z]?)$/i;
 
 function canonicalNgcIcIdentity(value) {
   const match = String(value ?? "")
@@ -207,7 +207,7 @@ function metadataVersionLabel(metadata) {
 /**
  * Combines a base catalogue with a separately distributed supplement.
  *
- * A supplement row is attached only when its explicit NGC/IC merge key and
+ * A supplement row is attached only when its explicit NGC/IC/Messier merge key and
  * the base catalogue form a reciprocal one-to-one match. Ambiguous and
  * unmatched rows remain independent objects. Sky position is never identity
  * evidence; after an exact reciprocal match, it can only veto an attachment
@@ -225,6 +225,11 @@ export function combineCatalogLayers(
   if (!Array.isArray(supplementObjects))
     throw new TypeError("Supplement catalogue objects must be an array");
 
+  for (const [label, records] of [["Base", baseObjects], ["Supplement", supplementObjects]])
+    records.forEach((record, index) => {
+      if (!record || typeof record !== "object" || Array.isArray(record))
+        throw new TypeError(`${label} catalogue row ${index} must be an object`);
+    });
   const baseIndicesByKey = new Map();
   for (let index = 0; index < baseObjects.length; index += 1) {
     for (const value of identityValues(baseObjects[index])) {

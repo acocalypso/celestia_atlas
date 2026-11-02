@@ -26,7 +26,11 @@ test("pinned stellar release contains real HD, SAO and WR targets with consisten
   assert.equal(d.WR_STAR_DATA.filter((star) => Number.isFinite(star.mag)).length, 230);
   assert.equal(d.HYG_STAR_DATA.filter((star) => Number.isInteger(star.hd)).length, 8758);
   assert.equal(d.SAO_STAR_CROSSIDS.length, 8850);
-  assert.equal(stars.length, 9437);
+  assert.equal(stars.length, 9432);
+  for (const [hip, name] of [[4427, "Navi"], [102488, "Aljanah"], [97165, "Delta Cygni"], [104732, "Zeta Cygni"], [39953, "Regor"]]) {
+    assert.deepEqual(searchCatalogIndex(index, `HIP ${hip}`).map(star => star.name), [name]);
+  }
+  assert.equal(searchCatalogIndex(index, "WR 11")[0].name, "Regor");
   assert.ok(stars.filter((star) => !star.searchOnly).length < 9200);
   for (const star of d.WR_STAR_DATA)
     assert.equal(star.searchOnly, !Number.isFinite(star.mag));

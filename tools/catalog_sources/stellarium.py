@@ -306,10 +306,11 @@ def _object(row: list[str], path: Path, line_number: int) -> CatalogObject | Non
                 f"dark-nebula opacity must be an integer from 1 to 6, got {v_magnitude}",
             )
         opacity_class = int(v_magnitude)
-    magnitude = None if uses_opacity else (
+    uses_star_photometry = any(target[0] == 22 for target in targets)
+    magnitude = None if uses_opacity or uses_star_photometry else (
         v_magnitude if v_magnitude is not None else b_magnitude
     )
-    magnitude_band = None if uses_opacity else (
+    magnitude_band = None if uses_opacity or uses_star_photometry else (
         "V" if v_magnitude is not None else ("B" if b_magnitude is not None else None)
     )
 
@@ -331,8 +332,10 @@ def _object(row: list[str], path: Path, line_number: int) -> CatalogObject | Non
                 "stellariumType": source_type,
                 "morphologyClass": morphology,
                 "stellariumCatalogueGroups": source_groups,
-                "bMagnitude": None if uses_opacity else b_magnitude,
-                "vMagnitude": None if uses_opacity else v_magnitude,
+                "illuminatingStarVMagnitude": v_magnitude if uses_star_photometry else None,
+                "illuminatingStarBMagnitude": b_magnitude if uses_star_photometry else None,
+                "bMagnitude": None if uses_opacity or uses_star_photometry else b_magnitude,
+                "vMagnitude": None if uses_opacity or uses_star_photometry else v_magnitude,
                 "magnitude": magnitude,
                 "magnitudeBand": magnitude_band,
                 "opacityClass": opacity_class,

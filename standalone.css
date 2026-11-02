@@ -259,3 +259,9 @@
   outline: 2px solid #62d8ff;
   outline-offset: 2px;
 }
+
+/* Keep every navigation control reachable on short landscape displays. */
+.left-rail {
+  max-height: calc(100dvh - 104px - env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+}

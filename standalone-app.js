@@ -7,6 +7,8 @@ import {
   deepSkyObjectLabel,
   equatorialToHorizontal,
   horizontalToEquatorial,
+  localSiderealDegrees,
+  validateObserver,
 } from "./src/index.js";
 import { composeStarCatalog, STAR_CATALOGUE_BITS, starCatalogueMask } from "./src/core/star-catalog-layers.js";
 
@@ -450,6 +452,7 @@ function showDetails(value) {
     target.maxMagnitude ?? target.maxMagnitudeText,
     target.minMagnitude ?? target.minMagnitudeText,
   ].filter((value) => value !== undefined && value !== null && value !== "").join("–");
+  const amplitude = target.magnitudeAmplitude;
   const variableRange = variableMagnitude
     ? `${variableMagnitude}${target.magnitudeBand ? ` ${target.magnitudeBand}` : ""}`
     : undefined;
@@ -460,10 +463,13 @@ function showDetails(value) {
     <div class="detail-grid">
       ${detailCell("Right ascension", formatRa(raDeg))}
       ${detailCell("Declination", formatDec(decDeg))}
-      ${detailCell("Altitude now", `${horizontal.altitudeDeg.toFixed(1)}°`)}
+      ${detailCell("Geometric altitude", `${horizontal.altitudeDeg.toFixed(1)}°`)}
       ${detailCell("Magnitude", Number.isFinite(target.magnitude) ? target.magnitude.toFixed(2) : target.variabilityType ? "Variable" : "Not available")}
+      ${detailCell("Orbital elements epoch", target.orbitalElementsEpoch)}
+      ${detailCell("Orbit accuracy", target.orbitalElementsEpoch && Math.abs(viewer.getTime() - Date.parse(target.orbitalElementsEpoch)) > 365.25 * 86400000 ? "Elements over one year from view date; approximate orbit" : undefined)}
       ${detailCell("Variability class", target.variabilityType)}
       ${detailCell("Catalogue magnitude range", variableRange)}
+      ${detailCell("Magnitude amplitude", amplitude)}
       ${detailCell("Catalogue period", Number.isFinite(target.periodDays) ? `${target.periodDays} days` : undefined)}
       ${detailCell("Dimensions", shape.dimensions)}
       ${detailCell("Shape", shape.kind)}
@@ -599,7 +605,7 @@ function applyFieldOfView() {
       widthDeg: optics.widthDeg,
       heightDeg: optics.heightDeg,
       rotationDeg,
-      rotationConvention: "clockwise-from-celestial-north",
+      rotationConvention: "north-through-east",
       mosaic:
         columns > 1 || rows > 1 ? { columns, rows, overlapPercent } : undefined,
     });
@@ -633,7 +639,7 @@ function updateStatus() {
   const atlasState = viewer.getState();
   currentView = atlasState.view;
   const time = viewer.getTime();
-  if (state.timeRate) viewer.setTime(time);
+
   const horizontal = updateCompass(atlasState, time);
   $("#coordReadout").textContent =
     state.mode === "horizontal"
@@ -641,12 +647,14 @@ function updateStatus() {
       : `RA ${formatRa(currentView.center.raDeg)} · Dec ${formatDec(currentView.center.decDeg)}`;
   $("#fovReadout").textContent =
     `FoV ${currentView.fovDeg.toFixed(currentView.fovDeg < 10 ? 1 : 0)}°`;
-  $("#dateTimeValue").textContent = new Date(time).toLocaleString();
+  $("#dateTimeValue").textContent = new Date(time).toLocaleString([], { timeZoneName: "short" });
   $("#clockLabel").textContent = new Date(time).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
-  const survey = viewer.getState().skySurvey;
+  $("#lstValue").textContent = `Mean LST ${formatRa(localSiderealDegrees(time, state.observer.longitudeDeg))}`;
+  $("#locationName").textContent = `${state.observer.latitudeDeg.toFixed(2)}?, ${state.observer.longitudeDeg.toFixed(2)}?`;
+  const survey = atlasState.skySurvey;
   $("#statusText").textContent =
     !survey.enabled || !survey.configured
       ? "Offline atlas ready"
@@ -660,11 +668,12 @@ function updateStatus() {
 function saveHash() {
   const params = new URLSearchParams({
     mode: state.mode,
+    t: new Date(viewer.getTime()).toISOString(),
     ra: currentView.center.raDeg.toFixed(5),
     dec: currentView.center.decDeg.toFixed(5),
     fov: currentView.fovDeg.toFixed(3),
-    lat: state.observer.latitudeDeg.toFixed(5),
-    lon: state.observer.longitudeDeg.toFixed(5),
+    lat: state.observer.latitudeDeg.toFixed(2),
+    lon: state.observer.longitudeDeg.toFixed(2),
   });
   history.replaceState(null, "", `#${params}`);
 }
@@ -672,11 +681,12 @@ function saveHash() {
 function loadHash() {
   if (!location.hash) return;
   const params = new URLSearchParams(location.hash.slice(1));
-  const raDeg = Number(params.get("ra"));
-  const decDeg = Number(params.get("dec"));
-  const fovDeg = Number(params.get("fov"));
-  const latitudeDeg = Number(params.get("lat"));
-  const longitudeDeg = Number(params.get("lon"));
+  const number = key => params.has(key) && params.get(key).trim() ? Number(params.get(key)) : NaN;
+  const raDeg = number("ra");
+  const decDeg = number("dec");
+  const fovDeg = number("fov");
+  const latitudeDeg = number("lat");
+  const longitudeDeg = number("lon");
   if (params.get("mode") === "equatorial") state.mode = "equatorial";
   if (Number.isFinite(latitudeDeg) && latitudeDeg >= -90 && latitudeDeg <= 90)
     state.observer.latitudeDeg = latitudeDeg;
@@ -686,7 +696,7 @@ function loadHash() {
     Number.isFinite(decDeg) &&
     decDeg >= -90 &&
     decDeg <= 90 &&
-    Number.isFinite(fovDeg)
+    Number.isFinite(fovDeg) && fovDeg > 0
   )
     currentView = {
       center: { raDeg, decDeg, frame: "ICRS" },
@@ -916,17 +926,33 @@ function installControls() {
       (button.onclick = () =>
         viewer.setTime(viewer.getTime() + Number(button.dataset.time))),
   );
-  $("#nowButton").onclick = () => viewer.setTime(Date.now());
+  $("#nowButton").onclick = () => {
+    state.timeRate = 1;
+    viewer.setTime(Date.now()); viewer.setTimeRate(1);
+    $("#playButton").textContent = "? Pause";
+    updateStatus(); saveHash();
+  };
+  $("#applyTimeButton").onclick = () => {
+    const input = $("#utcTimeInput").value;
+    const utcMs = Date.parse(`${input}Z`);
+    try { viewer.setTime(utcMs); updateStatus(); saveHash(); }
+    catch (error) { showToast(error.message); }
+  };
   $("#playButton").onclick = () => {
     state.timeRate = state.timeRate ? 0 : 120;
     viewer.setTimeRate(state.timeRate);
     $("#playButton").textContent = state.timeRate ? "Ⅱ Pause" : "▶ Play 120×";
   };
   $("#applyLocationButton").onclick = () => {
-    state.observer.latitudeDeg = Number($("#latitudeInput").value);
-    state.observer.longitudeDeg = Number($("#longitudeInput").value);
-    viewer.setObserver(state.observer);
-    saveHash();
+    try {
+      const lat = $("#latitudeInput").value.trim();
+      const lon = $("#longitudeInput").value.trim();
+      if (!lat || !lon) throw new TypeError("Enter both latitude and longitude");
+      const nextObserver = validateObserver({ ...state.observer, latitudeDeg: Number(lat), longitudeDeg: Number(lon) });
+      viewer.setObserver(nextObserver);
+      state.observer = nextObserver;
+      updateStatus(); saveHash();
+    } catch (error) { showToast(error.message); }
   };
   $("#locateButton").onclick = () =>
     navigator.geolocation?.getCurrentPosition(
@@ -1101,7 +1127,12 @@ function initialize() {
     globalThis.__CELESTIA_ATLAS_VIEWER__ = viewer;
     globalThis.__CELESTIA_ATLAS_SKY_SURVEY_SOURCE__ = configuredSkySurveySource;
   }
+  const sharedTime = new URLSearchParams(location.hash.slice(1)).get("t");
   viewer.setView(currentView);
+  if (sharedTime) {
+    try { viewer.setTime(Date.parse(sharedTime)); }
+    catch (error) { showToast(error.message); }
+  }
   initializeCatalogueFilters();
   applyDisplayOptions();
   void applyLandscape();
@@ -1121,7 +1152,7 @@ function initialize() {
   updateStatus();
   setMode(state.mode);
   updateStatus();
-  setInterval(updateStatus, 1000);
+  setInterval(() => { if (!document.hidden) updateStatus(); }, 1000);
   setInterval(() => {
     if (state.compass && !document.hidden) updateCompass();
   }, 100);

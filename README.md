@@ -19,7 +19,7 @@ Core search and sky calculations run locally. An optional DSS2 Color photographi
 - View the Touch'N'Stars landscape by default. Embedded hosts can provide a custom horizon or another HEALPix landscape.
 - Overlay a camera field of view or mosaic and zoom into optional DSS2 Color photographic imagery.
 
-The public build includes 9,437 plotted searchable stars, 63,291 additional searchable GCVS variable-star entries, and 21,192 deep-sky catalogue markers, including all 110 Messier designations. Variable entries are search targets with catalogue magnitude ranges and periods where available; their brightness is not animated. The catalogues and their source terms are documented in [CATALOGUES.md](docs/CATALOGUES.md).
+The public build includes 9,134 plotted stars plus 298 search-only stellar identities, 63,291 additional searchable GCVS variable-star entries, and 21,191 deep-sky catalogue markers, including all 110 Messier designations. Variable entries are search targets with catalogue magnitude ranges and periods where available; their brightness is not animated. The catalogues and their source terms are documented in [CATALOGUES.md](docs/CATALOGUES.md).
 
 ## Run the standalone atlas
 

@@ -32,7 +32,11 @@ export function decodeVariableStars(data) {
     if (typeof maximum === "number") star.maxMagnitude = maximum;
     else if (typeof maximum === "string") star.maxMagnitudeText = maximum;
     if (typeof minimum === "number") star.minMagnitude = minimum;
-    else if (typeof minimum === "string") star.minMagnitudeText = minimum;
+    else if (typeof minimum === "string") {
+      const amplitude = minimum.match(/^\(\s*([0-9.]+)\s*\)$/);
+      if (amplitude && Number.isFinite(Number(amplitude[1]))) star.magnitudeAmplitude = Number(amplitude[1]);
+      else star.minMagnitudeText = minimum;
+    }
     if (magnitudeBand) star.magnitudeBand = magnitudeBand;
     if (Number.isFinite(periodDays) && periodDays > 0)
       star.periodDays = periodDays;

@@ -8,17 +8,26 @@ import {
 const VERTEX_SHADER = `
 attribute vec2 a_position;
 attribute vec2 a_texture;
+attribute float a_visibility;
 varying vec2 v_texture;
+varying float v_visibility;
 void main() {
   gl_Position = vec4(a_position, 0.0, 1.0);
   v_texture = a_texture;
+  v_visibility = a_visibility;
 }`;
 
 const FRAGMENT_SHADER = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
 precision mediump float;
+#endif
 uniform sampler2D u_image;
 varying vec2 v_texture;
+varying float v_visibility;
 void main() {
+  if (v_visibility < 0.0) discard;
   gl_FragColor = texture2D(u_image, v_texture);
 }`;
 
@@ -119,7 +128,7 @@ function contiguousPixels(tile) {
  * used by native planetarium engines: every tile is a GPU texture on a curved
  * mesh and an already-loaded ancestor covers it until full detail arrives.
  */
-export function createSkySurveyWebglRenderer(canvas) {
+export function createSkySurveyWebglRenderer(canvas, onRestore = () => {}) {
   const gl = canvas.getContext("webgl", {
     alpha: true,
     antialias: true,
@@ -134,6 +143,7 @@ export function createSkySurveyWebglRenderer(canvas) {
   let buffer;
   let positionLocation;
   let textureLocation;
+  let visibilityLocation;
   const textures = new Map();
   let contextLost = false;
   let disposed = false;
@@ -142,11 +152,15 @@ export function createSkySurveyWebglRenderer(canvas) {
     buffer = gl.createBuffer();
     positionLocation = gl.getAttribLocation(program, "a_position");
     textureLocation = gl.getAttribLocation(program, "a_texture");
+    visibilityLocation = gl.getAttribLocation(program, "a_visibility");
   };
-  initializeResources();
+  try { initializeResources(); }
+  catch (error) { gl.getExtension("WEBGL_lose_context")?.loseContext(); throw error; }
   canvas.addEventListener("webglcontextlost", (event) => {
     event.preventDefault();
+    if (disposed) return;
     contextLost = true;
+    onRestore();
     textures.clear();
     program = null;
     buffer = null;
@@ -156,6 +170,7 @@ export function createSkySurveyWebglRenderer(canvas) {
     try {
       initializeResources();
       contextLost = false;
+      onRestore();
     } catch {
       contextLost = true;
     }
@@ -210,7 +225,7 @@ export function createSkySurveyWebglRenderer(canvas) {
     outputWidth,
     tileOutputFrame = view.center.frame,
     mapCoordinates = (coordinates) => coordinates,
-    isCoordinateVisible = () => true,
+    coordinateVisibility = () => 1,
   }) => {
     if (contextLost || !width || !height || !tileIndices.length)
       return { drawn: false, usedOrders: [], usedTileKeys: [] };
@@ -229,8 +244,10 @@ export function createSkySurveyWebglRenderer(canvas) {
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.enableVertexAttribArray(positionLocation);
     gl.enableVertexAttribArray(textureLocation);
-    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 16, 0);
-    gl.vertexAttribPointer(textureLocation, 2, gl.FLOAT, false, 16, 8);
+    gl.enableVertexAttribArray(visibilityLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 20, 0);
+    gl.vertexAttribPointer(textureLocation, 2, gl.FLOAT, false, 20, 8);
+    gl.vertexAttribPointer(visibilityLocation, 1, gl.FLOAT, false, 20, 16);
 
     const usedOrders = new Set();
     const usedTileKeys = new Set();
@@ -267,9 +284,7 @@ export function createSkySurveyWebglRenderer(canvas) {
               tileOutputFrame,
             ),
           );
-          const projected = isCoordinateVisible(coordinates)
-            ? projectEquatorial(coordinates, view, width, height)
-            : null;
+          const projected = projectEquatorial(coordinates, view, width, height);
           points.push(
             projected
               ? {
@@ -277,6 +292,7 @@ export function createSkySurveyWebglRenderer(canvas) {
                   y: 1 - (projected.y / height) * 2,
                   u: (sourceOffsetY + u) / scale,
                   v: (sourceOffsetX + v) / scale,
+                  visibility: coordinateVisibility(coordinates),
                 }
               : null,
           );
@@ -284,7 +300,7 @@ export function createSkySurveyWebglRenderer(canvas) {
       }
       const vertices = [];
       const append = (point) => {
-        vertices.push(point.x, point.y, point.u, point.v);
+        vertices.push(point.x, point.y, point.u, point.v, point.visibility);
       };
       for (let row = 0; row < subdivisions; row += 1) {
         for (let column = 0; column < subdivisions; column += 1) {
@@ -311,8 +327,8 @@ export function createSkySurveyWebglRenderer(canvas) {
         new Float32Array(vertices),
         gl.STREAM_DRAW,
       );
-      gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 4);
-      triangleCount += vertices.length / 12;
+      gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 5);
+      triangleCount += vertices.length / 15;
       usedOrders.add(source.order);
       usedTileKeys.add(source.key);
       liveTextureKeys.add(source.key);
@@ -335,6 +351,7 @@ export function createSkySurveyWebglRenderer(canvas) {
   };
 
   const destroy = () => {
+    if (disposed) return;
     disposed = true;
     for (const entry of textures.values()) gl.deleteTexture(entry.texture);
     textures.clear();
@@ -342,6 +359,7 @@ export function createSkySurveyWebglRenderer(canvas) {
     if (program) gl.deleteProgram(program);
     buffer = null;
     program = null;
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
   };
-  return { render, destroy };
+  return { render, destroy, isContextLost: () => contextLost };
 }

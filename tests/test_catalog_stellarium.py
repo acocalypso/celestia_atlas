@@ -90,8 +90,9 @@ class StellariumSourceImporterTests(unittest.TestCase):
             emission.catalogue_groups,
             ("sharpless", "vdb", "rcw", "lbn"),
         )
-        self.assertEqual(emission.properties["magnitude"], 8.4)
-        self.assertEqual(emission.properties["magnitudeBand"], "V")
+        self.assertNotIn("magnitude", emission.properties)
+        self.assertEqual(emission.properties["illuminatingStarVMagnitude"], 8.4)
+        self.assertNotIn("magnitudeBand", emission.properties)
 
         interacting = objects[2]
         self.assertEqual(interacting.primary_name, "Sh2-191")

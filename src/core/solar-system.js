@@ -6,7 +6,7 @@ import {
   JupiterMoons,
   Observer as AstronomyObserver,
   ObserverVector,
-} from "astronomy-engine";
+} from "../../vendor/astronomy-engine-2.1.19.esm.js";
 import { normalizeDegrees, validateObserver } from "./coordinates.js";
 
 const LIGHT_MILLISECONDS_PER_AU = 499.004783836 * 1000;

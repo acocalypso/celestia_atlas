@@ -7,6 +7,10 @@
 - Galactic latitude `b = +90°` is at the top.
 - The texture is a visual sky background, not calibrated scientific survey data.
 
+Most astronomical panoramas use longitude increasing to the left. Flip those
+images horizontally before supplying them to this sampler; the convention here
+is an explicit texture contract, not a universal panorama convention.
+
 You can replace it with another 2:1 equirectangular Galactic-coordinate panorama while keeping the same filename. The shared canvas viewer projects it into the live observer view and aligns it with the star and DSO catalogues.
 
 When using third-party survey imagery, retain the required attribution and licence information in this folder and in the About panel.

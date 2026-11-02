@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const input = path.resolve(root, process.argv[2] ?? "data/sources/CometEls.txt");
-const source = fs.readFileSync(input, "utf8");
+const source = fs.readFileSync(input, "utf8").replace(/\r?\n/g, "\r\n");
 
 function number(line, start, end) {
   const value = Number.parseFloat(line.slice(start, end).trim());
@@ -54,6 +54,8 @@ const objects = source
       inclinationDeg,
       absoluteMagnitude,
       slope,
+      epochDate: /^\d{8}$/.test(line.slice(81, 89))
+        ? `${line.slice(81, 85)}-${line.slice(85, 87)}-${line.slice(87, 89)}` : undefined,
       reference: line.slice(159, 168).trim(),
     };
   });
@@ -62,6 +64,7 @@ const payload = {
   meta: {
     source: "IAU Minor Planet Center CometEls",
     format: "MPC Ephemerides and Orbital Elements comet format",
+    sourceHashNormalization: "CRLF line endings",
     sourceSha256: crypto.createHash("sha256").update(source).digest("hex"),
     objectCount: objects.length,
   },

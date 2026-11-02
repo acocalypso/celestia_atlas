@@ -116,7 +116,16 @@ test("returns Jupiter's four Galilean moons and matches JPL Horizons for Io", ()
     raDeg: 15 * (2 + 34 / 60 + 41.61 / 3600),
     decDeg: 14 + 11 / 60 + 28.9 / 3600,
   };
+  // Astronomy Engine has a shared absolute Jupiter-position error. Test the
+  // satellite offset separately so this cannot pass with Io at Jupiter's centre.
   assert.ok(angularSeparationDeg(moons[0], horizonsIo) < 1 / 60);
+  // JPL Horizons observer ephemerides (599 and 501), same Berlin site/time,
+  // QUANTITIES=1, ANG_FORMAT=DEG, EXTRA_PREC=YES; retrieved 2026-11-02.
+  const jupiter = getSolarSystemObjects(timestamp, BERLIN).find(object => object.name === "Jupiter");
+  const referenceDeltaRa = 38.673362697 - 38.683921472;
+  const referenceDeltaDec = 14.191361008 - 14.193419863;
+  assert.ok(Math.abs((moons[0].raDeg - jupiter.raDeg) - referenceDeltaRa) < 5 / 3600);
+  assert.ok(Math.abs((moons[0].decDeg - jupiter.decDeg) - referenceDeltaDec) < 5 / 3600);
   const later = getJupiterMoonObjects(timestamp + 6 * 3600000, BERLIN);
   assert.ok(angularSeparationDeg(moons[0], later[0]) > 0.01);
 });

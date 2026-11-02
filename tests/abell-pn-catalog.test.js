@@ -151,7 +151,7 @@ test("A66-before-Stellarium layering resolves the two Abell namespaces", async (
     withA66.meta,
     stellarium.meta,
   );
-  assert.equal(layered.objects.length, 21_191);
+  assert.equal(layered.objects.length, 21_190);
   assert.equal(layered.meta.supplementAttachmentPositionConflicts, 4);
   assert.ok(layered.meta.catalogueGroups.includes("abell-pn"));
   assert.ok(layered.meta.catalogueGroups.includes("abell"));

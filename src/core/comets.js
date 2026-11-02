@@ -4,7 +4,7 @@ import {
   MakeTime,
   Observer as AstronomyObserver,
   ObserverVector,
-} from "astronomy-engine";
+} from "../../vendor/astronomy-engine-2.1.19.esm.js";
 import cometCatalog from "../../data/comets.js";
 import { normalizeDegrees, validateObserver } from "./coordinates.js";
 
@@ -175,7 +175,7 @@ export function getCometObjects(
       Number.isFinite(item.absoluteMagnitude) && Number.isFinite(item.slope)
         ? item.absoluteMagnitude +
           5 * Math.log10(distanceAu) +
-          item.slope * Math.log10(position.distanceAu)
+          2.5 * item.slope * Math.log10(position.distanceAu)
         : undefined;
     const raDeg = normalizeDegrees(Math.atan2(relative.y, relative.x) / DEG);
     const decDeg = Math.asin(relative.z / distanceAu) / DEG;
@@ -192,6 +192,7 @@ export function getCometObjects(
       catalogSource: "IAU Minor Planet Center",
       catalogueSource: "IAU Minor Planet Center",
       reference: item.reference,
+      orbitalElementsEpoch: item.epochDate,
       raDeg,
       decDeg,
       frame: "J2000",

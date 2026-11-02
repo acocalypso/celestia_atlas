@@ -4,6 +4,7 @@ export interface EquatorialCoordinates {
   raDeg: number;
   decDeg: number;
   frame: EquatorialFrame;
+  /** Metadata only; the frame always defines the axes. Does not precess JNow input. */
   epochJulianYear?: number;
 }
 export interface Observer {
@@ -27,7 +28,8 @@ export interface FieldOfViewOverlay {
   heightDeg: number;
   rotationDeg: number;
   rotationConvention:
-    "clockwise-from-celestial-north" | "counterclockwise-from-celestial-north";
+    "north-through-east" | "clockwise-from-celestial-north" | "counterclockwise-from-celestial-north";
+  /** Each dimension is an integer in [1, 50]; overlap is in [0, 100). */
   mosaic?: { columns: number; rows: number; overlapPercent: number };
 }
 export interface ImagingTrain {
@@ -189,6 +191,7 @@ export interface SelectedTarget {
   objectType?: string;
   parentBody?: string;
   mag?: number;
+  magBand?: "B" | "V" | string;
   magnitude?: number;
   angularSizeArcMin?: { major?: number; minor?: number };
   shape?: CatalogueShape;
@@ -223,6 +226,7 @@ export interface StarCatalogueObject {
   decDeg: number;
   frame: EquatorialFrame;
   mag?: number;
+  magBand?: "B" | "V" | string;
   magnitude?: number;
   [key: string]: unknown;
 }
@@ -268,6 +272,7 @@ export interface SolarSystemObject extends SelectedTarget {
   epochJulianYear: 2000;
 }
 export interface CometObject extends SelectedTarget {
+  orbitalElementsEpoch?: string;
   id: string;
   objectType: "comet";
   distanceAu: number;
@@ -289,10 +294,14 @@ export interface CometElements {
   ascendingNodeDeg: number;
   inclinationDeg: number;
   absoluteMagnitude?: number;
+  /** MPC heliocentric activity exponent, used as 2.5 * slope * log10(r). */
   slope?: number;
+  epochDate?: string;
   reference?: string;
 }
 export interface ViewState {
+  rotationDeg?: number;
+  mirrorX?: boolean;
   center: EquatorialCoordinates;
   fovDeg: number;
 }
@@ -303,10 +312,13 @@ export interface CelestiaAtlasViewer {
   destroy(): void;
   setCoordinateMode(value: CoordinateMode): void;
   setObserver(value: Observer): void;
+  /** UTC milliseconds within years 1 through 3998; otherwise throws RangeError. */
   setTime(timestampUtcMs: number): void;
   setTimeRate(value: number): void;
   getTime(): number;
   getView(): ViewState;
+  /** Current projection basis, including mode rotation and east-left handedness. */
+  getProjectionView(): ViewState;
   setView(value: ViewState): void;
   setMountPosition(value: MountPosition | null): void;
   setMountFollow(value: boolean): void;
@@ -507,6 +519,7 @@ export function combineCatalogLayers<
   meta: CatalogueLayerMetadata;
 };
 export function julianDate(timestampUtcMs: number): number;
+/** Mean local sidereal angle (GMST + longitude), for mean-of-date hour angles. */
 export function localSiderealDegrees(
   timestampUtcMs: number,
   longitudeDeg: number,
@@ -612,3 +625,37 @@ export function getCometObjects(
   elements?: unknown[],
 ): CometObject[];
 export function validateCometElements(elements: unknown): CometElements[];
+
+
+export interface Vector3 { x: number; y: number; z: number }
+export interface CanvasPoint { x: number; y: number }
+export function projectEquatorial(coordinates: EquatorialCoordinates, view: ViewState, width: number, height: number): CanvasPoint | null;
+export function unprojectEquatorial(x: number, y: number, view: ViewState, width: number, height: number): EquatorialCoordinates;
+export function projectCelestialEllipseAxes(coordinates: EquatorialCoordinates, majorExtentDeg: number, minorExtentDeg: number, positionAngleDeg: number, view: ViewState, width: number, height: number): { center: CanvasPoint; majorAxis: CanvasPoint; minorAxis: CanvasPoint } | null;
+export function horizonAltitudeAtAzimuth(points: HorizonPoint[], azimuthDeg: number, fallback?: number): number;
+export function panHorizontalView(center: HorizontalCoordinates, dx: number, dy: number, fovDeg: number, height: number): HorizontalCoordinates;
+export function pinchZoomFov(startFovDeg: number, startDistance: number, currentDistance: number): number;
+export function eclipticToEquatorial(longitudeDeg: number, latitudeDeg?: number): EquatorialCoordinates;
+export function galacticToEquatorial(longitudeDeg: number, latitudeDeg?: number): EquatorialCoordinates;
+export function propagateComet(elements: Pick<CometElements, "qAu" | "eccentricity" | "perihelionTt">, terrestrialDaysSinceJ2000: number): { x: number; y: number; distanceAu: number };
+export function skySurveyExactOrder(survey: SkySurveySource, fovDeg: number, viewportWidthPixels: number): number;
+export function skySurveyAllskySufficient(survey: SkySurveySource, fovDeg: number, viewportWidthPixels: number, allskyTileWidth?: number): boolean;
+export function skySurveyAllskyTileKey(order: number, tileIndex: number): string;
+export function fitSkySurveyOrderToTileBudget(survey: SkySurveySource, order: number, tileBudget: number, visibleTileCountForOrder: (order: number) => number, options?: { includePreview?: boolean }): { targetOrder: number; previewOrder: number; requiredTileCount: number };
+export function landscapeRasterWidth(cssWidth: number, devicePixelRatio: number, interactive: boolean, coarsePointer?: boolean): number;
+export function horizontalToHealpixPixel(azimuthDeg: number, altitudeDeg: number, tileWidth?: number): { face: number; x: number; y: number };
+export interface EquatorialRayGeometry { first: Vector3; across: Vector3; down: Vector3 }
+export interface HorizontalVector { east: number; north: number; up: number }
+export interface HorizontalRayGeometry { first: HorizontalVector; across: HorizontalVector; down: HorizontalVector }
+/** Low-level raster geometry; prefer rasterizeHealpixLandscape for ordinary hosts. */
+export function createEquatorialRayGeometry(options: { view: ViewState; canvasWidth: number; canvasHeight: number; rasterWidth: number; rasterHeight: number }): EquatorialRayGeometry;
+export function createEquatorialToHorizontalVectorTransform(observer: Observer, timestampUtcMs: number, frame: EquatorialFrame): (vector: Vector3) => { east: number; north: number; up: number };
+export function equatorialRayGeometryToHorizontal(geometry: EquatorialRayGeometry, observer: Observer, timestampUtcMs: number, frame: EquatorialFrame): HorizontalRayGeometry;
+export function sampleTileBilinear(source: Uint8ClampedArray, tileWidth: number, x: number, y: number, output: Uint8ClampedArray, targetIndex: number, sourceStride?: number, sourceOffsetX?: number, sourceOffsetY?: number): void;
+export interface LandscapeRasterOptions {
+  tiles: SkySurveyTilePixels[]; view: ViewState; observer: Observer; timestampUtcMs: number;
+  canvasWidth: number; canvasHeight: number; outputWidth?: number;
+}
+export interface PixelRaster { width: number; height: number; data: Uint8ClampedArray }
+export function rasterizeHealpixLandscape(options: LandscapeRasterOptions): PixelRaster;
+export function rasterizeMilkyWayPanorama(options: Omit<LandscapeRasterOptions, "tiles"> & { panorama: SkySurveyTilePixels; hideBelowHorizon?: boolean; horizon?: HorizonPoint[] }): PixelRaster;

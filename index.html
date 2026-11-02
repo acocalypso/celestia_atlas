@@ -45,12 +45,12 @@
             id="searchInput"
             type="search"
             spellcheck="false"
-            placeholder="Search Sirius, M31, Abell 39, LDN 1, or coordinates"
+            placeholder="Search Sirius, M31, Abell 39, LDN 1"
             aria-label="Search local sky catalog"
           />
           <kbd>/</kbd>
           <button type="submit">Go</button>
-          <div id="searchResults" class="search-results" role="listbox"></div>
+          <div id="searchResults" class="search-results" role="group" aria-label="Search results"></div>
         </form>
 
         <div class="top-actions">
@@ -371,12 +371,16 @@
         <div class="section-title">
           <span>Time</span><time id="dateTimeValue">—</time>
         </div>
+        <div class="location-grid">
+          <label>UTC date and time<input id="utcTimeInput" type="datetime-local" /></label>
+          <button id="applyTimeButton" type="button">Set UTC time</button>
+        </div>
         <div class="time-controls">
           <button type="button" data-time="-86400000">−1d</button
           ><button type="button" data-time="-3600000">−1h</button>
           <button id="nowButton" type="button" class="accent">Now</button>
           <button type="button" data-time="3600000">+1h</button
-          ><button type="button" data-time="86400000">+1d</button>
+          ><button type="button" data-time="86400000">+24h</button>
         </div>
         <div class="play-row">
           <button id="playButton" type="button">▶ Play 120×</button
@@ -422,7 +426,7 @@
         <div class="toggle-row">
           <span>Photographic sky survey</span
           ><label class="switch"
-            ><input id="skySurveySwitch" type="checkbox" checked aria-label="Photographic sky survey" /><i></i
+            ><input id="skySurveySwitch" type="checkbox" checked aria-description="Visible imagery is fetched from the selected third-party survey host and cached locally." aria-label="Photographic sky survey" /><i></i
           ></label>
         </div>
         <div class="sky-survey-selector">

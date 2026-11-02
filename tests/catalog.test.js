@@ -178,8 +178,9 @@ test("public Stellarium layer exposes searchable LDN and Abell records without m
     baseMetadata,
     context.window.STELLARIUM_DSO_SUPPLEMENT_META,
   );
-  assert.equal(layered.objects.length, 21110);
-  assert.equal(layered.meta.objectCount, 21110);
+  assert.equal(layered.objects.length, 21109);
+  assert.equal(layered.objects.filter(object => object.id === "M8" || object.aliases?.includes("M8")).length, 1);
+  assert.equal(layered.meta.objectCount, 21109);
   assert.equal(layered.meta.supplementAttachmentPositionConflicts, 4);
   assert.deepEqual(layered.meta.catalogueGroups, [
     "abell",
@@ -215,4 +216,20 @@ test("public Stellarium layer exposes searchable LDN and Abell records without m
   assert.equal(abellResults[0].catalogSource, "Abell via Stellarium");
   assert.equal(abellResults[0].typeCode, "GCluster");
   assert.equal(abellResults[0].type, "Galaxy cluster");
+});
+
+
+test("standalone curation preserves catalogue photometry and distinct named nebulae", async () => {
+  const context = vm.createContext({ window: {} });
+  for (const file of ["catalog.js", "dso-catalog.js"])
+    vm.runInContext(await readFile(new URL(`../${file}`, import.meta.url), "utf8"), context);
+  const objects = context.window.DSO_DATA;
+  assert.equal(objects.filter(object => object.id === "M16").length, 1);
+  assert.ok(objects.some(object => object.id === "IC 4703"));
+  const canonical = JSON.parse(await readFile(dataUrl("dso-viewer-catalog.json"), "utf8")).objects;
+  for (const id of ["M20", "M22", "NGC 253"]) {
+    const source = canonical.find(object => object.id === id || object.aliases?.includes(id));
+    const displayed = objects.find(object => object.id === id);
+    assert.equal(displayed.mag, source.mag, id);
+  }
 });

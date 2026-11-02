@@ -38,9 +38,9 @@ SOURCE_PAGE = (
 LICENSE_URL = (
     "https://github.com/Stellarium/stellarium/blob/{version}/COPYING"
 )
-# Cross-layer attachment is deliberately limited to unique NGC/IC identities.
+# Cross-layer attachment is deliberately limited to unique NGC/IC/Messier identities.
 # Repeated historical nebula designations often represent distinct components.
-MERGE_NAMESPACES = {"ic", "ngc"}
+MERGE_NAMESPACES = {"ic", "ngc", "m"}
 
 
 def _sha256(path: Path) -> str:

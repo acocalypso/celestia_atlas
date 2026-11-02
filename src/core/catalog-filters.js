@@ -53,6 +53,7 @@ export function isGalaxyObject(object) {
  */
 export function classifyDeepSkyObject(object) {
   const typeCode = normalizedFacet(object?.typeCode);
+  if (typeCode === "cl+n") return "nebula";
   if (typeCode === "drkn") return "dark-nebula";
   if (typeCode === "rfn") return "reflection-nebula";
   if (typeCode === "emn" || typeCode === "hii") return "emission-nebula";
@@ -73,7 +74,7 @@ export function classifyDeepSkyObject(object) {
   if (type.includes("globular")) return "globular-cluster";
   if (type.includes("open cluster") || type.includes("association"))
     return "open-cluster";
-  if (type.includes("nebula") || type.includes("remnant")) return "nebula";
+  if (type.includes("nebula") || type.includes("nebulosity") || type.includes("remnant")) return "nebula";
   return "other";
 }
 

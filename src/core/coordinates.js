@@ -2,7 +2,7 @@ import {
   InverseRotation,
   Observer as AstronomyObserver,
   Rotation_EQJ_HOR,
-} from "astronomy-engine";
+} from "../../vendor/astronomy-engine-2.1.19.esm.js";
 
 const DEG = Math.PI / 180;
 const RAD = 180 / Math.PI;

@@ -37,6 +37,11 @@ class IdentifierTests(unittest.TestCase):
         self.assert_search_equivalent("vdB 142", "VdB142", "van den Bergh 142")
         self.assert_search_equivalent("RCW 104", "RCW104")
 
+    def test_sharpless_numbers_starting_with_two_are_not_truncated(self):
+        for number in [2, 20, 29, 200, 299, 310]:
+            self.assertEqual(identifier_key(f"Sharpless {number}"), f"sh2:{number}")
+            self.assertEqual(identifier_key(f"Sh2-{number}"), f"sh2:{number}")
+
     def test_abell_and_aco_variants_include_the_southern_catalogue(self):
         self.assert_search_equivalent("Abell 1656", "Abell1656", "ACO 1656", "ACO1656")
         self.assert_search_equivalent(

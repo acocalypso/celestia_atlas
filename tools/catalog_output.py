@@ -124,6 +124,7 @@ def compact_object(obj: CatalogObject) -> dict[str, Any]:
         "associatedIdentifiers",
         "illuminatingStarSpectralType",
         "illuminatingStarVMagnitude",
+        "illuminatingStarBMagnitude",
         "bluePlateRadiusArcmin",
         "redPlateRadiusArcmin",
         "complex",
@@ -186,6 +187,7 @@ def compact_object(obj: CatalogObject) -> dict[str, Any]:
             "minor": obj.shape.minor_arcmin if openngc_only else None,
             "positionAngle": obj.shape.position_angle_deg if openngc_only else None,
             "mag": magnitude,
+            "magBand": properties.get("magnitudeBand"),
         }
     )
     return result
@@ -319,7 +321,7 @@ def write_outputs(
         "(()=>{\n"
         "const full=window.DSO_CATALOG_DATA||[];\n"
         "const curated=Array.isArray(window.DSO_DATA)?window.DSO_DATA:[];\n"
-        "const key=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,'');\n"
+        "const key=value=>{const normalized=String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,'');return /^(?:m|ngc|ic)\\d+[a-z]?$/.test(normalized)?normalized:'';};\n"
         "const curatedByKey=new Map();\n"
         "for(const item of curated)for(const value of [item.id,item.catalogId,item.name,...(item.aliases||[])]){const normalized=key(value);if(normalized&&!curatedByKey.has(normalized))curatedByKey.set(normalized,item);}\n"
         "const used=new Set();\n"
@@ -331,7 +333,7 @@ def write_outputs(
         "const aliases=[...(item.aliases||[]),item.catalogId,extra.id,extra.catalogId,extra.name,...(extra.aliases||[])].filter(Boolean);\n"
         "const seen=new Set();\n"
         "const unique=aliases.filter(value=>{const normalized=key(value);if(!normalized||seen.has(normalized)||normalized===key(extra.id||item.id))return false;seen.add(normalized);return true;});\n"
-        "return {...item,...extra,uid:item.uid,id:extra.id||item.id,catalogId:item.catalogId||extra.catalogId,raDeg:item.raDeg,decDeg:item.decDeg,frame:item.frame,typeCode:item.typeCode||extra.typeCode,catalogueGroups:item.catalogueGroups,sources:item.sources,shape:item.shape,properties:item.properties,aliases:unique,catalogSource:item.catalogSource};\n"
+        "return {...item,...extra,mag:item.mag,uid:item.uid,id:extra.id||item.id,catalogId:item.catalogId||extra.catalogId,raDeg:item.raDeg,decDeg:item.decDeg,frame:item.frame,typeCode:item.typeCode||extra.typeCode,catalogueGroups:item.catalogueGroups,sources:item.sources,shape:item.shape,properties:item.properties,aliases:unique,catalogSource:item.catalogSource};\n"
         "});\n"
         "for(const extra of curated)if(!used.has(extra))merged.push(extra);\n"
         "window.DSO_DATA=merged;\n"

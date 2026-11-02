@@ -40,3 +40,12 @@ test("the compact decoder rejects malformed coordinates", () => {
   assert.throws(() => decodeVariableStars({ rows: [["123456", "X", 360, 0]] }), TypeError);
   assert.deepEqual(decodeVariableStars(null), []);
 });
+
+
+test("GCVS parenthesized amplitudes are not reported as minimum magnitudes", () => {
+  const [star] = decodeVariableStars({ rows: [["123456", "Example", 10, 20, "EA", 16.04, "(  0.026   )", "r'"]] });
+  assert.equal(star.maxMagnitude, 16.04);
+  assert.equal(star.magnitudeAmplitude, 0.026);
+  assert.equal(star.minMagnitude, undefined);
+  assert.equal(star.minMagnitudeText, undefined);
+});

@@ -50,7 +50,7 @@
   "rightsPolicy": "Catalogue-specific public redistribution permission has not been established. Downloads are for acknowledged local scientific use and review only.",
   "schemaVersion": 1,
   "transformSoftware": {
-    "astropy": "8.0.1"
+    "astropy": "8.0.2"
   },
   "vizierServiceDoi": "10.26093/cds/vizier"
 }

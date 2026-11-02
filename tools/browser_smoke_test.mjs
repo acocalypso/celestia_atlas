@@ -699,6 +699,16 @@ async function run() {
     const target = await devtoolsTarget(debugPort, chrome, () => chromeStderr);
     trace("Chrome DevTools ready");
     client = cdpClient(target.webSocketDebuggerUrl, (method, params) => {
+      if (method === "Network.requestWillBeSent") {
+        const url = new URL(params.request.url);
+        const local = url.origin === `http://127.0.0.1:${sitePort}`;
+        const survey = (url.origin === "https://stpubdata.s3.us-east-1.amazonaws.com" &&
+          url.pathname.startsWith("/mast/skybackgrounds/DSSColor/")) ||
+          (url.origin === "https://www.simg.de" && url.pathname.startsWith("/nebulae3/dr0_2/ohs8/"));
+        if (["http:", "https:"].includes(url.protocol) && !local &&
+            !(survey && /\/Norder\d+\/.*\.(?:jpg|png|webp)$/.test(url.pathname) && ["Image", "Fetch"].includes(params.type)))
+          errors.push(`Unexpected network request (${params.type}): ${url.href}`);
+      }
       if (
         offlineReloadStarted &&
         method === "Network.responseReceived" &&
@@ -735,6 +745,7 @@ async function run() {
           "Fetch",
           "XHR",
           "Manifest",
+          "Font", "Ping", "Media",
         ].includes(params.type) &&
         params.errorText !== "net::ERR_ABORTED"
       ) {
@@ -751,6 +762,7 @@ async function run() {
           "Fetch",
           "XHR",
           "Manifest",
+          "Font", "Ping", "Media",
         ].includes(params.type) &&
         params.response?.status >= 400
       ) {

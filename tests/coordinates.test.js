@@ -1,3 +1,5 @@
+// Exact numerical fixtures below are regression locks; they are not independent
+// reference implementations. SOFA/frame fixtures test the coordinate conventions.
 import test from "node:test";
 import assert from "node:assert/strict";
 import {

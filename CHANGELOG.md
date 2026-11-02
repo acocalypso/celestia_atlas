@@ -2,6 +2,18 @@
 
 ## v9
 
+- Corrected comet photometry, equatorial sky orientation and inverse-projection
+  dragging; added an explicit astronomical camera position-angle convention and
+  projection-basis access for host overlays while retaining legacy conventions.
+- Made survey previews demand-loaded and cancellable, scheduled time playback,
+  bounded time/mosaic input, and hardened viewer validation, callbacks and GPU
+  lifecycle. App-shell caching now avoids downloading the full shell on each visit.
+- Corrected nebula photometry and stellar/catalogue cross-identities, retained
+  magnitude bands and comet element epochs, synchronized API declarations/docs,
+  and added viewer lifecycle, network and integration regression coverage.
+- Updated the catalogue build dependency to Astropy 8.0.2; regenerated catalogue
+  objects are unchanged by the dependency upgrade.
+
 - Added an offline GCVS 5.1 search layer with 63,291 positioned named variable
   stars, familiar-name aliases, variability classes, magnitude ranges, and
   reported periods. Variable entries are searchable without duplicate plotting
@@ -34,7 +46,7 @@
   horizons, and remains behind catalogue/grid/landscape overlays.
 - Added bounded mobile/desktop tile loading, gesture-time preview orders,
   non-fatal Milky Way fallback, conditional in-view attribution, an embed API
-  and standalone toggle. A separate 512-tile Cache Storage layer shared by the
+  and standalone toggle. A separate 4096-entry Cache Storage layer shared by the
   viewer and service worker can preserve viewed fields offline in standalone
   and embedded builds when browser storage permits, without attempting to
   redistribute the full survey.

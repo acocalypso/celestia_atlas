@@ -24,7 +24,7 @@ def _catalog_match(value: str) -> tuple[str, str] | None:
         (r"^(?:lynds\s+dark\s+nebula|ldn)\s*0*(\d+)$", "ldn"),
         (r"^(?:barnard|b)\s*0*(\d+)\s*([a-z]?)$", "barnard"),
         (r"^(?:lynds\s+bright\s+nebula|lbn)\s*0*(\d+)$", "lbn"),
-        (r"^(?:sharpless|sh)\s*2?\s*[- ]?\s*0*(\d+)$", "sh2"),
+        (r"^(?:sharpless\s+(?:2\s*[- ]\s*)?|sh\s*2\s*[- ]\s*|sh\s+)0*(\d+)$", "sh2"),
         (r"^(?:van\s+den\s+bergh|vdb)\s*0*(\d+)$", "vdb"),
         (r"^rcw\s*0*(\d+)$", "rcw"),
         (r"^(?:abell|aco)\s*(s?)\s*0*(\d+)$", "abell"),

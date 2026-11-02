@@ -94,7 +94,8 @@ if (result) {
 }
 ```
 
-Search covers the complete local catalogue even when an object is hidden by rendering filters.
+Static star/DSO search covers hidden catalogue objects. Solar-system and comet
+search follow their layer toggles; GCVS search follows its catalogue group.
 
 ## Display options
 
@@ -132,7 +133,7 @@ viewer.setDisplayOptions({
 });
 ```
 
-`null` means all values are allowed. An empty array hides the entire category. Search remains unrestricted.
+`null` means all values are allowed. An empty array hides the entire category. Static star/DSO search remains unrestricted; GCVS follows its catalogue group.
 
 ## Photographic survey
 
@@ -233,7 +234,7 @@ viewer.setFieldOfView({
   widthDeg: camera.widthDeg,
   heightDeg: camera.heightDeg,
   rotationDeg: 0,
-  rotationConvention: "clockwise-from-celestial-north",
+  rotationConvention: "north-through-east",
 });
 ```
 

@@ -20,6 +20,7 @@ const viewer = createCelestiaAtlasViewer({
   devicePixelRatioCap,
   milkyWayPanoramaUrl,
   skySurveySource,
+  cometElements,
   onSelect,
   onViewChange,
   onError,
@@ -129,7 +130,7 @@ viewer.setFieldOfView({
   widthDeg: 2.4,
   heightDeg: 1.6,
   rotationDeg: 0,
-  rotationConvention: "clockwise-from-celestial-north",
+  rotationConvention: "north-through-east",
 });
 ```
 
@@ -274,8 +275,8 @@ position angle must remain stable while the view moves.
 The public entry point exports helpers for combining catalogue layers,
 classifying deep-sky objects, applying catalogue/type/magnitude filters, and
 building and searching a normalized local search index. Solar-system, Jupiter
-moon, and comet calculations are also exported. Search is independent of
-display filters.
+moon, and comet calculations are also exported. Static star and DSO search ignores display filters. Solar-system and comet search
+respects their display toggles; GCVS search respects the GCVS catalogue group.
 
 Use `combineCatalogLayers` instead of concatenating sources when provenance and
 deduplication metadata matter. Filter allowlists use `null` for all values and
@@ -296,3 +297,75 @@ availability is exposed in `getState().skySurvey` so an offline miss does not
 take down the viewer.
 
 See `src/index.d.ts` for the complete typed API.
+
+
+## Orientation and integration contracts
+
+Both viewer modes use an east-left sky view. Equatorial mode keeps celestial
+north up; horizontal mode keeps the local vertical up. `getView()` returns the
+sky centre and FOV. `getProjectionView()` additionally returns the current
+`mirrorX` and `rotationDeg`; use it with `projectEquatorial` for host overlays.
+
+For camera position angles use `rotationConvention: "north-through-east"`:
+0 degrees points the frame's up axis north, 90 degrees points it east. This is
+independent of projection rotation and handedness. The older `clockwise-from-celestial-north`
+and `counterclockwise-from-celestial-north` names retain their screen-direction
+semantics for existing integrations. In the viewer's east-left projection,
+counterclockwise corresponds to astronomical north-through-east PA.
+`celestialPositionAngleCanvasRotationDeg` always takes astronomical PA.
+
+The view centre stays attached to its ICRS/J2000 target when time or observer
+changes, including in horizontal mode. This preserves mount following and
+framing; horizontal describes screen orientation, not a fixed Alt/Az anchor.
+
+`setView` accepts FOV in (0, 180] and clamps it to 130 degrees. `focusTarget(target,
+fovDeg)` clamps to [0.05, 130]. Mosaics contain at most 50 rows and 50 columns;
+overlap is [0, 100). Their panels share the central tangent plane: use them for
+small imaging fields, not precision wide-angle mosaic planning.
+
+## Time, catalogue and landscape limits
+
+Viewer UTC input is restricted to years 1?3998. Invalid times throw; advancing
+clocks stop at the boundaries. Time rates must be finite and within ?1,000,000;
+zero freezes the clock. A resumed viewer schedules its own time redraws. Pause
+suspends rendering and requests, while the logical clock continues to advance.
+
+`cometElements` supplies an initial MPC element array; `setCometElements(elements)`
+replaces it and refreshes search/rendering. `slope` is the MPC activity exponent:
+apparent magnitude is H + 5 log10(delta) + 2.5 slope log10(r). The bundled
+snapshot is not live and two-body propagation is approximate, especially far
+from the orbital-element epoch. Hosts may provide updated elements.
+
+Coordinates must already be ICRS or J2000. `epochJulianYear` is metadata and does
+not select JNow axes or perform precession; convert driver JNow coordinates
+before `setMountPosition`. Stars are fixed catalogue coordinates without proper
+motion or annual aberration. Solar-system positions use the bundled engine's
+body-specific apparent/topocentric models and Delta-T approximation. Altitudes
+are geometric, with UT1 approximated by UTC and no refraction or polar motion.
+`localSiderealDegrees` returns mean sidereal time; its hour-angle companion uses
+mean-of-date declination, not unprecessed J2000 coordinates.
+
+`setLandscape` requires twelve equal square order-0 tiles, each a power of two
+from 2 through 2048 pixels. Invalid geometry returns false and reports `onError`.
+`starCatalogueGroups` filters plotted stars by curated/HYG/HD/SAO/WR identity.
+Unknown display keys and non-boolean layer toggles are rejected; undefined
+optional values are ignored. Render failures and throwing host view callbacks
+are isolated and reported through `onError`.
+
+The decoded survey budget is 64 MiB for coarse pointers and 128 MiB otherwise.
+It is not a total viewer-memory cap: GPU copies, CPU rasters and catalogue/search
+objects require additional memory. Persistent survey storage is limited by entry
+count (4096 plus up to 63 entries between trims), not by bytes or a durability
+guarantee. Allsky previews load only when a resumed viewer actually needs visible
+survey imagery; disabling the layer or pausing/destroying aborts that load.
+
+
+The viewer uses symbolic solar-system markers and does not draw resolved disks,
+planetary phases, or Jupiter-moon transit/eclipse predictions. Labels outside the
+DSO layer can overlap. The landscape's curved mesh and interpolated survey
+horizon are rendering approximations. For observing event times or precision
+wide-angle mosaics, use a dedicated ephemeris/planning calculation.
+
+DSO magnitudes preserve the source's V measurement, or B when V is unavailable;
+`magBand` identifies that choice. Filters compare the published value, without
+an assumed universal B?V conversion for galaxies or nebulae.

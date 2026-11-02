@@ -84,6 +84,12 @@ stellarium-supplement.js
 abell-pn-catalog.js
 hyg-star-catalog.js
 gcvs-variable-stars.js
+sao-star-crossids.js
+wr-star-catalog.js
+western-constellations.js
+data/comets.js
+data/comets.json
+data/bright-sky.json
 
 data/dso-catalog.json
 data/dso-viewer-catalog.json

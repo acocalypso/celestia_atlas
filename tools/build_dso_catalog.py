@@ -30,6 +30,21 @@ from catalog_sources import openngc
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OPENNGC_VERSION = "v20260501"
+OPENNGC_SHA256 = {
+    "v20260501": {
+        "NGC.csv": "840fe0c9ee1332e551b2e722a0e92726cd7b157914a3d2177602832aadd3aa9e",
+        "addendum.csv": "1d8f0914e643ada325a5a94d88d8fefad6a4937a2f77cc34f21483af22b11983",
+    }
+}
+
+def verify_openngc_source(version: str, name: str, data: bytes) -> None:
+    expected = OPENNGC_SHA256.get(version, {}).get(name)
+    if expected is None:
+        raise ValueError(f"No reviewed OpenNGC SHA-256 pin for {version}/{name}")
+    actual = hashlib.sha256(data).hexdigest()
+    if actual != expected:
+        raise ValueError(f"OpenNGC SHA-256 mismatch for {name}: expected {expected}, got {actual}")
+
 OPENNGC_BASE = "https://raw.githubusercontent.com/mattiaverga/OpenNGC/{version}/database_files/{name}"
 USER_AGENT = "CelestiaAtlasCatalogBuilder/3.0 (+https://github.com/acocalypso/celestia_atlas)"
 SOURCE_MANIFEST = Path(__file__).with_name("catalog_sources") / "manifest.json"
@@ -77,6 +92,8 @@ def prepare_openngc_sources(
     if offline:
         if not (cache / "NGC.csv").is_file():
             raise FileNotFoundError(f"No cached OpenNGC {version}; run once without --offline")
+        for name in openngc.FILES:
+            verify_openngc_source(version, name, (cache / name).read_bytes())
         return cache
     cache.mkdir(parents=True, exist_ok=True)
     for name in openngc.FILES:
@@ -87,6 +104,7 @@ def prepare_openngc_sources(
             if name == "addendum.csv" and exc.code == 404:
                 continue
             raise
+        verify_openngc_source(version, name, data)
         temporary = (cache / name).with_suffix(".csv.tmp")
         temporary.write_bytes(data)
         temporary.replace(cache / name)

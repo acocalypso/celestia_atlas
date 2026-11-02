@@ -20,8 +20,9 @@ export function projectAngularExtent(angularExtentDeg, focalLengthPixels) {
 }
 
 /**
- * Converts a camera position angle measured from celestial north into the
- * clockwise canvas rotation that aligns the camera frame's local up axis.
+ * Converts a camera angle into the canvas rotation of the frame's up axis.
+ * "north-through-east" is an astronomical PA, independent of handedness.
+ * The two legacy conventions measure screen direction from projected north.
  */
 export function cameraFrameScreenRotationDeg(
   projectionRotationDeg,
@@ -34,6 +35,8 @@ export function cameraFrameScreenRotationDeg(
     !Number.isFinite(cameraRotationDeg)
   )
     throw new TypeError("Projection and camera rotations must be finite");
+  if (rotationConvention === "north-through-east")
+    return (mirrorX ? projectionRotationDeg - cameraRotationDeg : -projectionRotationDeg + cameraRotationDeg);
   const northBearingDeg = mirrorX
     ? projectionRotationDeg
     : -projectionRotationDeg;
