@@ -47,7 +47,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          curl \
+          # An unreachable MPC server is an outage on their side, not a broken
+          # workflow: skip this run with a warning and keep the current release.
+          # The next scheduled run retries. Bad data below still fails the run.
+          if ! curl \
             --fail \
             --location \
             --silent \
@@ -59,6 +62,11 @@ jobs:
             --max-time 180 \
             "$MPC_COMETELS_URL" \
             --output /tmp/CometEls.txt
+          then
+            echo "::warning::MPC CometEls could not be downloaded after retries; the current comet release is kept and the next scheduled run will try again."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           test -s /tmp/CometEls.txt
 
@@ -68,16 +76,31 @@ jobs:
             exit 1
           fi
 
-          source_sha="$(sha256sum /tmp/CometEls.txt | awk '{print $1}')"
+          # The builder hashes the source after normalizing line endings to CRLF
+          # (meta.sourceHashNormalization), so a pinned checkout hashes the same on
+          # every OS. MPC serves LF, so a raw sha256sum never matches; compute the
+          # hash with the builder's exact rule instead.
+          source_sha="$(
+            node --input-type=module -e '
+              import crypto from "node:crypto";
+              import fs from "node:fs";
+              const source = fs.readFileSync("/tmp/CometEls.txt", "utf8").replace(/\r?\n/g, "\r\n");
+              process.stdout.write(crypto.createHash("sha256").update(source).digest("hex"));
+            '
+          )"
+          raw_sha="$(sha256sum /tmp/CometEls.txt | awk '{print $1}')"
 
           echo "MPC records: $record_count"
-          echo "MPC SHA-256: $source_sha"
+          echo "MPC SHA-256 (CRLF-normalized, as recorded in comets.json): $source_sha"
+          echo "MPC SHA-256 (raw download): $raw_sha"
 
           echo "SOURCE_SHA=$source_sha" >> "$GITHUB_ENV"
           echo "SOURCE_RECORD_COUNT=$record_count" >> "$GITHUB_ENV"
+          echo "available=true" >> "$GITHUB_OUTPUT"
 
       - name: Check rolling release state
         id: release
+        if: steps.source.outputs.available == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
